@@ -1,0 +1,27 @@
+{
+  "scenario": "Artificial rendering stress fixture; not gameplay progression or a mobile-device benchmark.",
+  "viewport": "1280x720 at DPR 2",
+  "enemies": 60,
+  "pickups": 3,
+  "settings": {
+    "mode": "joystick",
+    "joystickSize": "medium",
+    "hand": "left",
+    "sensitivity": "medium",
+    "music": 0.35,
+    "sfx": 0.7,
+    "muted": false,
+    "reduceMotion": false,
+    "shake": true,
+    "quality": "standard"
+  },
+  "renderDpr": 1,
+  "measuredFrames": 180,
+  "averageFps": 59.67,
+  "averageFrameMs": 16.76,
+  "p95FrameMs": 16.8,
+  "slowFramesOver25ms": 1,
+  "averageDrawSubmissionMs": 0.84,
+  "p95DrawSubmissionMs": 1.4,
+  "pageErrors": []
+}

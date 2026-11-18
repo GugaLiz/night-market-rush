@@ -1,0 +1,52 @@
+import {test,expect,type Page} from '@playwright/test';
+import type {GameState} from '../../src/shared/types';
+const state=(page:Page)=>page.evaluate(()=>(window as unknown as {__gameTest:{snapshot():GameState}}).__gameTest.snapshot());
+const view=(page:Page,name:string)=>expect(page.locator('#game-shell')).toHaveAttribute('data-view',name);
+const errors=new WeakMap<Page,string[]>();
+test.beforeEach(async({page})=>{const found:string[]=[];errors.set(page,found);page.on('pageerror',error=>found.push(error.message));});
+test.afterEach(async({page})=>expect(errors.get(page)).toEqual([]));
+async function practice(page:Page){await page.goto('/');await view(page,'home');await page.getByRole('button',{name:'配送试验场',exact:true}).click();await page.getByRole('button',{name:'继续试验',exact:true}).click();await view(page,'play');}
+
+test('Space and Shift dash uses last direction, respects cooldown, and freezes in menus',async({page})=>{
+  await practice(page);
+  // No enemy is needed for forward-facing automatic attacks.
+  await expect.poll(async()=>(await state(page)).weapon.readyAt).toBeGreaterThan(0);
+  await page.keyboard.down('ArrowRight');await page.waitForTimeout(150);await page.keyboard.up('ArrowRight');
+  const before=await state(page);await page.keyboard.press('Space');
+  const launched=await state(page);expect(launched.player.dashReadyAt).toBeGreaterThan(launched.time+2.7);
+  await expect(page.locator('#dash-button')).toBeDisabled();await page.waitForTimeout(210);
+  const after=await state(page);expect(after.player.x-before.player.x).toBeGreaterThan(70);
+  const readyAt=after.player.dashReadyAt;
+  await page.keyboard.press('Shift');expect((await state(page)).player.dashReadyAt).toBe(readyAt);
+  await page.keyboard.press('Escape');await view(page,'pause');const paused=await state(page);await page.locator('#game-canvas').focus();
+  await page.keyboard.press('Space');await page.keyboard.press('Shift');await page.waitForTimeout(80);expect(await state(page)).toEqual(paused);
+  await page.getByRole('button',{name:'设置',exact:true}).click();await page.keyboard.press('Shift');expect(await state(page)).toEqual(paused);
+  await page.getByRole('button',{name:'取消',exact:true}).click();await page.getByRole('button',{name:'继续挑战',exact:true}).click();
+  await expect(page.locator('#dash-button')).toBeEnabled();await page.keyboard.down('ArrowLeft');await page.waitForTimeout(120);await page.keyboard.up('ArrowLeft');
+  const leftBefore=(await state(page)).player.x;await page.keyboard.press('Shift');await page.waitForTimeout(210);expect((await state(page)).player.x).toBeLessThan(leftBefore-70);
+  await page.keyboard.press('Escape');const stopped=await state(page);await page.waitForTimeout(100);expect(await state(page)).toEqual(stopped);
+});
+
+test.describe('touch dash',()=>{
+  test.use({viewport:{width:844,height:390},hasTouch:true,isMobile:true});
+  test('second finger dashes without releasing joystick and portrait blocks dash',async({page,context},info)=>{
+    await practice(page);
+    const rect=(await page.locator('#game-shell').boundingBox())!,button=(await page.locator('#dash-button').boundingBox())!;
+    const cdp=await context.newCDPSession(page);
+    const origin={x:rect.x+rect.width*.2,y:rect.y+rect.height*.72,id:1};
+    const moved={x:origin.x+55,y:origin.y,id:1},tap={x:button.x+button.width/2,y:button.y+button.height/2,id:2};
+    await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[origin]});
+    await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[moved]});
+    await page.waitForTimeout(70);const before=await state(page);
+    await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[moved,tap]});
+    await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[tap]});
+    await expect.poll(async()=>(await state(page)).player.dashReadyAt??0).toBeGreaterThan(0);
+    await expect(page.locator('#joystick')).toHaveClass(/is-active/);
+    await page.waitForTimeout(200);expect((await state(page)).player.x-before.player.x).toBeGreaterThan(70);
+    await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});await expect(page.locator('#joystick')).not.toHaveClass(/is-active/);
+    await page.screenshot({animations:'disabled',path:info.outputPath('v3-mobile-dash.png')});
+    await page.setViewportSize({width:390,height:844});await view(page,'rotate');const paused=await state(page);await page.locator('#game-canvas').focus();
+    await page.keyboard.press('Space');await page.keyboard.press('Shift');await page.waitForTimeout(100);expect(await state(page)).toEqual(paused);
+    await cdp.detach();
+  });
+});

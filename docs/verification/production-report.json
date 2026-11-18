@@ -1,0 +1,12 @@
+{
+  "productionURL": "http://localhost:4173",
+  "developmentHookAbsent": true,
+  "timing": {
+    "frames": 121,
+    "durationMs": 2008.3999999999996,
+    "fps": 60.24696275642303,
+    "p95FrameMs": 16.800000000000182
+  },
+  "errors": [],
+  "checkedAt": "2026-11-17T18:11:42.096Z"
+}

@@ -1,0 +1,15 @@
+{
+  "weapons": [],
+  "performance": {
+    "frames": 150,
+    "median": 16.699999999999818,
+    "p95": 16.799999999999727,
+    "enemies": 59,
+    "projectiles": 0,
+    "canvas": [
+      1280,
+      720
+    ]
+  },
+  "errors": []
+}

@@ -1,0 +1,8 @@
+node_modules/
+dist/
+test-results/
+playwright-report/
+*.log
+.night-market-server.json
+.runtime/
+.idea/
