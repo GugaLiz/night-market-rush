@@ -1,0 +1,121 @@
+{
+  "browser": "157.0.8103.79",
+  "viewport": {
+    "width": 960,
+    "height": 540
+  },
+  "capturedPageFrames": 494,
+  "media": {
+    "videoCodec": "VP8",
+    "audioCodec": "Opus",
+    "width": 960,
+    "height": 540,
+    "duration": 10.058,
+    "audioSeconds": 10.02,
+    "channels": 2,
+    "audioPeak": 0.2128089964389801,
+    "audioRms": 0.01787320222046316,
+    "seekPlaybackAt": 6.044711
+  },
+  "errors": [],
+  "method": "首页点玩法说明并返回以启用浏览器音频；从首页开始录制，点开始挑战直接进入普通第一波。实时 Chrome 触摸事件控制摇杆，第二触点点击冲刺；读取开发快照引导和核对路线。记录页面合成后的实帧及游戏原始音乐音效混音。",
+  "limits": "桌面 Chrome 模拟横屏多点触控；未验证真机、陀螺仪、扬声器听感或音画延迟。",
+  "practice": false,
+  "seed": 4024071158,
+  "wave": 1,
+  "fireAt": 1.283,
+  "fan": {
+    "x": 438.192,
+    "y": 477.771
+  },
+  "killsBeforePickup": 14,
+  "killsInFirst650ms": 20,
+  "dashAt": 1.75,
+  "dashAim": {
+    "x": 400.162,
+    "y": 413.492
+  },
+  "coinsBeforePickup": 0,
+  "firstCollectionAfterPickup": 1.517,
+  "maxStickTurnWhileCollectingDegrees": 161.418,
+  "final": {
+    "t": 9.45,
+    "kills": 62,
+    "collectedCoins": 60,
+    "hp": 100
+  },
+  "route": [
+    {
+      "t": 0.4,
+      "phase": "approach-fan",
+      "player": {
+        "x": 640,
+        "y": 370
+      },
+      "aim": {
+        "x": 438.192,
+        "y": 477.771
+      }
+    },
+    {
+      "t": 1.333,
+      "phase": "collect",
+      "player": {
+        "x": 446.946,
+        "y": 473.096
+      },
+      "aim": {
+        "x": 389.895,
+        "y": 469.747
+      }
+    },
+    {
+      "t": 4.25,
+      "phase": "cross-to-next-pickup",
+      "player": {
+        "x": 538.859,
+        "y": 587.551
+      },
+      "aim": {
+        "x": 616.879,
+        "y": 267.643
+      }
+    },
+    {
+      "t": 4.667,
+      "phase": "collect",
+      "player": {
+        "x": 592.589,
+        "y": 505.208
+      },
+      "aim": {
+        "x": 787.037,
+        "y": 335.961
+      }
+    },
+    {
+      "t": 6.133,
+      "phase": "cross-to-next-pickup",
+      "player": {
+        "x": 886.324,
+        "y": 329.578
+      },
+      "aim": {
+        "x": 730.094,
+        "y": 349.99
+      }
+    },
+    {
+      "t": 7.3,
+      "phase": "collect",
+      "player": {
+        "x": 633.418,
+        "y": 279.958
+      },
+      "aim": {
+        "x": 390.967,
+        "y": 314.963
+      }
+    }
+  ]
+}

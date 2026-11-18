@@ -7,6 +7,25 @@ test.beforeEach(async({page})=>{const found:string[]=[];errors.set(page,found);p
 test.afterEach(async({page})=>expect(errors.get(page)).toEqual([]));
 async function practice(page:Page){await page.goto('/');await view(page,'home');await page.getByRole('button',{name:'配送试验场',exact:true}).click();await page.getByRole('button',{name:'继续试验',exact:true}).click();await view(page,'play');}
 
+test('a missed foreground frame resumes movement without a menu or a catch-up jump', async ({page}) => {
+  const start = new Date('2026-01-01T00:00:00Z');
+  await page.clock.install({time: start});
+  await page.clock.pauseAt(new Date(+start + 1000));
+  await page.goto('/');
+  await page.getByRole('button', {name:'开始挑战', exact:true}).click({force:true});
+  await page.keyboard.down('ArrowRight');
+  await page.clock.runFor(96);
+  const before = await state(page);
+  await page.clock.fastForward(400);
+  await view(page, 'play');
+  const stalled = await state(page);
+  expect(stalled.time).toBe(before.time);
+  expect(stalled.player.x).toBe(before.player.x);
+  await page.clock.runFor(48);
+  expect((await state(page)).player.x).toBeGreaterThan(before.player.x);
+  await page.keyboard.up('ArrowRight');
+});
+
 test('Space and Shift dash uses last direction, respects cooldown, and freezes in menus',async({page})=>{
   await practice(page);
   // No enemy is needed for forward-facing automatic attacks.
@@ -38,6 +57,9 @@ test.describe('touch dash',()=>{
     await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[origin]});
     await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[moved]});
     await page.waitForTimeout(70);const before=await state(page);
+    const knob=(await page.locator('.joystick-knob').boundingBox())!;
+    expect(Math.abs(knob.x+knob.width/2-moved.x)).toBeLessThan(2);
+    expect(Math.abs(knob.y+knob.height/2-moved.y)).toBeLessThan(2);
     await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[moved,tap]});
     await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[tap]});
     await expect.poll(async()=>(await state(page)).player.dashReadyAt??0).toBeGreaterThan(0);

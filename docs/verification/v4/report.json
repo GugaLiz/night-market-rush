@@ -1,0 +1,449 @@
+{
+  "browser": "157.0.8103.79",
+  "viewport": [
+    1280,
+    720
+  ],
+  "fps": 25,
+  "method": "三个对照均通过首页配送试验场的正常按钮进入。方向键控制移动，无冲刺。开发快照仅读。逐帧推进浏览器时钟，每 40 ms 采集真实页面；视频以 25 fps 编码，无音轨，不能测量设备帧率、手感或音画延迟。",
+  "limits": "选定样例供项目内复查，敌人数、速度、换波时长、蓝区减速、金币算法均为项目调校。原片只确定可见现象。未测得原作的输入、判定半径或内部触发条件。",
+  "pickup": {
+    "reference": "录像 B 00:14.25–00:19.25。原片此段起点可见角色接近道具；项目的零点采用实际拾取模拟时刻，两者并非精确帧对帧同步。",
+    "clipStartSeconds": 0,
+    "clipFrames": 142,
+    "initial": {
+      "t": 0,
+      "player": {
+        "x": 390,
+        "y": 440
+      },
+      "wave": 1,
+      "hp": 100,
+      "kills": 0,
+      "survivors": 47,
+      "collected": 0,
+      "groundValue": 0,
+      "fire": 0,
+      "blue": 0
+    },
+    "inputs": [
+      {
+        "t": 0.017,
+        "key": "ArrowRight"
+      },
+      {
+        "t": 1.583,
+        "key": "ArrowDown"
+      },
+      {
+        "t": 2.15,
+        "key": "ArrowLeft"
+      },
+      {
+        "t": 3.117,
+        "key": "ArrowUp"
+      },
+      {
+        "t": 3.75,
+        "key": "ArrowRight"
+      },
+      {
+        "t": 4.383,
+        "key": null
+      }
+    ],
+    "before": {
+      "t": 0.583,
+      "player": {
+        "x": 511.275,
+        "y": 440
+      },
+      "wave": 1,
+      "hp": 100,
+      "kills": 4,
+      "survivors": 43,
+      "collected": 2,
+      "groundValue": 2,
+      "fire": 0,
+      "blue": 0,
+      "farQueueSurvivors": 8
+    },
+    "pickupAt": 0.617,
+    "samples": [
+      {
+        "t": 1.117,
+        "player": {
+          "x": 632.235,
+          "y": 440
+        },
+        "wave": 1,
+        "hp": 100,
+        "kills": 32,
+        "survivors": 15,
+        "collected": 6,
+        "groundValue": 26,
+        "fire": 6,
+        "blue": 0,
+        "farQueueSurvivors": 8,
+        "afterPickup": 0.5,
+        "target": 0.5
+      },
+      {
+        "t": 1.667,
+        "player": {
+          "x": 748.622,
+          "y": 448.353
+        },
+        "wave": 1,
+        "hp": 100,
+        "kills": 32,
+        "survivors": 15,
+        "collected": 20,
+        "groundValue": 12,
+        "fire": 6,
+        "blue": 0,
+        "farQueueSurvivors": 8,
+        "afterPickup": 1.05,
+        "target": 1
+      },
+      {
+        "t": 3.667,
+        "player": {
+          "x": 529.821,
+          "y": 454.766
+        },
+        "wave": 1,
+        "hp": 92,
+        "kills": 37,
+        "survivors": 10,
+        "collected": 32,
+        "groundValue": 5,
+        "fire": 0,
+        "blue": 0,
+        "farQueueSurvivors": 8,
+        "afterPickup": 3.05,
+        "target": 3
+      },
+      {
+        "t": 5.667,
+        "player": {
+          "x": 667.515,
+          "y": 424.88
+        },
+        "wave": 1,
+        "hp": 84,
+        "kills": 37,
+        "survivors": 10,
+        "collected": 32,
+        "groundValue": 5,
+        "fire": 0,
+        "blue": 0,
+        "farQueueSurvivors": 8,
+        "afterPickup": 5.05,
+        "target": 5
+      }
+    ]
+  },
+  "wave": {
+    "reference": "录像 B 00:39–00:42。同局转场前后跟踪实体及其世界坐标；试验场用正式换波逻辑提前到达临界时刻。",
+    "clipStartSeconds": 5.68,
+    "inputs": [],
+    "samples": {
+      "before": {
+        "t": 34.417,
+        "wave": 1,
+        "player": {
+          "x": 640,
+          "y": 370
+        },
+        "ground": {
+          "pickups": [
+            {
+              "id": 1,
+              "kind": "soda",
+              "x": 875,
+              "y": 320
+            },
+            {
+              "id": 2,
+              "kind": "fan",
+              "x": 795,
+              "y": 475
+            }
+          ],
+          "coins": [
+            {
+              "id": 3,
+              "value": 1,
+              "x": 850.648,
+              "y": 438.199
+            },
+            {
+              "id": 4,
+              "value": 1,
+              "x": 877.112,
+              "y": 433.881
+            },
+            {
+              "id": 5,
+              "value": 1,
+              "x": 897.293,
+              "y": 436.024
+            },
+            {
+              "id": 6,
+              "value": 1,
+              "x": 917.787,
+              "y": 419.712
+            },
+            {
+              "id": 7,
+              "value": 1,
+              "x": 953.008,
+              "y": 432.559
+            },
+            {
+              "id": 8,
+              "value": 1,
+              "x": 957.688,
+              "y": 418.64
+            }
+          ]
+        },
+        "meanSceneRGB": [
+          104,
+          90,
+          110
+        ],
+        "horizontalMarchers": 6
+      },
+      "during": {
+        "t": 36.55,
+        "wave": 2,
+        "player": {
+          "x": 640,
+          "y": 370
+        },
+        "ground": {
+          "pickups": [
+            {
+              "id": 1,
+              "kind": "soda",
+              "x": 875,
+              "y": 320
+            },
+            {
+              "id": 2,
+              "kind": "fan",
+              "x": 795,
+              "y": 475
+            }
+          ],
+          "coins": [
+            {
+              "id": 3,
+              "value": 1,
+              "x": 850.648,
+              "y": 438.199
+            },
+            {
+              "id": 4,
+              "value": 1,
+              "x": 877.112,
+              "y": 433.881
+            },
+            {
+              "id": 5,
+              "value": 1,
+              "x": 897.293,
+              "y": 436.024
+            },
+            {
+              "id": 6,
+              "value": 1,
+              "x": 917.787,
+              "y": 419.712
+            },
+            {
+              "id": 7,
+              "value": 1,
+              "x": 953.008,
+              "y": 432.559
+            },
+            {
+              "id": 8,
+              "value": 1,
+              "x": 957.688,
+              "y": 418.64
+            }
+          ]
+        },
+        "meanSceneRGB": [
+          57,
+          52,
+          72
+        ],
+        "horizontalMarchers": 13
+      },
+      "after": {
+        "t": 38.017,
+        "wave": 2,
+        "player": {
+          "x": 640,
+          "y": 370
+        },
+        "ground": {
+          "pickups": [
+            {
+              "id": 1,
+              "kind": "soda",
+              "x": 875,
+              "y": 320
+            },
+            {
+              "id": 2,
+              "kind": "fan",
+              "x": 795,
+              "y": 475
+            }
+          ],
+          "coins": [
+            {
+              "id": 3,
+              "value": 1,
+              "x": 850.648,
+              "y": 438.199
+            },
+            {
+              "id": 4,
+              "value": 1,
+              "x": 877.112,
+              "y": 433.881
+            },
+            {
+              "id": 5,
+              "value": 1,
+              "x": 897.293,
+              "y": 436.024
+            },
+            {
+              "id": 6,
+              "value": 1,
+              "x": 917.787,
+              "y": 419.712
+            },
+            {
+              "id": 7,
+              "value": 1,
+              "x": 953.008,
+              "y": 432.559
+            },
+            {
+              "id": 8,
+              "value": 1,
+              "x": 957.688,
+              "y": 418.64
+            }
+          ]
+        },
+        "meanSceneRGB": [
+          91,
+          86,
+          79
+        ],
+        "horizontalMarchers": 13
+      }
+    }
+  },
+  "route": {
+    "reference": "录像 A 00:18.5–00:29.5 的下沿换边，另以 01:02–01:06 对照队列、持续蓝区。此处沿同一试验场实走；道具、敌群配置和时间未逐帧匹配原片，蓝区减速是本项目设定。",
+    "start": {
+      "t": 0,
+      "player": {
+        "x": 390,
+        "y": 440
+      },
+      "wave": 1,
+      "hp": 100,
+      "kills": 0,
+      "survivors": 47,
+      "collected": 0,
+      "groundValue": 0,
+      "fire": 0,
+      "blue": 0
+    },
+    "inputs": [
+      {
+        "t": 0,
+        "key": "ArrowDown"
+      },
+      {
+        "t": 0.717,
+        "key": "ArrowRight"
+      },
+      {
+        "t": 3.033,
+        "key": "ArrowUp"
+      }
+    ],
+    "samples": [
+      {
+        "t": 0.717,
+        "player": {
+          "x": 390,
+          "y": 595.295
+        },
+        "wave": 1,
+        "hp": 100,
+        "kills": 0,
+        "survivors": 47,
+        "collected": 0,
+        "groundValue": 0,
+        "fire": 0,
+        "blue": 0,
+        "routeKey": "ArrowDown",
+        "enemiesLeftOfPlayerBy120": 0,
+        "fanStillOnGround": true
+      },
+      {
+        "t": 3.033,
+        "player": {
+          "x": 910.293,
+          "y": 606.281
+        },
+        "wave": 1,
+        "hp": 100,
+        "kills": 6,
+        "survivors": 41,
+        "collected": 4,
+        "groundValue": 2,
+        "fire": 0,
+        "blue": 0,
+        "routeKey": "ArrowRight",
+        "enemiesLeftOfPlayerBy120": 31,
+        "fanStillOnGround": true
+      },
+      {
+        "t": 4.417,
+        "player": {
+          "x": 923.083,
+          "y": 304.169
+        },
+        "wave": 1,
+        "hp": 100,
+        "kills": 10,
+        "survivors": 37,
+        "collected": 7,
+        "groundValue": 3,
+        "fire": 0,
+        "blue": 3,
+        "routeKey": "ArrowUp",
+        "enemiesLeftOfPlayerBy120": 28,
+        "fanStillOnGround": true
+      }
+    ],
+    "normalizedHorizontalTravel": 0.476,
+    "normalization": "本项目活动场宽 1120 逻辑单位；取最终与初始位置的水平位移差。"
+  },
+  "errors": []
+}

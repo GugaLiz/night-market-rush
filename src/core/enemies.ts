@@ -2,17 +2,28 @@ import type {Enemy,GameState} from '../shared/types';
 import type {CombatContext} from './contracts';
 import {CONFIG,WORLD} from './config';
 import {clamp} from './geometry';
+
+function fireSoupShot(s:GameState, e:Enemy, ctx:CombatContext):boolean {
+  const shots=s.enemyShots??(s.enemyShots=[]);
+  if(shots.length>=CONFIG.ranged.cap)return false;
+  const angle=e.shotAngle??0;
+  shots.push({id:ctx.id(),ownerId:e.id,x:e.x,y:e.y,px:e.x,py:e.y,
+    vx:Math.cos(angle)*CONFIG.ranged.speed,vy:Math.sin(angle)*CONFIG.ranged.speed,
+    radius:CONFIG.ranged.radius,damage:CONFIG.ranged.damage,bornAt:s.time,expiresAt:s.time+CONFIG.ranged.lifetime});
+  ctx.emit({type:'enemyShot',x:e.x,y:e.y,angle});
+  return true;
+}
 /** Slow dispersing crowd with stable soft separation, limited charges and aimed soup shots. */
 export function updateEnemies(s:GameState,dt:number,speedScale:number,ctx:CombatContext):Map<number,number>{
   const p=s.player,damage=new Map<number,number>(),positions=s.enemies.map(e=>({id:e.id,x:e.x,y:e.y,radius:e.radius}));
   const grid=new Map<string,typeof positions>();
   for(const e of positions){const key=`${Math.floor(e.x/64)},${Math.floor(e.y/64)}`;const cell=grid.get(key)??[];cell.push(e);grid.set(key,cell);}
   let reservations=s.enemies.filter(e=>e.kind==='box'&&(e.phase==='warn'||e.phase==='dash')).length;
-  let shotReservations=s.enemies.filter(e=>e.kind==='bowl'&&(e.shotWarnUntil??0)>0).length;
+  let shotReservations=s.enemies.filter(e=>e.kind==='bowl'&&((e.shotWarnUntil??0)>0||(e.volleyRemaining??0)>0)).length;
   for(const e of s.enemies){
     e.px=e.x;e.py=e.y;damage.set(e.id,CONFIG.enemies[e.kind].damage);
     if(!ctx.active(e))continue;
-    if(e.stunUntil>s.time){if(e.kind==='bowl'&&(e.shotWarnUntil??0)>0)shotReservations--;e.shotWarnUntil=0;e.shotReadyAt=Math.max(e.shotReadyAt??0,e.stunUntil+1);continue;}
+    if(e.stunUntil>s.time){if(e.kind==='bowl'&&((e.shotWarnUntil??0)>0||(e.volleyRemaining??0)>0))shotReservations--;e.shotWarnUntil=0;e.volleyRemaining=0;e.shotReadyAt=Math.max(e.shotReadyAt??0,e.stunUntil+1);continue;}
     let dx=(e.lureX??p.x)-e.x,dy=(e.lureY??p.y)-e.y;const length=Math.hypot(dx,dy);if(length>1e-9){dx/=length;dy/=length;}else{dx=0;dy=0;}
     const slow=e.slowUntil>s.time?CONFIG.skills.soda.factor:1;let speed=CONFIG.enemies[e.kind].speed*speedScale*slow;
     if(e.lureX!==undefined&&length<24)speed=0;
@@ -26,19 +37,33 @@ export function updateEnemies(s:GameState,dt:number,speedScale:number,ctx:Combat
     }
     if(e.kind==='bowl'){
       const shots=s.enemyShots??(s.enemyShots=[]);
-      if((e.shotWarnUntil??0)>0){
+      if((e.volleyRemaining??0)>0){
+        speed=0;
+        if(s.time+1e-9>=(e.nextVolleyAt??0)){
+          e.volleyRemaining=fireSoupShot(s,e,ctx)?e.volleyRemaining!-1:0;
+          e.nextVolleyAt=s.time+.32;
+          if(!e.volleyRemaining)shotReservations--;
+        }
+      }else if((e.shotWarnUntil??0)>0){
         speed=0;
         if(s.time+1e-9>=e.shotWarnUntil!){
-          if(shots.length<CONFIG.ranged.cap){const a=e.shotAngle??0;shots.push({id:ctx.id(),ownerId:e.id,x:e.x,y:e.y,px:e.x,py:e.y,vx:Math.cos(a)*CONFIG.ranged.speed,vy:Math.sin(a)*CONFIG.ranged.speed,radius:CONFIG.ranged.radius,damage:CONFIG.ranged.damage,bornAt:s.time,expiresAt:s.time+CONFIG.ranged.lifetime});ctx.emit({type:'enemyShot',x:e.x,y:e.y,angle:a});}
-          e.shotWarnUntil=0;shotReservations--;e.shotReadyAt=s.time+CONFIG.ranged.interval+e.id%3*.35;
+          const fired=fireSoupShot(s,e,ctx);
+          e.shotWarnUntil=0;e.shotReadyAt=s.time+CONFIG.ranged.interval+e.id%3*.35;
+          if(fired&&s.wave>=2){e.volleyRemaining=2;e.nextVolleyAt=s.time+.32;}
+          else shotReservations--;
         }
       }else if((s.practice||s.time>=30)&&s.time>=(e.shotReadyAt??0)&&length<CONFIG.ranged.range&&shots.length<CONFIG.ranged.cap&&shotReservations<CONFIG.ranged.concurrent){
         e.shotAngle=Math.atan2(p.y-e.y,p.x-e.x);e.shotWarnUntil=s.time+CONFIG.ranged.warning;shotReservations++;speed=0;ctx.emit({type:'warn',x:e.x,y:e.y});
       }
     }
-    if(e.phase==='chase'&&e.lureX===undefined&&length>150&&speed>0&&!(e.shotWarnUntil??0)){
+    const marching=e.march&&s.time<e.march.until;
+    const pursuing=e.kind==='bun'&&!marching&&e.id%3!==0&&e.lureX===undefined;
+    if(pursuing)speed*=1.38;
+    if(e.march&&marching&&e.phase==='chase'&&e.lureX===undefined){
+      dx=e.march.x;dy=e.march.y;
+    }else if(e.phase==='chase'&&e.lureX===undefined&&length>150&&speed>0&&!(e.shotWarnUntil??0)){
       if(s.time>=(e.wanderUntil??0)){e.wanderUntil=s.time+1.4+(e.id%7)*.13;e.wanderAngle=(e.wanderAngle??Math.atan2(dy,dx))+(ctx.random()-.5)*1.5;}
-      const chase=length<300?.72:.46;dx=dx*chase+Math.cos(e.wanderAngle??0)*(1-chase);dy=dy*chase+Math.sin(e.wanderAngle??0)*(1-chase);const norm=Math.hypot(dx,dy);if(norm){dx/=norm;dy/=norm;}
+      const chase=pursuing?.88:length<300?.72:.46;dx=dx*chase+Math.cos(e.wanderAngle??0)*(1-chase);dy=dy*chase+Math.sin(e.wanderAngle??0)*(1-chase);const norm=Math.hypot(dx,dy);if(norm){dx/=norm;dy/=norm;}
     }
     if(e.phase!=='dash'&&speed>0){
       let sx=0,sy=0;

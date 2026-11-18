@@ -1,5 +1,6 @@
 import {test,expect,type Page} from '@playwright/test';
 import {WEAPON_KINDS,SKILL_KINDS,type GameState} from '../../src/shared/types';
+import {SAVE_KEY} from '../../src/platform/storage';
 const state=(page:Page)=>page.evaluate(()=>(window as unknown as {__gameTest:{snapshot():GameState}}).__gameTest.snapshot());
 const view=(page:Page,name:string)=>expect(page.locator('#game-shell')).toHaveAttribute('data-view',name);
 const errors=new WeakMap<Page,string[]>();
@@ -36,7 +37,7 @@ test('complete catalog and safe laboratory lifecycle with all weapons and skills
   expect(later.time-begin).toBeGreaterThan(.15);expect(later.time-begin).toBeLessThan(.5);expect(later.enemies).toHaveLength(0);expect(later.score).toBe(0);
   await page.keyboard.press('Escape');await view(page,'pause');await page.getByRole('button',{name:'返回首页',exact:true}).click();await view(page,'confirm');
   await page.getByRole('button',{name:'结束本局',exact:true}).click();await view(page,'home');
-  const best=await page.evaluate(()=>JSON.parse(localStorage.getItem('night-market-rush.save.v1')??'null')?.best??null);expect(best).toBeNull();
+  const best=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)??'null')?.best??null,SAVE_KEY);expect(best).toBeNull();
 });
 
 test('HP feedback, healing, safety state priority, and portrait recovery in practice',async({page},info)=>{

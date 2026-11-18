@@ -1,6 +1,24 @@
 # 资产来源与重建说明
 
-登记日期：2026-11-18。范围：当前 `public/assets` 中两张游戏生产图，以及程序生成的 UI/音频。此记录用于追踪实际来源，不替代最终发行时的资产审核。
+## 2026-11-19 配送员制服与技能
+
+使用内置 imagegen 参考项目已有的原创角色与夜市配色生成制服、首页立绘、蒸汽和汽水原图。战斗制服按原骨架重新分件，沿用可衔接的原四肢。蒸汽保留透明笔触，汽水保留能在战场上辨认的柠檬和冰块。四款近战气浪由 Canvas 随实际波前绘制。[角色对照](verification/courier/character.webp) · [技能分镜](verification/courier/skills.webp)
+
+| 运行文件 | 尺寸与用途 | SHA-256 |
+|---|---|---|
+| [courier-uniform.webp](../public/assets/courier-uniform.webp) | 1024 × 1024，4 × 4 透明分件，用于头盔、制服、四肢和保温箱 | `6A201FD0DFA844AB3D3CD005187A495AD4ED6A00CAB29C1EEAA3BCDE3E029AD4` |
+| [courier-home.webp](../public/assets/courier-home.webp) | 512 × 640，首页配送员立绘 | `610FBB99803E6E9381420E2FE26593FEDB68B0232FAED7790D92CD982FD0D50F` |
+| [delivery-skills.webp](../public/assets/delivery-skills.webp) | 768 × 768，四格透明图集，上排为两束蒸汽笔触，下排为两个阶段的柠檬汽水 | `6880D7EEC71E3BAE872F6E333D7BC980A75FBD749499472B1EB4589F2400E435` |
+
+## 前期制作记录
+
+2026-11-19 新增[武器命中图集](../public/assets/weapon-strikes.webp)。使用内置 imagegen 原创生成四幅朝右的手绘命中图案，经透明边界检查后编码为 768 × 768 的 WebP。四格从左上顺序为琥珀夹击、青白刃斩、朱红重击与青绿纸风。运行时按武器类型选格，按实际命中方向旋转，再与对应的刀轨、纸屑或碎片合成。SHA-256 为 `DD417B857F46A2E183895649C310C69168B151F0AEC0E1B8FA62AA6B9A6D7F67`。[十种武器的实际渲染](verification/impact/weapons.webp)
+
+V4 手感调整新增 [炉火与汽水动画图集](../public/assets/market-spells.webp)（2026-11-19）。用内置 imagegen 生成原创透明图像并编码为 WebP。图集为 1152 × 768 像素，三列两行，每格 384 × 384。上排是橙金炉火翻卷的三帧，下排是青蓝汽水涌浪的三帧。战斗中每个火团、每片减速区都按自己的生效时间和实际半径绘制，玩家和金币在效果上层显示。SHA-256 为 `99C9D7201B63318FBB0A1DF8B34550FE4C0C5CF05AD8279910D27454B3CBE814`。[正式主局中的炉火](verification/feel/burst.webp)
+
+V4 新增 `public/assets/riverside-market.webp`（2026-11-19）。通过内置 imagegen 以仓库原有的 `night-market.png` 为参照，生成同机位的河畔茶市场景。画面采用青石地面、茶摊、竹篮和水边栏杆，保持中央场地畅通。运行资源编码为 WebP，SHA-256 为 `C757ECABA80F65A94E4B3C45A7DC6D06B5EC1C373B2C1D1B2E4873A8D3E0BC69`。
+
+V2 的角色分件、武器与技能图集见 [V2 生成记录](V2_RUNTIME_ART.json)。以下是 2026-11-18 的初版两张生产图及程序 UI、音频记录。
 
 ## 图片来源
 

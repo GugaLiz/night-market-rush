@@ -1,6 +1,6 @@
 # 本次交付验证记录
 
-> 当前 V3 开发与验证结果见 [V3_VERIFICATION.md](V3_VERIFICATION.md)。V2 与以下 V1 记录作为历史保留。
+> 当前 V4 的规则、验收与录屏见 [V4 试玩与复验](V4_PLAYTEST.md)。上一版见 [V3 验收记录](V3_VERIFICATION.md)，以下保留 V1 历史记录。
 
 验证日期：2026-11-18（Asia/Shanghai）。项目：夜市急送，规则版本 `night-market-1.0`。
 

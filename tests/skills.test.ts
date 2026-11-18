@@ -7,8 +7,9 @@ import type {Enemy,GameEvent,GameState,Pickup,SkillKind} from '../src/shared/typ
 
 function fixture(){
   const s:GameState={time:10,score:0,kills:0,stage:1,ended:false,cause:null,seed:1,practice:true,
+    wave:1,waveStartedAt:0,coins:[],collectedCoins:0,combo:0,comboUntil:0,revivesUsed:0,fields:[],
     player:{x:640,y:370,px:640,py:370,vx:0,vy:0,facing:1,radius:10,skateUntil:0,hp:100,maxHp:100,invulnerableUntil:0,hurtAt:0,bubbleUntil:0,heatUntil:0,stampUntil:0,moveDirection:{x:1,y:0}},
-    enemies:[],pickups:[],weapon:{kind:'tongs',readyAt:0,equippedAt:0,targetId:null,attack:null},projectiles:[],weaponDrops:[],zones:[],
+    enemies:[],pickups:[],weapon:{kind:'tongs',readyAt:0,equippedAt:0,targetId:null,attack:null},meleeWaves:[],projectiles:[],weaponDrops:[],zones:[],
     effects:{dispatchUntil:0,dispatchStartedAt:0,dispatchCooldownUntil:0,pendingSupplyAt:0,pendingSupplyUntil:0,supplyGroupId:0},lastDamage:null,lastDamageAmount:0};
   let next=1000;const events:GameEvent[]=[];
   const ctx:CombatContext={id:()=>next++,random:()=>.5,emit:e=>events.push(e),active:e=>e.hp>0&&e.spawnAt<=s.time,
@@ -27,26 +28,26 @@ const item=(id:number,kind:SkillKind,x=700,y=370,extra:Partial<Pickup>={}):Picku
 describe('V2 skill mechanics',()=>{
   it('fan damages a durable enemy, pushes survivors and excludes spawning enemies',()=>{
     const {s,activate}=fixture();s.enemies=[enemy(1),{...enemy(2),spawnAt:12}];activate('fan');
-    expect(s.enemies[0].hp).toBe(60);expect(s.enemies[0].x).toBe(730);expect(s.enemies[1].hp).toBe(120);
+    expect(s.enemies[0].hp).toBe(30);expect(s.enemies[0].x).toBe(730);expect(s.enemies[1].hp).toBe(120);
   });
   it('fan catches fast enemies crossing its radius between simulation positions',()=>{
-    const {s,activate}=fixture();s.enemies=[{...enemy(1,800),px:500}];activate('fan');expect(s.enemies[0].hp).toBe(60);
+    const {s,activate}=fixture();s.enemies=[{...enemy(1,800),px:500}];activate('fan');expect(s.enemies[0].hp).toBe(30);
   });
   it('skate shares a per-enemy debounce and keeps the center dangerous',()=>{
-    const {s,activate,step}=fixture();s.enemies=[enemy(1),enemy(2,640,370,'bun')];activate('skate');
-    expect(s.enemies.map(e=>e.hp)).toEqual([108,30]);step(.01);expect(s.enemies.map(e=>e.hp)).toEqual([108,30]);step(.1);expect(s.enemies[0].hp).toBe(108);
-    step(.4);expect(s.enemies[0].hp).toBe(96);
+    const {s,activate,step}=fixture();s.enemies=[enemy(1,775),enemy(2,640,370,'bun')];activate('skate');
+    expect(s.enemies.map(e=>e.hp)).toEqual([100,30]);step(.01);expect(s.enemies.map(e=>e.hp)).toEqual([100,30]);step(.1);expect(s.enemies[0].hp).toBe(100);
+    step(.4);expect(s.enemies[0].hp).toBe(80);
   });
   it('skate detects an enemy crossing its annulus between frames',()=>{
-    const {s,activate,step}=fixture();s.enemies=[{...enemy(1,640),px:750}];activate('skate');step(.01);expect(s.enemies[0].hp).toBe(108);
+    const {s,activate,step}=fixture();s.enemies=[{...enemy(1,640),px:820}];activate('skate');step(.01);expect(s.enemies[0].hp).toBe(100);
   });
-  it('soda affects current enemies only and never deals damage or heals',()=>{
+  it('the initial soda splash affects present enemies and never deals damage or heals',()=>{
     const {s,activate}=fixture();s.player.hp=51;s.enemies=[enemy(1)];activate('soda');s.enemies.push(enemy(2));
     expect(s.enemies[0].slowUntil).toBe(13);expect(s.enemies[1].slowUntil).toBe(0);expect(s.player.hp).toBe(51);expect(s.enemies[0].hp).toBe(120);
   });
-  it('lure selects six and never interrupts an already locked charge',()=>{
-    const {s,activate,step}=fixture();s.enemies=Array.from({length:9},(_,i)=>enemy(i,600+i*2));s.enemies[0].phase='dash';activate('lure');
-    expect(s.enemies.filter(e=>e.lureX!==undefined)).toHaveLength(6);expect(s.enemies[0].lureX).toBeUndefined();
+  it('lure selects ten and never interrupts an already locked charge',()=>{
+    const {s,activate,step}=fixture();s.enemies=Array.from({length:13},(_,i)=>enemy(i,795+i*2));s.enemies[0].phase='dash';activate('lure');
+    expect(s.enemies.filter(e=>e.lureX!==undefined)).toHaveLength(10);expect(s.enemies[0].lureX).toBeUndefined();
     step(4.01);expect(s.enemies.every(e=>e.lureX===undefined)).toBe(true);
   });
   it('buff pickups refresh durations rather than multiplying power',()=>{
@@ -59,7 +60,7 @@ describe('V2 skill mechanics',()=>{
     expect(s.enemies[0].phase).toBe('recover');expect(s.zones.filter(z=>z.hp===0)).toHaveLength(1);
   });
   it('bell delays, interrupts and caps repeated stun with post-stun resistance',()=>{
-    const {s,activate,step}=fixture();s.enemies=[{...enemy(1,700,370,'box'),phase:'dash'}];activate('bell');step(.04);expect(s.enemies[0].stunUntil).toBe(0);
+    const {s,activate,step}=fixture();s.enemies=[{...enemy(1,875,370,'box'),phase:'dash'}];activate('bell');step(.04);expect(s.enemies[0].stunUntil).toBe(0);
     step(.04);const first=s.enemies[0].stunStartedAt;expect(s.enemies[0].phase).toBe('recover');
     for(let i=0;i<5;i++){activate('bell');step(.15);}
     expect(s.enemies[0].stunUntil).toBeLessThanOrEqual(first+1.2);step(.6);const resistance=s.enemies[0].bellResistUntil;
@@ -75,8 +76,8 @@ describe('V2 skill mechanics',()=>{
   });
   it('hook selects one group member, skips gated items and moves rather than remotely activates',()=>{
     const {s,activate,step}=fixture();s.pickups=[item(1,'fan',700,370,{groupId:8}),item(2,'soda',710,370,{groupId:8}),item(3,'heat'),item(4,'dispatch',700,370,{disabledUntil:20}),item(5,'hook'),item(6,'bubble',700,370,{readyAt:11})];
-    activate('hook');expect(s.pickups.filter(p=>p.pulledUntil)).toHaveLength(2);step(.05);expect(s.pickups[0].x).toBe(670);expect(s.player.heatUntil).toBe(0);
-    step(.6);expect(s.pickups.every(p=>!p.pulledUntil)).toBe(true);expect(s.pickups).toHaveLength(6);
+    activate('hook');expect(s.pickups.filter(p=>p.pulledUntil)).toHaveLength(2);step(.05);expect(s.pickups[0].x).toBe(663);expect(s.player.heatUntil).toBe(0);
+    step(.61);expect(s.pickups.every(p=>!p.pulledUntil)).toBe(true);expect(s.pickups).toHaveLength(6);
   });
   it('dispatch continuous pause caps at six seconds, then unlocks two seconds of spawning',()=>{
     const {s,activate,step}=fixture();activate('dispatch');step(3);activate('dispatch');expect(s.effects.dispatchUntil).toBe(16);
@@ -116,7 +117,7 @@ describe('skill and battle integration',()=>{
   });
   it('a newly collected skate applies real damage in its activation step',()=>{
     const game=practice();const target=game.spawnEnemy('bowl',{x:700,y:370});game.state.pickups=[item(50,'skate',640,370)];game.update(1/60,{x:0,y:0});
-    expect(target.hp).toBe(108);expect(game.drainEvents().filter(e=>e.type==='damage'&&e.source==='skate')).toHaveLength(1);
+    expect(target.hp).toBe(100);expect(game.drainEvents().filter(e=>e.type==='damage'&&e.source==='skate')).toHaveLength(1);
   });
   it('supply delivery reserves capacity through the actual Game context',()=>{
     const game=practice();game.triggerSkill('supply');expect(game.state.pickups).toHaveLength(3);
@@ -129,11 +130,16 @@ describe('skill and battle integration',()=>{
     game.update(.2,{x:0,y:0});const pickups=game.drainEvents().filter(e=>e.type==='pickup');
     expect(pickups).toHaveLength(1);expect(game.state.pickups).toHaveLength(2);expect(game.state.pickups.every(p=>p.retiringUntil&&!p.pulledUntil)).toBe(true);
   });
-  it('dispatch crossing a stage boundary resumes at the new interval without a wave',()=>{
-    const game=new Game(17);game.state.time=89;game.state.stage=2;game.state.weapon.readyAt=Infinity;game.state.player.invulnerableUntil=Infinity;game.triggerSkill('dispatch');
+  it('dispatch crossing a difficulty boundary waits one batch interval before reinforcements',()=>{
+    const game=new Game(17);
+    Object.assign(game.state,{time:89,stage:2,wave:3,waveStartedAt:70});
+    game.state.weapon.readyAt=Infinity;game.state.player.invulnerableUntil=Infinity;game.triggerSkill('dispatch');
     for(let i=0;i<244;i++)game.update(1/60,{x:0,y:0});
     expect(game.state.stage).toBe(3);expect(game.state.enemies).toHaveLength(0);expect(game.state.effects.dispatchCooldownUntil).toBeCloseTo(95);
-    for(let i=0;i<9;i++)game.update(1/60,{x:0,y:0});expect(game.state.enemies).toHaveLength(1);
+    game.update(1,{x:0,y:0});expect(game.state.enemies).toHaveLength(0);
+    game.update(.65,{x:0,y:0});expect(game.state.enemies).toHaveLength(8);
+    game.update(.5,{x:0,y:0});expect(game.state.enemies).toHaveLength(8);
+    expect(game.drainEvents().some(event=>event.type==='wave')).toBe(false);
   });
   it('bell expiry leaves a box in recovery before it resumes an ordinary chase',()=>{
     const game=practice();game.state.weapon.readyAt=Infinity;const box=game.spawnEnemy('box',{x:760,y:370});box.phase='dash';box.phaseUntil=10;box.dashX=-1;box.dashY=0;

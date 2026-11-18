@@ -1,18 +1,26 @@
 export type SpriteName = string;
 export interface Sprite { x: number; y: number; width: number; height: number; image: HTMLImageElement }
-export interface Assets { background: HTMLImageElement; atlas: HTMLImageElement; sprites: Record<SpriteName, Sprite> }
+export interface Assets {
+  background: HTMLImageElement;
+  riverside: HTMLImageElement;
+  atlas: HTMLImageElement;
+  deliveryFields: HTMLImageElement;
+  strikes: HTMLImageElement;
+  sprites: Record<SpriteName, Sprite>;
+}
 
 /** Keeps source artwork intact; each atlas cell is trimmed once at load time. */
 export async function loadAssets(onProgress?: (n: number) => void): Promise<Assets> {
+  const images = ['courier-home.webp', 'night-market.png', 'riverside-market.webp', 'atlas.png', 'weapons-v2.png', 'skills-v2.png', 'courier-uniform.webp', 'delivery-skills.webp', 'weapon-strikes.webp'];
   let completed = 0;
   const load = (name: string): Promise<HTMLImageElement> => new Promise((resolve, reject) => {
     const img = new Image();
-    img.onload = () => { onProgress?.(++completed / 5); resolve(img); };
+    img.onload = () => { onProgress?.(++completed / images.length); resolve(img); };
     img.onerror = () => reject(new Error(`无法加载美术资源：${name}`));
     img.src = `${import.meta.env.BASE_URL}assets/${name}`;
   });
   onProgress?.(0);
-  const [background, atlas, weapons, skills, rig] = await Promise.all([load('night-market.png'), load('atlas.png'),load('weapons-v2.png'),load('skills-v2.png'),load('courier-rig.png')]);
+  const [courierHome, background, riverside, atlas, weapons, skills, rig, deliveryFields, strikes] = await Promise.all(images.map(load));
   const sprites: Record<string,Sprite> = {};
   function trim(atlas:HTMLImageElement,names:string[],rows:number) {
   const scratch = document.createElement('canvas');
@@ -37,8 +45,9 @@ export async function loadAssets(onProgress?: (n: number) => void): Promise<Asse
   }
   }
   trim(atlas,['courierA','courierB','bun','box','bowl','fan','skate','soda'],2);
+  sprites.courierA={image:courierHome,x:0,y:0,width:courierHome.naturalWidth,height:courierHome.naturalHeight};
   trim(weapons,['tongs','bag','chopsticks','spirit','knife','tray','umbrella','sword','lunchbox','talisman','spiritOrb','meal','chopstick','talismanPaper','umbrellaOpen','weaponCrate'],4);
   trim(skills,['fan','skate','soda','lure','bubble','cones','bell','route','hook','heat','dispatch','stamp','supply','cone','lureBox','supplyBox'],4);
-  trim(rig,['rigHeadFront','rigHeadBack','rigTorsoFront','rigTorsoBack','rigUpperR','rigUpperL','rigForeR','rigForeL','rigHipFront','rigHipBack','rigThigh','rigShin','rigShoeR','rigShoeL','rigBag','rigTail'],4);
-  return {background, atlas, sprites};
+  trim(rig,['rigHeadFront','rigHeadBack','rigTorsoFront','rigTorsoBack','rigUpperR','rigUpperL','rigForeR','rigForeL','rigHipFront','rigHipBack','rigThigh','rigShin','rigShoeR','rigShoeL','rigBag','rigBagSide'],4);
+  return {background, riverside, atlas, deliveryFields, strikes, sprites};
 }

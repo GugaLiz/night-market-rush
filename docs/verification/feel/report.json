@@ -1,0 +1,157 @@
+{
+  "browser": "157.0.8103.79",
+  "viewport": {
+    "width": 960,
+    "height": 540
+  },
+  "method": "首页点玩法说明并返回以启用浏览器音频；从首页开始录制，点开始挑战直接进入普通第一波。实时 Chrome 触摸事件控制摇杆，第二触点点击冲刺；读取开发快照引导和核对路线。记录页面合成后的实帧及游戏原始音乐音效混音。",
+  "limits": "桌面 Chrome 模拟横屏多点触控；未验证真机、陀螺仪、扬声器听感或音画延迟。",
+  "practice": false,
+  "seed": 4019518446,
+  "wave": 1,
+  "fireAt": 1.333,
+  "fan": {
+    "x": 421.126,
+    "y": 485.243
+  },
+  "killsBeforePickup": 4,
+  "killsInFirst650ms": 22,
+  "dashAt": 1.75,
+  "dashAim": {
+    "x": 383.284,
+    "y": 438.067
+  },
+  "coinsBeforePickup": 4,
+  "firstCollectionAfterPickup": 1.833,
+  "maxStickTurnWhileCollectingDegrees": 149.609,
+  "final": {
+    "t": 9.45,
+    "kills": 35,
+    "collectedCoins": 35,
+    "hp": 92
+  },
+  "route": [
+    {
+      "t": 0.35,
+      "phase": "approach-fan",
+      "player": {
+        "x": 640,
+        "y": 370
+      },
+      "aim": {
+        "x": 421.126,
+        "y": 485.243
+      }
+    },
+    {
+      "t": 1.45,
+      "phase": "collect",
+      "player": {
+        "x": 413.545,
+        "y": 489.235
+      },
+      "aim": {
+        "x": 383.284,
+        "y": 438.067
+      }
+    },
+    {
+      "t": 3.1,
+      "phase": "cross-to-next-pickup",
+      "player": {
+        "x": 329.83,
+        "y": 439.896
+      },
+      "aim": {
+        "x": 684.188,
+        "y": 582.646
+      }
+    },
+    {
+      "t": 5.217,
+      "phase": "collect",
+      "player": {
+        "x": 717.216,
+        "y": 467.675
+      },
+      "aim": {
+        "x": 783.154,
+        "y": 354.201
+      }
+    },
+    {
+      "t": 5.783,
+      "phase": "cross-to-next-pickup",
+      "player": {
+        "x": 784.088,
+        "y": 344.847
+      },
+      "aim": {
+        "x": 640,
+        "y": 370
+      }
+    },
+    {
+      "t": 5.867,
+      "phase": "collect",
+      "player": {
+        "x": 779.978,
+        "y": 331.963
+      },
+      "aim": {
+        "x": 838.219,
+        "y": 353.466
+      }
+    },
+    {
+      "t": 6.633,
+      "phase": "cross-to-next-pickup",
+      "player": {
+        "x": 833.597,
+        "y": 288.524
+      },
+      "aim": {
+        "x": 640,
+        "y": 370
+      }
+    },
+    {
+      "t": 7.733,
+      "phase": "collect",
+      "player": {
+        "x": 625.536,
+        "y": 377.149
+      },
+      "aim": {
+        "x": 783.255,
+        "y": 333.905
+      }
+    },
+    {
+      "t": 8.833,
+      "phase": "cross-to-next-pickup",
+      "player": {
+        "x": 782.963,
+        "y": 376.15
+      },
+      "aim": {
+        "x": 398.123,
+        "y": 296.303
+      }
+    }
+  ],
+  "capturedPageFrames": 482,
+  "media": {
+    "videoCodec": "VP8",
+    "audioCodec": "Opus",
+    "width": 960,
+    "height": 540,
+    "duration": 10.054,
+    "audioSeconds": 10.08,
+    "channels": 2,
+    "audioPeak": 0.20832878351211548,
+    "audioRms": 0.013319264603352561,
+    "seekPlaybackAt": 6.063689
+  },
+  "errors": []
+}

@@ -1,5 +1,6 @@
 import {describe,expect,it} from 'vitest';
 import {Game} from '../src/core/game';
+import {WEAPONS} from '../src/core/weapons';
 import {CONFIG,WORLD,difficultyAt} from '../src/core/config';
 import type {GameEvent,WeaponKind} from '../src/shared/types';
 const zero={x:0,y:0};
@@ -10,7 +11,7 @@ function fire(g:Game){for(let i=0;i<90;i++){g.update(1/60,zero);if(g.state.weapo
 const damage=(events:GameEvent[],source:WeaponKind)=>events.filter(e=>e.type==='damage'&&e.source===source);
 
 describe('V3 weapon damage through the real Game context',()=>{
-  it.each([['tongs',30],['bag',24],['chopsticks',42],['spirit',40],['knife',32],['sword',65],['talisman',40],['umbrella',36]] as const)('%s applies its total %s through five real HP decrements', (kind,total)=>{
+  it.each([['tongs',54],['bag',45],['chopsticks',74],['spirit',70],['knife',62],['sword',110],['talisman',70],['umbrella',66]] as const)('%s applies its total %s through five real HP decrements', (kind,total)=>{
     const g=lab(kind);const e=target(g,730);fire(g);tick(g,.65);
     expect(120-e.hp).toBe(total);
     const hits=damage(g.drainEvents(),kind).filter(v=>v.type==='damage'&&v.victimId===e.id);
@@ -18,15 +19,15 @@ describe('V3 weapon damage through the real Game context',()=>{
     expect(hits.reduce((sum,v)=>sum+(v.type==='damage'?v.amount:0),0)).toBe(total);
   });
   it('tray keeps separate five-part outward and return hits on the same enemy',()=>{
-    const g=lab('tray'),e=target(g,720);fire(g);tick(g,1.8);expect(e.hp).toBe(62);
-    const hits=damage(g.drainEvents(),'tray');expect(hits).toHaveLength(10);expect(hits.reduce((sum,v)=>sum+(v.type==='damage'?v.amount:0),0)).toBe(58);
+    const g=lab('tray'),e=target(g,720);fire(g);tick(g,1.8);expect(e.hp).toBe(18);
+    const hits=damage(g.drainEvents(),'tray');expect(hits).toHaveLength(10);expect(hits.reduce((sum,v)=>sum+(v.type==='damage'?v.amount:0),0)).toBe(102);
   });
   it('lunchbox lands at fixed forward range after delay, never retargets to a closer cluster',()=>{
-    const g=lab('lunchbox'),near=target(g,760),far=target(g,940);fire(g);tick(g,.5);expect(far.hp).toBe(120);tick(g,.2);expect(far.hp).toBe(60);expect(near.hp).toBe(120);expect(damage(g.drainEvents(),'lunchbox')).toHaveLength(5);
+    const g=lab('lunchbox'),near=target(g,760),far=target(g,1060);fire(g);tick(g,.5);expect(far.hp).toBe(120);tick(g,.2);expect(far.hp).toBe(4);expect(near.hp).toBe(120);expect(damage(g.drainEvents(),'lunchbox')).toHaveLength(5);
   });
 });
 describe('weapon integration and bounded sessions',()=>{
-  it('low HP stops the five-part burst immediately and awards a single kill',()=>{const g=lab('knife'),e=g.spawnEnemy('bun',{x:690,y:370});e.hp=9;e.stunUntil=1e6;fire(g);tick(g,.2);expect(g.state.kills).toBe(1);expect(damage(g.drainEvents(),'knife').map(e=>e.type==='damage'?e.amount:0)).toEqual([7,2]);});
+  it('low HP stops the five-part burst immediately and awards a single kill',()=>{const g=lab('knife'),e=g.spawnEnemy('bun',{x:690,y:370});e.hp=15;e.stunUntil=1e6;fire(g);tick(g,.2);expect(g.state.kills).toBe(1);expect(damage(g.drainEvents(),'knife').map(e=>e.type==='damage'?e.amount:0)).toEqual([13,2]);});
   it('heat does not reset an existing cooldown, switching retains it and old projectiles',()=>{const g=lab('chopsticks');target(g,820);fire(g);g.state.weapon.readyAt=g.state.time+2;const ready=g.state.weapon.readyAt;const ids=g.state.projectiles.map(p=>p.id);g.triggerSkill('heat');expect(g.state.weapon.readyAt).toBe(ready);g.setWeapon('bag');expect(g.state.weapon.readyAt).toBe(ready);expect(g.state.projectiles.map(p=>p.id)).toEqual(ids);});
   it('a return package is locked for two seconds and requires leaving before reentry',()=>{const g=lab('tongs');g.state.weaponDrops=[{id:100,kind:'knife',x:640,y:370,radius:12,bornAt:0,expiresAt:20,readyAt:0,returnDrop:false,leftPickupCircle:true}];g.update(1/60,zero);expect(g.state.weapon.kind).toBe('knife');tick(g,2.1);expect(g.state.weapon.kind).toBe('knife');tick(g,.3,{x:1,y:0});tick(g,.45,{x:-1,y:0});expect(g.state.weapon.kind).toBe('tongs');expect(g.state.weaponDrops.filter(d=>d.returnDrop)).toHaveLength(1);});
   it('removing enemies does not cancel a directional windup or invent a replacement target',()=>{const g=lab('sword');target(g,730);g.update(1/60,zero);g.state.enemies=[];tick(g,.35);expect(g.state.weapon.attack?.targetId).toBe(-1);expect(g.state.weapon.attack?.angle).toBe(0);expect(g.drainEvents().filter(e=>e.type==='attack')).toHaveLength(1);});
@@ -46,13 +47,18 @@ describe('defense, cooldown and source budgets',()=>{
   it('heat shortens only the next new release cooldown by 0.8',()=>{
     const g=lab('tongs');target(g,700);g.triggerSkill('heat');
     for(let i=0;i<20;i++){g.update(1/60,zero);if(g.state.weapon.attack?.phase==='active')break;}
-    expect(g.state.weapon.readyAt-g.state.time).toBeCloseTo(.55*.8,8);
+    expect(g.state.weapon.readyAt-g.state.time).toBeCloseTo(WEAPONS.tongs.cooldown*.8,8);
     const cooldown=g.state.weapon.readyAt;g.triggerSkill('heat');expect(g.state.weapon.readyAt).toBe(cooldown);
   });
-  it('old projectiles share the hard budget with a newly equipped bag',()=>{
+  it.each([['bag',9],['chopsticks',5],['spirit',3],['tray',3],['lunchbox',3],['talisman',3]] as const)('holds the full %s volley until all its lanes fit alongside earlier shots',(kind,lanes)=>{
     const g=lab('chopsticks');target(g,820);fire(g);const template=g.state.projectiles[0];expect(template).toBeTruthy();
     g.state.projectiles=Array.from({length:23},(_,i)=>({...template,id:1000+i,vx:0,vy:0,hitIds:[],phaseHitIds:[],expiresAt:100}));
-    g.setWeapon('bag');g.state.weapon.readyAt=0;tick(g,.5);expect(g.state.projectiles.length).toBe(23);expect(g.state.weapon.attack).toBeNull();
+    g.setWeapon(kind);g.state.weapon.attack=null;g.state.weapon.readyAt=0;tick(g,.5);
+    expect(g.state.projectiles.length).toBe(23);expect(g.state.weapon.attack).toBeNull();
+    g.state.projectiles.length=CONFIG.weapons.projectileCap-lanes;
+    fire(g);
+    expect(g.state.projectiles).toHaveLength(CONFIG.weapons.projectileCap);
+    expect(g.state.projectiles.filter(p=>p.attackId===g.state.weapon.attack?.id)).toHaveLength(lanes);
   });
   it('same-step skate pickup can finish an injured contact threat before player damage',()=>{
     const g=lab('tongs');g.state.weapon.readyAt=Infinity;g.state.player.invulnerableUntil=0;

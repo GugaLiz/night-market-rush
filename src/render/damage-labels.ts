@@ -1,157 +1,205 @@
 import {WORLD} from '../core/config';
 import {clamp} from '../core/geometry';
-import type {DamageSource,GameEvent,GameState} from '../shared/types';
-import type {Assets,SpriteName} from './assets';
+import type {DamageSource, EnemyKind, GameEvent, GameState} from '../shared/types';
+import type {Assets} from './assets';
 import {drawSprite} from './sprite';
 
-type Hit={id:number;amount:number;source:DamageSource|null;time:number;bornAt:number;expires:number;hidden:boolean};
-type Group={id:number;x:number;y:number;anchorX:number;anchorY:number;offsetX:number;offsetY:number;nextLayout:number;lastHit:number;deathAt:number|null;hits:Hit[]};
-export interface DamageLabelRow {amount:number;count:number;source:DamageSource|null;alpha:number;folded:boolean;ids:number[];age:number;scale:number;fontSize:number}
-export interface DamageLabelGroup {victimId:number;x:number;y:number;anchorX:number;anchorY:number;player:boolean;heal:boolean;rows:DamageLabelRow[]}
-type Rect={x:number;y:number;w:number;h:number};
-export const DAMAGE_LABEL_LAYOUT={ttl:1.05,deathTtl:.5,rowHeight:30,width:100,maxRows:5,budget:30,maxFontSize:28,minFontSize:14} as const;
-const {ttl:TTL,deathTtl:DEATH_TTL,rowHeight:ROW_HEIGHT,width:WIDTH}=DAMAGE_LABEL_LAYOUT;
-const crowds=(a:Rect,b:Rect)=>a.x<b.x+b.w+8&&a.x+a.w+8>b.x&&a.y<b.y+b.h+8&&a.y+a.h+8>b.y;
+export const DAMAGE_LABEL_LAYOUT = {
+  detailTtl: 3.2, deathTtl: 2.4, playerTtl: 1.05,
+  maxRecent: 5, width: 104, rowHeight: 30, detailHeight: 16, budget: 30,
+} as const;
+const {width: WIDTH, rowHeight: HEIGHT, detailHeight: DETAILS} = DAMAGE_LABEL_LAYOUT;
+const enemyHeight = (kind: EnemyKind) => kind === 'bowl' ? 92 : kind === 'box' ? 78 : 67;
+type Hit = {id: number; amount: number; source: DamageSource | null; time: number; bornAt: number};
+type Group = {
+  id: number; total: number; count: number; anchorX: number; anchorY: number;
+  offsetX: number; offsetY: number; bodyY: number; lastHit: number; deathAt: number | null; recent: Hit[];
+};
+type Rect = {x: number; y: number; w: number; h: number};
+export interface DamageLabelGroup {
+  victimId: number; x: number; y: number; height: number; anchorX: number; anchorY: number;
+  player: boolean; heal: boolean; amount: number; count: number; recent: readonly Hit[];
+  alpha: number; age: number; compact: boolean; source: DamageSource | null;
+}
+const crowds = (a: Rect, b: Rect) =>
+  a.x < b.x+b.w+6 && a.x+a.w+6 > b.x && a.y < b.y+b.h+6 && a.y+a.h+6 > b.y;
+const format = (amount: number) => Number.isInteger(amount) ? String(amount) : amount.toFixed(1);
 
-/** Bounded visual history. A hit's own expiry is never refreshed by subsequent hits. */
 export class DamageLabels {
-  private clock=0;
-  private groups=new Map<number,Group>();
-  private seen=new Map<number,number>();
-  private playerDamage:Hit|null=null;
-  private playerHeal:Hit|null=null;
-  private visible:DamageLabelGroup[]=[];
+  private clock = 0;
+  private groups = new Map<number, Group>();
+  // The simulation issues monotonically increasing IDs. Accommodate reordered batches
+  // and reject stale replays without retaining every damage event in an endless run.
+  private seen = new Float64Array(4096).fill(-1);
+  private highestId = -1;
+  private playerDamage: Hit | null = null;
+  private playerHeal: Hit | null = null;
+  private visible: DamageLabelGroup[] = [];
 
-  reset():void{this.clock=0;this.groups.clear();this.seen.clear();this.playerDamage=null;this.playerHeal=null;this.visible=[];}
+  reset(): void {
+    this.clock = 0;
+    this.groups.clear();
+    this.seen.fill(-1);
+    this.highestId = -1;
+    this.playerDamage = this.playerHeal = null;
+    this.visible = [];
+  }
 
-  add(event:GameEvent):void {
-    if(event.type==='kill'){
-      if(event.victimId!==undefined){const group=this.groups.get(event.victimId);if(group&&group.deathAt===null)group.deathAt=this.clock;}
+  add(event: GameEvent): void {
+    if (event.type === 'kill') {
+      const group = event.victimId === undefined ? undefined : this.groups.get(event.victimId);
+      if (group && group.deathAt === null) {
+        group.deathAt = this.clock;
+        group.anchorX = event.x;
+        group.anchorY = event.y - enemyHeight(event.kind);
+        group.bodyY = event.y-28;
+      }
       return;
     }
-    if(event.type!=='damage'&&event.type!=='heal')return;
-    if(!Number.isFinite(event.amount)||event.amount<=0||this.seen.has(event.id))return;
-    this.seen.set(event.id,this.clock+TTL+DEATH_TTL);
-    const hit:Hit={id:event.id,amount:event.amount,source:event.type==='damage'?event.source:null,time:event.type==='damage'?event.time:this.clock,bornAt:this.clock,expires:this.clock+TTL,hidden:false};
-    if(event.type==='heal'){this.playerHeal=hit;return;}
-    if(event.victimId===0){this.playerDamage=hit;return;}
-    let group=this.groups.get(event.victimId);
-    if(!group){
-      group={id:event.victimId,x:event.x,y:event.y-80,anchorX:event.x,anchorY:event.y-80,offsetX:0,offsetY:0,nextLayout:0,lastHit:this.clock,deathAt:null,hits:[]};
-      this.groups.set(group.id,group);
+    if (event.type !== 'damage' && event.type !== 'heal') return;
+    if (!Number.isFinite(event.amount) || event.amount <= 0 || !Number.isSafeInteger(event.id) || event.id < 0) return;
+    const slot = event.id % this.seen.length;
+    if (event.id <= this.highestId-this.seen.length || this.seen[slot] === event.id) return;
+    this.highestId = Math.max(event.id, this.highestId);
+    this.seen[slot] = event.id;
+    const hit = {id: event.id, amount: event.amount, source: event.type === 'damage' ? event.source : null,
+      time: event.type === 'damage' ? event.time : this.clock, bornAt: this.clock};
+    if (event.type === 'heal') { this.playerHeal = hit; return; }
+    if (event.victimId === 0) { this.playerDamage = hit; return; }
+
+    let group = this.groups.get(event.victimId);
+    if (!group) {
+      group = {id: event.victimId, total: 0, count: 0, anchorX: event.x, anchorY: event.y-80,
+        offsetX: 0, offsetY: 0, bodyY: event.y-28, lastHit: this.clock, deathAt: null, recent: []};
+      this.groups.set(group.id, group);
     }
-    if(group.deathAt!==null)return;
-    group.hits.push(hit);group.hits.sort((a,b)=>a.time-b.time||a.id-b.id);group.lastHit=this.clock;
+    if (group.deathAt !== null) return;
+    group.total += hit.amount;
+    group.count++;
+    group.lastHit = this.clock;
+    group.recent.push(hit);
+    group.recent.sort((a,b) => a.time-b.time || a.id-b.id);
+    if (group.recent.length > DAMAGE_LABEL_LAYOUT.maxRecent) group.recent.shift();
   }
 
-  /** dt is visual elapsed time: callers pass 0 while paused. */
-  update(dt:number,state:GameState):void {
-    this.clock+=Math.max(0,Number.isFinite(dt)?dt:0);
-    for(const [id,until] of this.seen)if(until<=this.clock)this.seen.delete(id);
-    const enemies=new Map(state.enemies.map(e=>[e.id,e]));
-    for(const [id,group] of this.groups){
-      group.hits=group.hits.filter(h=>h.expires>this.clock);
-      if(!group.hits.length||(group.deathAt!==null&&this.clock-group.deathAt>=DEATH_TTL)){this.groups.delete(id);continue;}
-      const enemy=enemies.get(id);
-      if(enemy&&group.deathAt===null){
-        const height=enemy.kind==='bowl'?83:enemy.kind==='box'?69:58;
-        group.anchorX=enemy.x;group.anchorY=enemy.y-height-9;
-      }else if(group.deathAt===null)group.deathAt=this.clock;
-    }
-    if(this.playerDamage&&this.playerDamage.expires<=this.clock)this.playerDamage=null;
-    if(this.playerHeal&&this.playerHeal.expires<=this.clock)this.playerHeal=null;
-    this.visible=[];
-    const p=state.player;
-    const top=84,bottom=Math.min(WORLD.bounds.bottom,WORLD.height-110);
-    const left=16+WIDTH/2,right=WORLD.width-16-WIDTH/2;
-    const playerGroups:DamageLabelGroup[]=[];
-    const occupied:Rect[]=[];
-    // Reserve both player slots before allocating enemy labels, including at screen corners.
-    for(const [hit,heal] of [[this.playerDamage,false],[this.playerHeal,true]] as const)if(hit){
-      const x=clamp(p.x+(heal?-95:95),left,right);
-      let y=clamp(p.y-112+(heal?ROW_HEIGHT+8:0),top,bottom-ROW_HEIGHT);
-      if(occupied.some(r=>crowds({x:x-WIDTH/2,y,w:WIDTH,h:ROW_HEIGHT},r))){
-        const candidates=[...occupied.map(r=>r.y+r.h+8),...occupied.map(r=>r.y-ROW_HEIGHT-8)];
-        const free=candidates.find(candidate=>candidate>=top&&candidate+ROW_HEIGHT<=bottom&&!occupied.some(r=>crowds({x:x-WIDTH/2,y:candidate,w:WIDTH,h:ROW_HEIGHT},r)));
-        if(free!==undefined)y=free;
+  update(dt: number, state: GameState): void {
+    this.clock += Math.max(0, Number.isFinite(dt) ? dt : 0);
+    const enemies = new Map(state.enemies.map(e => [e.id, e]));
+    for (const [id, group] of this.groups) {
+      if (group.deathAt === null) {
+        const enemy = enemies.get(id);
+        if (!enemy) { this.groups.delete(id); continue; }
+        group.anchorX = enemy.x;
+        group.anchorY = enemy.y - enemyHeight(enemy.kind);
+        group.bodyY = enemy.y-28;
+      } else if (this.clock-group.deathAt >= DAMAGE_LABEL_LAYOUT.deathTtl) {
+        this.groups.delete(id);
       }
-      occupied.push({x:x-WIDTH/2,y,w:WIDTH,h:ROW_HEIGHT});
-      playerGroups.push({victimId:0,x,y,anchorX:p.x,anchorY:p.y-96,player:true,heal,rows:this.rows([hit],null)});
     }
-    const protectedAreas:Rect[]=[{x:p.x-39,y:p.y-122,w:78,h:130}];
-    for(const e of state.enemies)if(e.phase==='warn'||e.phase==='dash'){
-      const endX=e.x+e.dashX*150,endY=e.y+e.dashY*150;
-      protectedAreas.push({x:Math.min(e.x,endX)-18,y:Math.min(e.y,endY)-18,w:Math.abs(endX-e.x)+36,h:Math.abs(endY-e.y)+36});
+    if (this.playerDamage && this.clock-this.playerDamage.bornAt >= DAMAGE_LABEL_LAYOUT.playerTtl) this.playerDamage = null;
+    if (this.playerHeal && this.clock-this.playerHeal.bornAt >= DAMAGE_LABEL_LAYOUT.playerTtl) this.playerHeal = null;
+    this.visible = [];
+    const p = state.player;
+    const top = 84, bottom = Math.min(WORLD.bounds.bottom, WORLD.height-110);
+    const left = 16+WIDTH/2, right = WORLD.width-16-WIDTH/2;
+    const occupied: Rect[] = [];
+    const playerLabels: DamageLabelGroup[] = [];
+    for (const [hit, heal] of [[this.playerDamage,false],[this.playerHeal,true]] as const) {
+      if (!hit) continue;
+      const age = this.clock-hit.bornAt;
+      const x = clamp(p.x+(heal ? -95 : 95), left, right);
+      const rect = {x: x-WIDTH/2, y: clamp(p.y-112+(heal ? HEIGHT+8 : 0), top, bottom-HEIGHT), w: WIDTH, h: HEIGHT};
+      const other = occupied.find(r => crowds(r, rect));
+      if (other) rect.y = other.y+2*HEIGHT+8 <= bottom ? other.y+HEIGHT+8 : other.y-HEIGHT-8;
+      occupied.push(rect);
+      playerLabels.push({victimId: 0, x, y: rect.y, height: HEIGHT, anchorX: p.x, anchorY: p.y-96, player: true,
+        heal, amount: hit.amount, count: 1, recent: [], alpha: clamp((DAMAGE_LABEL_LAYOUT.playerTtl-age)/.25,0,1), age, compact: false, source: hit.source});
     }
-    const groups=[...this.groups.values()].sort((a,b)=>{
-      const distance=(g:Group)=>(g.anchorX-p.x)**2+(g.anchorY+70-p.y)**2;
-      return Number(b.id===state.weapon.targetId)-Number(a.id===state.weapon.targetId)||distance(a)-distance(b)||b.lastHit-a.lastHit||a.id-b.id;
-    });
-    let budget:number=DAMAGE_LABEL_LAYOUT.budget;
-    for(const group of groups){
-      const hits=group.hits.filter(h=>!h.hidden);if(!hits.length)continue;
-      const rows=this.rows(hits,group.deathAt);
-      if(rows.length>budget){for(const h of hits)h.hidden=true;continue;}
-      const h=rows.length*ROW_HEIGHT;
-      const rectangle=(ox:number,oy:number):Rect=>({x:clamp(group.anchorX+ox,left,right)-WIDTH/2,y:clamp(group.anchorY-h+oy,top,Math.max(top,bottom-h)),w:WIDTH,h});
-      const free=(r:Rect)=>!protectedAreas.some(p=>crowds(r,p))&&!occupied.some(p=>crowds(r,p));
-      // Movement and newly reserved player slots can invalidate the 0.2-second lock.
-      // Reflow immediately in that case; stability must never force text overlap.
-      if(this.clock>=group.nextLayout||!free(rectangle(group.offsetX,group.offsetY))){
-        const horizontal=WIDTH+8,vertical=h+8;
-        const offsets=[[group.offsetX,group.offsetY],[0,0],[-horizontal,0],[horizontal,0],[0,-vertical],[-horizontal,-vertical],[horizontal,-vertical],[0,vertical],[-horizontal,vertical],[horizontal,vertical]];
-        let best:number[]|undefined;
-        for(const offset of offsets){
-          if(free(rectangle(offset[0],offset[1]))){best=offset;break;}
+    occupied.push({x: p.x-39, y: p.y-122, w: 78, h: 130});
+    for (const e of state.enemies) if (e.phase === 'warn' || e.phase === 'dash') {
+      const endX = e.x+e.dashX*150, endY = e.y+e.dashY*150;
+      occupied.push({x: Math.min(e.x,endX)-18, y: Math.min(e.y,endY)-18, w: Math.abs(endX-e.x)+36, h: Math.abs(endY-e.y)+36});
+    }
+    const distance = (g: Group) => (g.anchorX-p.x)**2 + (g.anchorY+70-p.y)**2;
+    const groups = [...this.groups.values()].sort((a,b) =>
+      Number(b.id === state.weapon.targetId)-Number(a.id === state.weapon.targetId) ||
+      Number(b.deathAt === null)-Number(a.deathAt === null) || b.lastHit-a.lastHit || distance(a)-distance(b) || a.id-b.id);
+    // Leave room for the material flash at the contact, including on newly defeated bodies.
+    for (const g of groups) if (this.clock-g.lastHit < .35) {
+      occupied.push({x: g.anchorX-22, y: g.bodyY-18, w: 44, h: 36});
+    }
+    let budget: number = DAMAGE_LABEL_LAYOUT.budget;
+    for (const group of groups) {
+      if (!budget) break;
+      const age = this.clock-group.lastHit;
+      const recent = group.recent.filter(hit => this.clock-hit.bornAt <= DAMAGE_LABEL_LAYOUT.detailTtl);
+      const compact = groups.length >= 4 && group.id !== state.weapon.targetId;
+      const expanded = recent.length > 1 && budget >= 2 && !compact;
+      for (const h of expanded ? [HEIGHT+DETAILS, HEIGHT] : [HEIGHT]) {
+        const dx = WIDTH+8, dy = h+8;
+        const offsets = [[group.offsetX,group.offsetY],[0,0],[0,-dy],[-dx,0],[dx,0],[-dx,-dy],[dx,-dy],[0,-2*dy],[-dx,-2*dy],[dx,-2*dy],[0,dy],[-dx,dy],[dx,dy]];
+        let placed = false;
+        for (const [ox,oy] of offsets) {
+          const x = clamp(group.anchorX+ox,left,right);
+          const rect = {x: x-WIDTH/2, y: clamp(group.anchorY-h+oy,top,bottom-h), w: WIDTH, h};
+          if (occupied.some(r => crowds(rect,r))) continue;
+          occupied.push(rect);
+          group.offsetX = ox;
+          group.offsetY = oy;
+          const alpha = group.deathAt === null ? 1-.26*clamp((age-1)/2,0,1) :
+            clamp((DAMAGE_LABEL_LAYOUT.deathTtl-(this.clock-group.deathAt))/.65,0,1);
+          this.visible.push({victimId: group.id, x, y: rect.y, height: h, anchorX: group.anchorX, anchorY: group.anchorY,
+            player: false, heal: false, amount: group.total, count: group.count, recent: h>HEIGHT ? recent : [],
+            alpha, age, compact, source: group.recent.at(-1)?.source ?? null});
+          budget -= h>HEIGHT ? 2 : 1;
+          placed = true;
+          break;
         }
-        // Never choose a least-bad collision or replay these hits later as space opens.
-        if(!best){for(const hit of hits)hit.hidden=true;continue;}
-        group.offsetX=best[0];group.offsetY=best[1];group.nextLayout=this.clock+.2;
+        if (placed) break;
       }
-      budget-=rows.length;
-      const rect=rectangle(group.offsetX,group.offsetY);group.x=rect.x+WIDTH/2;group.y=rect.y;
-      occupied.push(rect);this.visible.push({victimId:group.id,x:group.x,y:group.y,anchorX:group.anchorX,anchorY:group.anchorY,player:false,heal:false,rows});
     }
-    this.visible.push(...playerGroups);
+    this.visible.push(...playerLabels);
   }
 
-  private rows(hits:Hit[],deathAt:number|null):DamageLabelRow[]{
-    const bundles=hits.length<=DAMAGE_LABEL_LAYOUT.maxRows?hits.map(h=>[h]):[hits.slice(0,-4),...hits.slice(-4).map(h=>[h])];
-    return bundles.map(bundle=>{
-      const source=bundle.every(h=>h.source===bundle[0].source)?bundle[0].source:null;
-      const newest=bundle[bundle.length-1];
-      const age=Math.max(0,this.clock-newest.bornAt),scale=1-.5*clamp(age/TTL,0,1);
-      const fade=clamp((newest.expires-this.clock)/.25,0,1)*(deathAt===null?1:clamp(1-(this.clock-deathAt)/DEATH_TTL,0,1));
-      return {amount:bundle.reduce((sum,h)=>sum+h.amount,0),count:bundle.length,source,alpha:fade,folded:bundle.length>1,ids:bundle.map(h=>h.id),age,scale,fontSize:DAMAGE_LABEL_LAYOUT.maxFontSize*scale};
-    });
+  snapshot(): DamageLabelGroup[] {
+    return this.visible.map(g => ({...g, recent: g.recent.map(hit => ({...hit}))}));
   }
 
-  /** Copy suitable for render verification, diagnostics and tests. */
-  snapshot():DamageLabelGroup[]{return this.visible.map(g=>({...g,rows:g.rows.map(r=>({...r,ids:[...r.ids]}))}));}
-
-  draw(ctx:CanvasRenderingContext2D,assets:Assets,_state:GameState,reduceMotion=false):void {
-    ctx.save();ctx.textBaseline='middle';ctx.textAlign='left';
-    for(const group of this.visible){
-      if(!group.player&&Math.abs(group.x-group.anchorX)>30){
-        ctx.globalAlpha=.3*(group.rows.at(-1)?.alpha??1);ctx.strokeStyle='#fff0c9';ctx.lineWidth=1;
-        ctx.beginPath();ctx.moveTo(group.x,group.y+group.rows.length*ROW_HEIGHT);ctx.lineTo(group.anchorX,group.anchorY+4);ctx.stroke();
+  draw(ctx: CanvasRenderingContext2D, assets: Assets, _state: GameState, reduceMotion = false): void {
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.lineJoin = 'round';
+    for (const g of this.visible) {
+      ctx.save();
+      ctx.globalAlpha = g.alpha;
+      const y = g.y+HEIGHT/2, stacked = !g.player && g.count>1 && (!g.compact || g.count>5);
+      if (!g.player && (Math.abs(g.x-g.anchorX)>30 || Math.abs(g.y+g.height-g.anchorY)>30)) {
+        ctx.beginPath();
+        ctx.moveTo(g.x, g.y+g.height);
+        ctx.lineTo(g.anchorX, g.anchorY+3);
+        ctx.strokeStyle = '#fff0c94a'; ctx.lineWidth = 1.5; ctx.stroke();
       }
-      group.rows.forEach((row,index)=>{
-        const x=group.x-WIDTH/2,y=group.y+index*ROW_HEIGHT;
-        ctx.save();ctx.beginPath();ctx.rect(x,y,WIDTH,ROW_HEIGHT);ctx.clip();
-        const cy=y+ROW_HEIGHT/2;
-        ctx.globalAlpha=row.alpha;ctx.fillStyle=group.player?(group.heal?'#153f3255':'#581c2a55'):'#28283124';
-        ctx.beginPath();ctx.roundRect(x,y+1,WIDTH,ROW_HEIGHT-2,5);ctx.fill();
-        const source=row.source==='dash'?'box':row.source;
-        if(source&&source in assets.sprites){const sprite=assets.sprites[source],height=Math.min(18,18*sprite.height/sprite.width);drawSprite(ctx,assets,source as SpriteName,x+12,cy+height/2,height,0,1,1);}
-        else {ctx.fillStyle=group.heal?'#91ffc2':'#d6cabc';ctx.font='bold 11px "Microsoft YaHei",sans-serif';ctx.fillText(group.heal?'+':row.folded?'叠':'伤',x+5,cy);}
-        ctx.fillStyle=group.player?(group.heal?'#9fffc8':'#ffbdc6'):index===group.rows.length-1?'#fff6d6':'#eddfbc';
-        const fontSize=reduceMotion?22:row.fontSize;
-        ctx.font=`900 ${row.folded?Math.min(16,fontSize):fontSize}px "Microsoft YaHei",sans-serif`;
-        const amount=Number.isInteger(row.amount)?String(row.amount):row.amount.toFixed(1);
-        const text=row.folded?`${amount} · ${row.count}击`:`${group.heal?'+':group.player?'−':''}${amount}`;
-        ctx.strokeStyle='#362720';ctx.lineWidth=2.5;ctx.strokeText(text,x+25,cy,WIDTH-28);ctx.fillText(text,x+25,cy,WIDTH-28);ctx.restore();
-      });
+      const drawText = (value: string, x: number, cy: number, max: number, size: number, color: string) => {
+        ctx.font = `900 ${size}px "Microsoft YaHei",sans-serif`;
+        ctx.lineWidth = size>20 ? 4.5 : 3;
+        ctx.strokeStyle = '#422538'; ctx.fillStyle = color;
+        ctx.strokeText(value,x,cy,max); ctx.fillText(value,x,cy,max);
+      };
+      const pulse = reduceMotion ? 0 : Math.max(0,1-g.age/.22);
+      const color = g.player ? (g.heal ? '#a3ffcb' : '#ffabbc') : (g.count>=6 ? '#ffcf69' : '#fff5d1');
+      const center = g.x-(stacked ? 16 : 0);
+      if (g.player && g.source && g.source in assets.sprites) {
+        const sprite = assets.sprites[g.source], height = Math.min(17,17*sprite.height/sprite.width);
+        drawSprite(ctx,assets,g.source,g.x-37,y+height/2,height);
+      }
+      drawText((g.heal ? '+' : g.player ? '−' : '')+format(g.amount),center,y,stacked ? 63 : 76,(g.compact ? 22 : 26)+5*pulse,color);
+      if (stacked) drawText(`${g.count}段`,g.x+30,y+2,37,14,'#ffe49f');
+      if (g.recent.length) {
+        const line = g.recent.map(hit => '+'+format(hit.amount)).join(' ');
+        drawText(line,g.x,g.y+HEIGHT+DETAILS/2-1,WIDTH-5,13,'#fff0ce');
+      }
+      ctx.restore();
     }
     ctx.restore();
   }

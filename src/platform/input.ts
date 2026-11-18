@@ -2,7 +2,11 @@ import {DEFAULT_SETTINGS,type Settings,type Vec} from '../shared/types';
 
 export interface JoystickState {active:boolean;x:number;y:number;dx:number;dy:number}
 type PermissionConstructor=typeof DeviceOrientationEvent&{requestPermission?:()=>Promise<string>};
-const RADII={small:42,medium:58,large:74};
+const RADII={small:32,medium:42,large:54};
+const KEY_DIRECTIONS:Readonly<Record<string,Vec>>={
+  ArrowRight:{x:1,y:0}, KeyD:{x:1,y:0}, ArrowLeft:{x:-1,y:0}, KeyA:{x:-1,y:0},
+  ArrowUp:{x:0,y:-1}, KeyW:{x:0,y:-1}, ArrowDown:{x:0,y:1}, KeyS:{x:0,y:1},
+};
 const SENSITIVITY={low:0.72,medium:1,high:1.3};
 const normalize=(x:number,y:number):Vec=>{const n=Math.hypot(x,y);return n>1?{x:x/n,y:y/n}:{x,y};};
 
@@ -45,8 +49,13 @@ export class WebInput {
   get tiltAvailable():boolean {return this.permission&&this.sampleAt>0&&performance.now()-this.sampleAt<1500;}
   getVector():Vec {
     if(!this.enabled||this.disposed)return {x:0,y:0};
-    const x=Number(this.keys.has('ArrowRight')||this.keys.has('KeyD'))-Number(this.keys.has('ArrowLeft')||this.keys.has('KeyA'));
-    const y=Number(this.keys.has('ArrowDown')||this.keys.has('KeyS'))-Number(this.keys.has('ArrowUp')||this.keys.has('KeyW'));
+    // During an overlapping key transition, the most recent direction wins on that axis.
+    let x=0,y=0;
+    for(const key of this.keys){
+      const direction=KEY_DIRECTIONS[key];
+      if(direction?.x)x=direction.x;
+      if(direction?.y)y=direction.y;
+    }
     if(x||y)return normalize(x,y);
     if(this.settings.mode==='joystick')return {...this.stick};
     if(!this.tiltAvailable||!this.calibrated){
@@ -54,15 +63,20 @@ export class WebInput {
       return {x:0,y:0};
     }
     const now=performance.now();const dt=Math.min(0.1,Math.max(0,(now-this.filterAt)/1000));this.filterAt=now;
-    const dx=this.raw.x-this.neutral.x,dy=this.raw.y-this.neutral.y;
-    const dead=(n:number)=>Math.abs(n)<2?0:Math.sign(n)*(Math.abs(n)-2)/13;
-    const target=normalize(dead(dx)*SENSITIVITY[this.settings.sensitivity],dead(dy)*SENSITIVITY[this.settings.sensitivity]);
-    const alpha=1-Math.exp(-dt/0.06);
+    const dx=this.raw.x-this.neutral.x,dy=this.raw.y-this.neutral.y,angle=Math.hypot(dx,dy);
+    const strength=Math.min(1,Math.max(0,angle-2)/13*SENSITIVITY[this.settings.sensitivity]);
+    const target=angle?{x:dx/angle*strength,y:dy/angle*strength}:{x:0,y:0};
+    const reversing=this.filtered.x*target.x+this.filtered.y*target.y<0;
+    const alpha=1-Math.exp(-dt/(reversing?.020:.045));
     this.filtered.x+=(target.x-this.filtered.x)*alpha;this.filtered.y+=(target.y-this.filtered.y)*alpha;
     return {...this.filtered};
   }
   clear():void {
-    this.keys.clear();this.stick={x:0,y:0};this.filtered={x:0,y:0};this.filterAt=performance.now();
+    this.keys.clear();this.filtered={x:0,y:0};this.filterAt=performance.now();
+    this.releaseJoystick();
+  }
+  private releaseJoystick():void {
+    this.stick={x:0,y:0};
     const id=this.pointer;this.pointer=null;
     if(id!==null){try{if(this.surface.hasPointerCapture(id))this.surface.releasePointerCapture(id);}catch{/* pointer was already released */}}
     this.onJoystick?.({active:false,x:this.origin.x,y:this.origin.y,dx:0,dy:0});
@@ -89,7 +103,7 @@ export class WebInput {
     if(['Space','ShiftLeft','ShiftRight'].includes(e.code)){
       e.preventDefault();if(!e.repeat&&!this.keys.has(e.code)){this.keys.add(e.code);this.onDash?.();}return;
     }
-    if(['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)){e.preventDefault();this.keys.add(e.code);}
+    if(KEY_DIRECTIONS[e.code]){e.preventDefault();this.keys.add(e.code);}
   };
   private keyUp=(e:KeyboardEvent)=>{this.keys.delete(e.code);};
   private pointerDown=(e:PointerEvent)=>{
@@ -102,14 +116,21 @@ export class WebInput {
   };
   private pointerMove=(e:PointerEvent)=>{
     if(e.pointerId!==this.pointer||!this.enabled)return;e.preventDefault();
-    const rect=this.surface.getBoundingClientRect(),r=RADII[this.settings.joystickSize];
-    const dx=e.clientX-rect.left-this.origin.x,dy=e.clientY-rect.top-this.origin.y,n=Math.hypot(dx,dy);
-    const magnitude=n/r;const scaled=magnitude<.08?0:Math.min(1,(magnitude-.08)/.92);
-    this.stick=n?{x:dx/n*scaled,y:dy/n*scaled}:{x:0,y:0};
-    this.onJoystick?.({active:true,x:this.origin.x,y:this.origin.y,dx:dx/Math.max(1,n/r),dy:dy/Math.max(1,n/r)});
+    const rect=this.surface.getBoundingClientRect();
+    const radius=RADII[this.settings.joystickSize]*.62;
+    const x=e.clientX-rect.left,y=e.clientY-rect.top;
+    const dx=x-this.origin.x,dy=y-this.origin.y,n=Math.hypot(dx,dy);
+    const limit=Math.max(1,n/radius), knobX=dx/limit, knobY=dy/limit;
+    // Let the base follow as soon as the stick is at full throw. Reversing starts locally.
+    if(n>radius)this.origin={x:x-knobX,y:y-knobY};
+    const dead=1.5;
+    const travel=Math.max(0,Math.min(1,(n-dead)/(radius-dead)));
+    const strength=travel*travel*(3-2*travel);
+    this.stick=n?{x:dx/n*strength,y:dy/n*strength}:{x:0,y:0};
+    this.onJoystick?.({active:true,x:this.origin.x,y:this.origin.y,dx:knobX,dy:knobY});
   };
-  private pointerEnd=(e:PointerEvent)=>{if(e.pointerId===this.pointer)this.clear();};
-  private pointerLeave=(e:PointerEvent)=>{if(e.pointerId===this.pointer&&!this.surface.hasPointerCapture(e.pointerId))this.clear();};
+  private pointerEnd=(e:PointerEvent)=>{if(e.pointerId===this.pointer)this.releaseJoystick();};
+  private pointerLeave=(e:PointerEvent)=>{if(e.pointerId===this.pointer&&!this.surface.hasPointerCapture(e.pointerId))this.releaseJoystick();};
   private loseFocus=()=>{this.clear();if(this.enabled)this.onPause();};
   private visibility=()=>{if(document.hidden)this.loseFocus();};
   private screenChanged=()=>{this.calibrated=false;this.clear();if(this.enabled&&this.settings.mode==='tilt')this.onPause();};

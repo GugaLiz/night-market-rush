@@ -1,0 +1,122 @@
+{
+  "browser": "157.0.8103.79",
+  "viewport": {
+    "width": 960,
+    "height": 540
+  },
+  "capturedPageFrames": 301,
+  "media": {
+    "videoCodec": "VP8",
+    "audioCodec": "Opus",
+    "width": 960,
+    "height": 540,
+    "duration": 10.083,
+    "audioSeconds": 10.08,
+    "channels": 2,
+    "audioPeak": 0.16992558538913727,
+    "audioRms": 0.015584415387287122,
+    "seekPlaybackAt": 6.050138
+  },
+  "errors": [],
+  "method": "正式构建，从首页点开始挑战进入普通第一波。通过绘制到游戏画布的角色脚影、道具图集和掉币位置引导真实双指触摸操作。首次画出电扇蒸汽后，按可见 HUD 统计 650 毫秒内全部击败。录制页面合成实帧与游戏原音乐、音效。",
+  "limits": "时间以普通局首个显示帧为零。击败数包括同时挥动的武器。桌面 Chrome 模拟横屏触摸，未测真机。",
+  "developmentHookAbsent": true,
+  "practice": false,
+  "wave": 1,
+  "fireAt": 1,
+  "burstAt": 1.583,
+  "fan": {
+    "x": 782.272,
+    "y": 295.021
+  },
+  "killsBeforePickup": 18,
+  "killsInFirst650ms": 18,
+  "dashAt": 1.799,
+  "dashAim": {
+    "x": 914.976,
+    "y": 367.189
+  },
+  "coinsBeforePickup": 0,
+  "firstCollectionAfterPickup": 1.116,
+  "maxStickTurnWhileCollectingDegrees": 135.409,
+  "final": {
+    "t": 9.468,
+    "kills": 58,
+    "collectedCoins": 56,
+    "hp": 100
+  },
+  "route": [
+    {
+      "t": 0.366,
+      "phase": "approach-fan",
+      "player": {
+        "x": 640,
+        "y": 370
+      },
+      "aim": {
+        "x": 782.272,
+        "y": 295.021
+      }
+    },
+    {
+      "t": 1,
+      "phase": "collect",
+      "player": {
+        "x": 767.613,
+        "y": 302.746
+      },
+      "aim": {
+        "x": 833.324,
+        "y": 325.133
+      }
+    },
+    {
+      "t": 2.582,
+      "phase": "cross-to-next-pickup",
+      "player": {
+        "x": 987.979,
+        "y": 290.236
+      },
+      "aim": {
+        "x": 527.603,
+        "y": 566.464
+      }
+    },
+    {
+      "t": 2.966,
+      "phase": "collect",
+      "player": {
+        "x": 909.847,
+        "y": 320.377
+      },
+      "aim": {
+        "x": 434.229,
+        "y": 176.766
+      }
+    },
+    {
+      "t": 6.701,
+      "phase": "cross-to-next-pickup",
+      "player": {
+        "x": 515.396,
+        "y": 415.333
+      },
+      "aim": {
+        "x": 527.603,
+        "y": 566.464
+      }
+    },
+    {
+      "t": 8.416,
+      "phase": "collect",
+      "player": {
+        "x": 645.325,
+        "y": 360.528
+      },
+      "aim": {
+        "x": 556.53,
+        "y": 172.393
+      }
+    }
+  ]
+}

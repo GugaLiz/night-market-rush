@@ -2,6 +2,7 @@ import type {Enemy, GameState, Pickup, SkillKind, Vec, Zone} from '../shared/typ
 import type {CombatContext} from './contracts';
 import {CONFIG, WORLD} from './config';
 import {clamp, distanceSquared, segmentDistanceSquared, sweepContact} from './geometry';
+import {igniteFan, spillSoda, updateSkillFields} from './skill-fields';
 
 const bounds = WORLD.bounds;
 const inside = (p:Vec,r=16):boolean => p.x>=bounds.left+r&&p.x<=bounds.right-r&&p.y>=bounds.top+r&&p.y<=bounds.bottom-r;
@@ -23,23 +24,22 @@ function nearest(s:GameState,p:Vec,radius:number,ctx:CombatContext):Enemy[] {
 }
 
 /** Skills are completely state-backed: resets and seeded replays do not retain module state. */
-export function activateSkill(s:GameState,kind:SkillKind,origin:Vec,ctx:CombatContext):void {
+export function activateSkill(s:GameState,kind:SkillKind,origin:Vec,ctx:CombatContext,pickupFrom?:Vec):void {
   const now=s.time,p=s.player;
   if(kind==='dispatch'&&s.effects.dispatchCooldownUntil>now)return;
-  ctx.emit({type:'skill',kind,...origin});
+  ctx.emit({type:'skill',kind,...origin,time:now,facing:facing(s),...(pickupFrom && {pickupFrom:{x:pickupFrom.x,y:pickupFrom.y}})});
   switch(kind){
     case 'fan':
-      for(const e of [...s.enemies])if(ctx.active(e)&&segmentDistanceSquared({x:e.px,y:e.py},e,origin)<=(CONFIG.skills.fan.radius+e.radius)**2){
-        ctx.damage(e,CONFIG.skills.fan.damage,'fan');if(e.hp>0)ctx.push(e,origin,30);
-      }
+      igniteFan(s,origin,facing(s),ctx);
       break;
     case 'skate':p.skateUntil=now+CONFIG.skills.skate.duration;ring(s,ctx);break;
     case 'soda':
       for(const e of s.enemies)if(ctx.active(e)&&distanceSquared(e,origin)<=(CONFIG.skills.soda.radius+e.radius)**2)e.slowUntil=now+CONFIG.skills.soda.duration;
+      spillSoda(s,origin,facing(s),ctx);
       break;
     case 'lure':{
       s.zones=s.zones.filter(z=>z.kind!=='lure');
-      const d=facing(s);zone(s,ctx,'lure',legal({x:p.x-d.x*38,y:p.y-d.y*38}),4,{radius:180});
+      const d=facing(s);zone(s,ctx,'lure',legal({x:p.x-d.x*38,y:p.y-d.y*38}),4,{radius:CONFIG.skills.lure.radius});
       assignLure(s,ctx);break;
     }
     case 'bubble':p.bubbleUntil=now+7;break;
@@ -49,10 +49,10 @@ export function activateSkill(s:GameState,kind:SkillKind,origin:Vec,ctx:CombatCo
     }
     case 'route':{
       s.zones=s.zones.filter(z=>z.kind!=='route');const d=facing(s),start=legal(origin,0);
-      let length=280;
+      let length:number=CONFIG.skills.route.length;
       if(d.x>0)length=Math.min(length,(bounds.right-start.x)/d.x);else if(d.x<0)length=Math.min(length,(bounds.left-start.x)/d.x);
       if(d.y>0)length=Math.min(length,(bounds.bottom-start.y)/d.y);else if(d.y<0)length=Math.min(length,(bounds.top-start.y)/d.y);
-      zone(s,ctx,'route',start,5,{angle:Math.atan2(d.y,d.x),length:Math.max(0,length),width:72});break;
+      zone(s,ctx,'route',start,5,{angle:Math.atan2(d.y,d.x),length:Math.max(0,length),width:CONFIG.skills.route.width});break;
     }
     case 'hook':startHook(s);break;
     case 'heat':p.heatUntil=now+5;break;
@@ -75,20 +75,21 @@ function assignLure(s:GameState,ctx:CombatContext):void {
   for(const e of s.enemies){delete e.lureX;delete e.lureY;}
   const lure=s.zones.find(z=>z.kind==='lure'&&z.expiresAt>s.time);
   if(!lure)return;
-  for(const e of nearest(s,lure,lure.radius,ctx).filter(e=>e.phase==='chase').slice(0,6)){e.lureX=lure.x;e.lureY=lure.y;}
+  for(const e of nearest(s,lure,lure.radius,ctx).filter(e=>e.phase==='chase').slice(0,CONFIG.skills.lure.targets)){e.lureX=lure.x;e.lureY=lure.y;}
 }
 
 function placeCones(s:GameState,ctx:CombatContext):void {
   s.zones=s.zones.filter(z=>z.kind!=='cone');
   const target=nearest(s,s.player,500,ctx)[0];let d=facing(s);
   if(target){const length=Math.hypot(target.x-s.player.x,target.y-s.player.y);if(length>.1)d={x:(target.x-s.player.x)/length,y:(target.y-s.player.y)/length};}
-  for(const offset of [-34,0,34]){
-    const base={x:s.player.x+d.x*82-d.y*offset,y:s.player.y+d.y*82+d.x*offset};
-    for(const shift of [0,18,-18,34,-34]){
+  const {spacing,reach,radius}=CONFIG.skills.cones;
+  for(const offset of [-spacing,0,spacing]){
+    const base={x:s.player.x+d.x*reach-d.y*offset,y:s.player.y+d.y*reach+d.x*offset};
+    for(const shift of [0,spacing/2,-spacing/2,spacing,-spacing]){
       const candidate={x:base.x+d.x*shift,y:base.y+d.y*shift};
-      if(!inside(candidate,14)||s.enemies.some(e=>e.hp>0&&distanceSquared(candidate,e)<(14+e.radius+8)**2)||
-        s.zones.some(z=>z.kind==='cone'&&distanceSquared(candidate,z)<30**2))continue;
-      zone(s,ctx,'cone',candidate,4.5,{radius:14});break;
+      if(!inside(candidate,radius)||s.enemies.some(e=>e.hp>0&&distanceSquared(candidate,e)<(radius+e.radius+8)**2)||
+        s.zones.some(z=>z.kind==='cone'&&distanceSquared(candidate,z)<(2*radius+2)**2))continue;
+      zone(s,ctx,'cone',candidate,4.5,{radius});break;
     }
   }
 }
@@ -133,7 +134,7 @@ function ring(s:GameState,ctx:CombatContext):void {
 }
 
 function ringBell(s:GameState,origin:Vec,ctx:CombatContext):void {
-  for(const e of nearest(s,origin,150,ctx).filter(e=>e.bellResistUntil<=s.time).slice(0,12)){
+  for(const e of nearest(s,origin,CONFIG.skills.bell.radius,ctx).filter(e=>e.bellResistUntil<=s.time).slice(0,CONFIG.skills.bell.targets)){
     if(e.stunUntil<=s.time)e.stunStartedAt=s.time;
     e.stunUntil=Math.min(s.time+.65,e.stunStartedAt+1.2);
     // Recovery replaces the previous charge instead of postponing its locked dash.
@@ -144,12 +145,12 @@ function ringBell(s:GameState,origin:Vec,ctx:CombatContext):void {
 function startHook(s:GameState):void {
   const travelling=s.pickups.filter(p=>(p.pulledUntil??0)>s.time&&eligible(s,p));
   const groups=new Set(travelling.filter(p=>p.groupId).map(p=>p.groupId));
-  let slots=3-travelling.length;
-  const candidates=s.pickups.filter(p=>p.kind!=='hook'&&eligible(s,p)&&(p.pulledUntil??0)<=s.time&&distanceSquared(p,s.player)<=150**2)
+  let slots=CONFIG.skills.hook.targets-travelling.length;
+  const candidates=s.pickups.filter(p=>p.kind!=='hook'&&eligible(s,p)&&(p.pulledUntil??0)<=s.time&&distanceSquared(p,s.player)<=CONFIG.skills.hook.radius**2)
     .sort((a,b)=>distanceSquared(a,s.player)-distanceSquared(b,s.player)||a.id-b.id);
   for(const item of candidates){
     if(slots<=0)break;if(item.groupId&&groups.has(item.groupId))continue;
-    item.pulledUntil=s.time+.5;if(item.groupId)groups.add(item.groupId);slots--;
+    item.pulledUntil=s.time+CONFIG.skills.hook.duration;if(item.groupId)groups.add(item.groupId);slots--;
   }
 }
 
@@ -159,7 +160,7 @@ function updateHook(s:GameState,dt:number):void {
     if(item.pulledUntil<=s.time||!eligible(s,item)){delete item.pulledUntil;continue;}
     const dx=s.player.x-item.x,dy=s.player.y-item.y,length=Math.hypot(dx,dy);
     if(length<.01)continue;
-    const step=Math.min(length,600*dt);item.x+=dx/length*step;item.y+=dy/length*step;
+    const step=Math.min(length,CONFIG.skills.hook.speed*dt);item.x+=dx/length*step;item.y+=dy/length*step;
     Object.assign(item,legal(item,item.radius));
   }
 }
@@ -188,6 +189,7 @@ function deliverSupply(s:GameState,origin:Vec,ctx:CombatContext):boolean {
 
 export function updateSkills(s:GameState,dt:number,ctx:CombatContext):void {
   const now=s.time,previous=now-dt;
+  updateSkillFields(s,ctx);
   for(const [kind,until] of [['skate',s.player.skateUntil],['bubble',s.player.bubbleUntil],['heat',s.player.heatUntil],['stamp',s.player.stampUntil]] as const){
     if(until>previous&&until<=now)ctx.emit({type:'skillEnd',kind});
   }

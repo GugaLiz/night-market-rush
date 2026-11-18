@@ -12,22 +12,36 @@ export const WORLD = {
 const S = WORLD.shortSide;
 export const CONFIG = {
   step: 1 / 60,
-  player: {speed: .42 * S, accelerationTime: .08, decelerationTime: .06, radius: .018 * S, minY:180, hp:100, protection:.75,sprintAfter:1.8,sprintMax:1.12,dashDuration:.18,dashCooldown:3,dashSpeed:2.5},
+  player: {
+    speed: .46 * S, accelerationTime: .044, decelerationTime: .032,
+    turnRate: 12 * Math.PI, aimThreshold: .075,
+    radius: .018 * S, minY:180, hp:100, protection:.75, sprintAfter:1.8, sprintMax:1.12,
+    dashDuration:.18, dashCooldown:3, dashSpeed:3, dashExitTime:.055,
+  },
   enemies: {
-    bun: {speed: .075 * S, radius: .020 * S, points: 10, hp:30, damage:8},
-    box: {speed: .065 * S, radius: .022 * S, points: 20, hp:60, damage:12},
-    bowl: {speed: .045 * S, radius: .040 * S, points: 15, hp:120, damage:18},
-  } satisfies Record<EnemyKind, {speed: number; radius: number; points: number; hp:number; damage:number}>,
+    bun: {speed: .075 * S, radius: .020 * S, coins:1, hp:30, damage:8},
+    box: {speed: .065 * S, radius: .022 * S, coins:2, hp:60, damage:12},
+    bowl: {speed: .045 * S, radius: .040 * S, coins:3, hp:120, damage:18},
+  } satisfies Record<EnemyKind, {speed: number; radius: number; coins:number; hp:number; damage:number}>,
   dash: {warning: 1.1, duration: .5, recovery: 1.5, speed: .38 * S, approach: 4, concurrent: 1},
   ranged: {warning:.9,interval:5,speed:90,damage:8,radius:6,cap:12,lifetime:7,range:620,concurrent:2},
   skills: {
-    fan: {radius: .16 * S, damage:60},
-    skate: {duration: 4, inner: .07 * S, outer: .13 * S, damage:12, interval:.5},
-    soda: {radius: .30 * S, duration: 3, factor: .35},
+    fan: {radius:130, fullRadius:250, damage:90},
+    skate: {duration:4, inner:38, outer:140, damage:20, interval:.5},
+    soda: {radius:260, duration:3, factor:.35, poolRadius:108, sidePoolRadius:78},
+    lure: {radius:270, targets:10},
+    bell: {radius:240, targets:18},
+    hook: {radius:240, targets:3, duration:.65, speed:740},
+    route: {length:420, width:110},
+    cones: {reach:114, spacing:52, radius:21},
   },
   spawn: {warning: .6, safeDistance: .22 * S, attempts: 24},
-  pickup: {radius: .027 * S, firstAt: 1, interval: 4, emptyGrace: 2, cap: 4},
+  pickup: {radius: .027 * S, firstAt: .35, interval: 4, emptyGrace: 2, cap: 4},
   weapons: {projectileCap:24, dropFirst:4, dropInterval:12, dropRadius:12},
+  // V4 tuning values for the night-market adaptation. The video only establishes visible outcomes.
+  waves: {firstDuration:36, duration:34, transition:1.65},
+  rewards: {coinGrace:.42, attractionRadius:64, attractionSpeed:320, collectRadius:13, cap:96, comboDuration:2.4},
+  reviveProtection: 3,
 } as const;
 
 export interface Difficulty {

@@ -1,7 +1,8 @@
 import { DEFAULT_SETTINGS, RULES_VERSION, type BestRecord, type SaveData, type Settings } from '../shared/types';
 
 export interface StorageLike { getItem(key:string):string|null; setItem(key:string,value:string):void }
-export const SAVE_KEY='night-market-rush.save.v1';
+export const SAVE_KEY='night-market-rush.save.v4';
+const LEGACY_SAVE_KEY='night-market-rush.save.v1';
 const clone=<T>(value:T):T=>JSON.parse(JSON.stringify(value)) as T;
 const isObject=(value:unknown):value is Record<string,unknown>=>typeof value==='object'&&value!==null&&!Array.isArray(value);
 const clamp=(value:unknown,fallback:number)=>typeof value==='number'&&Number.isFinite(value)?Math.min(1,Math.max(0,value)):fallback;
@@ -53,7 +54,18 @@ export class WebStorage {
     if(!this.storage)return clone(this.current);
     let raw:string|null;
     try{raw=this.storage.getItem(SAVE_KEY);}catch{this.storage=null;return clone(this.current);}
-    if(raw===null)return clone(this.current);
+    if(raw===null){
+      // Older releases may still be open. They own the old key and its time-based high score.
+      try{
+        const legacy=this.storage.getItem(LEGACY_SAVE_KEY);
+        const data:unknown=legacy===null?null:JSON.parse(legacy);
+        if(isObject(data)&&data.version===1){
+          this.current.settings=sanitizeSettings(data.settings);
+          this.current.tutorialSeen=data.tutorialSeen===true;
+        }
+      }catch{/* Unreadable legacy preferences can be left in place. */}
+      return clone(this.current);
+    }
     try{
       const parsed:unknown=JSON.parse(raw);
       if(!isObject(parsed))throw new Error('Malformed save');

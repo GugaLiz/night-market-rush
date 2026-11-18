@@ -1,11 +1,14 @@
 import './ui/style.css';
 import {Game} from './core/game';
+import {CONFIG} from './core/config';
+import {WEAPONS} from './core/weapons';
 import {WebStorage} from './platform/storage';
 import {WebInput} from './platform/input';
 import {GameAudio} from './platform/audio';
 import {UI, type View} from './ui/ui';
 import {loadAssets} from './render/assets';
 import {Renderer} from './render/renderer';
+import {sampleBattleFrame} from './render/battle-frame';
 import {RULES_VERSION, WEAPON_NAMES, type Settings, type SkillKind, type EnemyKind, type WeaponKind} from './shared/types';
 
 const storage=new WebStorage();
@@ -16,7 +19,8 @@ const game=new Game();
 let renderer:Renderer|undefined;
 let ready=false,live=false,starting=false,rotated=false;
 let settingsOrigin:'home'|'pause'='home';
-let remaining=0,lastCount=0,accumulator=0,lastFrame=performance.now();
+let remaining=0,accumulator=0,lastFrame=performance.now();
+let canInterpolate=false;
 let tutorialSeen=saved.tutorialSeen;
 let recordSoundAt=0;
 let inputRequest=0;
@@ -43,17 +47,30 @@ const ui:UI=new UI(document.getElementById('app')!,{
   home:()=>{
     cancelPendingStart();
     gesture();
+    if(rotated&&live&&game.state.ended){ui.toast('请横屏选择复活或查看成绩');return;}
     if(live){input.setEnabled(false);audio.setScene('paused');ui.show('confirm',{state:game.state});}
     else home();
   },
   abandon:()=>{live=false;home();},
-  retry:()=>{if(!ready)void boot();else if(game.state.practice)void startPractice(game.state.weapon.kind);else void start(true);},
+  retry:()=>{if(!ready)void boot();else if(game.state.practice)void startPractice(game.state.weapon.kind);else void start();},
+  revive:()=>{
+    if(ui.currentView!=='revive'||document.hidden||portrait()||!game.revive())return;
+    gesture();countdown();
+  },
+  endRun:()=>{if(ui.currentView==='revive'){gesture();finish();}},
   practice:()=>void startPractice(),lab:()=>openLab(),closeLab:()=>closeLab(),
+  demo:kind=>{
+    if(ui.currentView!=='lab'||!game.state.practice)return;
+    practiceSpeed=1;
+    if(kind==='pickup')game.setupPickupDemo();else game.setupWaveDemo();
+    renderer?.reset();beginPlay(false);deliverEvents();
+    ui.toast(kind==='pickup'?'向右取电扇，沿热风清出的路线收金币':'换波后，地面物品仍可拾取',1600);
+  },
   catalog:()=>{cancelPendingStart();gesture();catalogOrigin=ui.currentView;input.setEnabled(false);if(live)audio.setScene('paused');ui.show('catalog',{settings,state:game.state});},
   closeCatalog:()=>{gesture();if(catalogOrigin==='home')home();else ui.show(catalogOrigin,{settings,state:game.state,speed:practiceSpeed});},
   selectWeapon:kind=>{if(!game.state.practice)return;game.setWeapon(kind);closeLab();deliverEvents();},
   triggerSkill:kind=>{if(!game.state.practice)return;game.triggerSkill(kind);closeLab();deliverEvents();},
-  spawnEnemy:(kind,group)=>{if(!game.state.practice)return;const count=group?6:1;const p=game.state.player;const spawnDistance=!group&&game.state.weapon.kind==='lunchbox'?300:150;for(let i=0;i<count;i++){const angle=group?-Math.PI/3+i*Math.PI/3:Math.atan2(p.moveDirection.y,p.moveDirection.x);game.spawnEnemy(kind,{x:Math.max(110,Math.min(1170,p.x+Math.cos(angle)*spawnDistance)),y:Math.max(135,Math.min(610,p.y+Math.sin(angle)*spawnDistance))});}closeLab();deliverEvents();},
+  spawnEnemy:(kind,group)=>{if(!game.state.practice)return;const count=group?6:1;const p=game.state.player;const spawnDistance=!group&&game.state.weapon.kind==='lunchbox'?WEAPONS.lunchbox.range:150;for(let i=0;i<count;i++){const angle=group?-Math.PI/3+i*Math.PI/3:Math.atan2(p.moveDirection.y,p.moveDirection.x);game.spawnEnemy(kind,{x:Math.max(110,Math.min(1170,p.x+Math.cos(angle)*spawnDistance)),y:Math.max(135,Math.min(610,p.y+Math.sin(angle)*spawnDistance))});}closeLab();deliverEvents();},
   heal:()=>{if(!game.state.practice)return;game.healPlayer();deliverEvents();ui.updateHUD(game.state);ui.toast('生命已补满');},
   clear:()=>{if(!game.state.practice)return;game.clearArena();renderer?.reset();deliverEvents();ui.updateHUD(game.state);ui.toast('场地已清空');},
   resetLab:()=>{if(!game.state.practice)return;const weapon=game.state.weapon.kind;game.reset(Date.now(),true);game.setWeapon(weapon);renderer?.reset();deliverEvents();ui.updateHUD(game.state);ui.toast('已重置试验，保留当前武器');},
@@ -72,7 +89,7 @@ const input:WebInput=new WebInput(ui.surface,()=>pause(),value=>ui.setJoystick(v
 ui.canvas.tabIndex=-1;
 applyPreferences();
 
-function dash(){if(!live||ui.currentView!=='play'||document.hidden||rotated||game.state.ended)return;if(game.dash()){deliverEvents();ui.updateHUD(game.state);}ui.canvas.focus({preventScroll:true});}
+function dash(){if(!live||ui.currentView!=='play'||document.hidden||rotated||game.state.ended)return;if(game.dash(input.getVector())){deliverEvents();ui.updateHUD(game.state);}ui.canvas.focus({preventScroll:true});}
 function gesture(){void audio.unlock();audio.play('ui');}
 function cancelPendingStart(){inputRequest++;starting=false;}
 function applyPreferences(){input.setSettings(settings);audio.setSettings(settings);renderer?.setSettings(settings);}
@@ -108,18 +125,20 @@ async function prepareInput(request:number):Promise<boolean>{
   }
   return true;
 }
-async function start(force=false){
+async function start(){
   if(!ready||starting)return;
   if(portrait()){checkOrientation();return;}
-  gesture();
-  if(!force&&!tutorialSeen&&ui.currentView!=='tutorial'){
-    ui.show('tutorial',{settings});return;
-  }
-  tutorialSeen=true;storage.setTutorialSeen();starting=true;
+  gesture();starting=true;
   const request=++inputRequest;
   try{
     if(!(await prepareInput(request)))return;
-    practiceSpeed=1;game.reset();renderer?.reset();recordSoundAt=0;live=true;countdown();
+    practiceSpeed=1;game.reset();renderer?.reset();recordSoundAt=0;live=true;
+    beginPlay();
+    if(document.hidden){pause();return;}
+    checkOrientation();
+    if(!tutorialSeen&&ui.currentView==='play'){
+      tutorialSeen=true;storage.setTutorialSeen();ui.showOpeningHint();
+    }
   }finally{if(request===inputRequest)starting=false;}
 }
 async function startPractice(weapon:WeaponKind='tongs'){
@@ -136,11 +155,20 @@ function openLab(){
 function closeLab(){if(!live||!game.state.practice)return;if(portrait()){checkOrientation();return;}beginPlay(false);}
 function deliverEvents(){
   const events=game.drainEvents();renderer?.events(events);
-  if(game.state.ended&&live)finish();
-  for(const event of events){audio.play(event);if(event.type==='notice')ui.toast(event.message);else if(event.type==='weapon')ui.toast(`已换装 · ${WEAPON_NAMES[event.kind]}`);else if(event.type==='stage'&&!game.state.practice)ui.toast(['','热身开场','小心冲刺：留意方向预警','夜市高峰：敌人更密集','极限夜班：注意生命值'][event.stage]);}
+  if(game.state.ended&&live&&ui.currentView==='play'){
+    input.setEnabled(false);accumulator=0;audio.setScene('paused');
+    if(!game.state.practice&&game.state.revivesUsed===0)ui.show('revive',{state:game.state});
+    else finish();
+  }
+  for(const event of events){
+    audio.play(event);
+    if(event.type==='notice')ui.toast(event.message);
+    else if(event.type==='weapon')ui.toast(`已换装 · ${WEAPON_NAMES[event.kind]}`);
+  }
 }
 async function resume(){
   if(portrait()){ui.toast('请将设备横过来，再继续');return;}
+  if(game.state.ended&&live)return;
   rotated=false;
   if(!live){home();return;}
   if(starting)return;starting=true;
@@ -148,21 +176,23 @@ async function resume(){
   try{if(await prepareInput(request)){if(game.state.practice)beginPlay(false);else countdown();}}finally{if(request===inputRequest)starting=false;}
 }
 function countdown(){
-  input.setEnabled(false);audio.setScene('paused');remaining=3;lastCount=3;accumulator=0;
-  ui.show('countdown',{settings,state:game.state,count:3});audio.play('ui');
+  input.setEnabled(false);audio.setScene('paused');remaining=1;accumulator=0;
+  ui.show('countdown',{settings,state:game.state,count:1});audio.play('ui');
   if(document.hidden){pause();return;}
   checkOrientation();
 }
 function beginPlay(playStart=true){
-  remaining=0;accumulator=0;lastFrame=performance.now();
+  remaining=0;accumulator=0;canInterpolate=false;lastFrame=performance.now();
   ui.show('play',{settings,state:game.state,speed:practiceSpeed});
   ui.canvas.focus({preventScroll:true});input.setEnabled(true);audio.setScene('play');if(playStart)audio.play('start');
 }
 function finish(){
+  if(!live||!game.state.ended)return;
   live=false;input.setEnabled(false);accumulator=0;audio.setScene('paused');
   const best=storage.data.best;
-  const isRecord=!game.state.practice&&(!best||game.state.score>best.score||(game.state.score===best.score&&game.state.time>best.time));
-  const persisted=isRecord?storage.saveBest({score:game.state.score,time:game.state.time,rulesVersion:RULES_VERSION,date:new Date().toISOString()}):true;
+  const {kills,time}=game.state;
+  const isRecord=!game.state.practice&&(!best||kills>best.score||(kills===best.score&&time>best.time));
+  const persisted=isRecord?storage.saveBest({score:kills,time,rulesVersion:RULES_VERSION,date:new Date().toISOString()}):true;
   ui.show('result',{state:game.state,best:storage.data.best,isRecord,saved:persisted,settings});
   recordSoundAt=isRecord?performance.now()+900:0;
 }
@@ -191,32 +221,36 @@ window.addEventListener('resize',checkOrientation);
 window.addEventListener('blur',()=>pause());
 document.addEventListener('visibilitychange',()=>{
   if(document.hidden){pause();audio.setScene('silent');}
-  else audio.setScene(live?'paused':'home');
+  else audio.setScene(live||ui.currentView==='result'?'paused':'home');
 });
 
 function frame(now:number){
   const elapsed=Math.max(0,(now-lastFrame)/1000);lastFrame=now;
-  if(elapsed>.25&&(ui.currentView==='play'||ui.currentView==='countdown'))pause();
-  const dt=Math.min(.1,elapsed);
+  // A stalled foreground frame has no usable input history. Resume from the last
+  // simulated position; blur, visibility and orientation events handle leaving play.
+  const dt=elapsed>.25?0:Math.min(.1,elapsed);
   if(ui.currentView==='countdown'){
     remaining-=dt;
-    const count=Math.max(1,Math.ceil(remaining));
-    if(count!==lastCount){lastCount=count;ui.show('countdown',{count});audio.play('ui');}
     if(remaining<=0)beginPlay();
   }
   if(ui.currentView==='play'){
     accumulator+=dt*(game.state.practice?practiceSpeed:1);
-    while(accumulator>=1/60&&ui.currentView==='play'){
-      game.update(1/60,input.getVector());accumulator-=1/60;
+    const beforeStep=game.state.time;
+    while(accumulator>=CONFIG.step&&ui.currentView==='play'){
+      game.update(CONFIG.step,input.getVector());accumulator-=CONFIG.step;
+      canInterpolate=true;
       deliverEvents();
     }
-    ui.updateHUD(game.state);
+    if(game.state.time!==beforeStep)ui.updateHUD(game.state);
   }
   const view=ui.currentView;
   if(recordSoundAt&&now>=recordSoundAt){if(view==='result')audio.play('record');recordSoundAt=0;}
   const showRun=live||view==='result';
   const renderMode=view==='play'?'play':view==='result'?'result':showRun?'pause':'home';
-  renderer?.render(showRun?game.state:null,renderMode==='pause'?0:dt*(game.state.practice&&showRun?practiceSpeed:1),renderMode);
+  const scene=renderMode==='play'&&canInterpolate
+    ?sampleBattleFrame(game.state,accumulator/CONFIG.step)
+    :showRun?game.state:null;
+  renderer?.render(scene,renderMode==='pause'?0:dt*(game.state.practice&&showRun?practiceSpeed:1),renderMode);
   requestAnimationFrame(frame);
 }
 async function boot(){

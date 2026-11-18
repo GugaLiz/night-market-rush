@@ -1,0 +1,258 @@
+# 夜市急送改动记录
+
+按上海时间追加记录项目改动、原因与验证结果。
+## 2026-11-19 00:30:02 +08:00 — feature
+
+- **摘要**：将 V4 连续夜市主局、拾取清场和金币回收接入开始挑战。
+- **涉及文件**：
+  - `agentchanges/CHANGELOG.md`
+  - `agentchanges/README.md`
+  - `docs/问题清单/已确认需求与待核实问题.md`
+  - `docs/问题清单/README.md`
+  - `docs/ASSET_PROVENANCE.md`
+  - `docs/IMPLEMENTATION.md`
+  - `docs/V4_PLAYTEST.md`
+  - `docs/VERIFICATION.md`
+  - `docs/verification/v4/comparison.jpg`
+  - `docs/verification/v4/pickup-wave.webm`
+  - `docs/verification/v4/report.json`
+  - `public/assets/riverside-market.webp`
+  - `README.md`
+  - `scripts/verify-production.mjs`
+  - `scripts/verify-v4-visual.mjs`
+  - `src/core/config.ts`
+  - `src/core/enemies.ts`
+  - `src/core/game.ts`
+  - `src/core/rewards.ts`
+  - `src/core/skill-fields.ts`
+  - `src/core/skills.ts`
+  - `src/core/waves.ts`
+  - `src/main.ts`
+  - `src/platform/audio.ts`
+  - `src/platform/storage.ts`
+  - `src/render/assets.ts`
+  - `src/render/market-floor.ts`
+  - `src/render/renderer.ts`
+  - `src/shared/types.ts`
+  - `src/ui/catalog.ts`
+  - `src/ui/style.css`
+  - `src/ui/ui.ts`
+  - `tests/core.test.ts`
+  - `tests/e2e/game.spec.ts`
+  - `tests/e2e/v2-ui.spec.ts`
+  - `tests/platform.test.ts`
+  - `tests/skills.test.ts`
+  - `tests/v4-core.test.ts`
+  - `tests/v4-skills.test.ts`
+- **原因/目标**：按已批准的第一部录像玩法方案施工，并保留 V3 武器、技能、操作与既有玩家设置。
+- **实现/结果**：两场景轮替，加入局部炉火、持续蓝区、敌群队形与慢弹、拾取金币、连击、复活和按击败数结算。V4 独立存档。提供可重复的取卡与换波样例、键盘实录和参数文档。
+- **验证**：148 项 Vitest、14 项 Chrome Playwright、7 项服务测试通过。TypeScript 与 Vite 正式构建、4173 正式页冒烟、243 帧实录和八帧对照通过。联调时更新旧派单批次预期，解决开发服热重载干扰后全量复验。依赖和构建/验证产物在项目忽略目录，本机启动服务供试玩。
+- **风险/后续**：波次节奏、金币与复活参数是本项目调校值。仍需实体手机走位、持续帧率及原片声轨对听。
+
+## 2026-11-19 00:56:51 +08:00 — feature
+
+- **摘要**：重做普通第一波的走位、取扇群击与收币反馈，并缩短持续取卡时的清场空档。
+- **涉及文件**：
+  - `README.md`
+  - `docs/V4_PLAYTEST.md`
+  - `docs/问题清单/README.md`
+  - `docs/ASSET_PROVENANCE.md`
+  - `docs/verification/feel/opening.webm`
+  - `docs/verification/feel/burst.webp`
+  - `docs/verification/feel/report.json`
+  - `public/assets/market-spells.webp`
+  - `scripts/verify-opening.mjs`
+  - `scripts/verify-production.mjs`
+  - `scripts/verify-v4-visual.mjs`
+  - `src/core/config.ts`
+  - `src/core/enemies.ts`
+  - `src/core/game.ts`
+  - `src/core/rewards.ts`
+  - `src/core/waves.ts`
+  - `src/main.ts`
+  - `src/platform/audio.ts`
+  - `src/platform/input.ts`
+  - `src/render/assets.ts`
+  - `src/render/character.ts`
+  - `src/render/market-floor.ts`
+  - `src/render/renderer.ts`
+  - `src/shared/types.ts`
+  - `src/ui/style.css`
+  - `src/ui/ui.ts`
+  - `tests/e2e/game.spec.ts`
+  - `tests/platform.test.ts`
+  - `tests/v4-core.test.ts`
+  - `agentchanges/CHANGELOG.md`
+- **原因/目标**：实际试玩反馈急转不灵、战场稀疏，取道具缺乏参考录像可见的局部爆发。
+- **实现/结果**：单击直接进局。反向键交叠、摇杆跟随回拉、双指冲刺及缓弧微加速可用。开场把大型包子群放在电扇一侧，保留另一方向的道具与队列。场上无电扇时连续两次支援补给后再补电扇。加入原创炉火与汽水三帧图集、实际群击驱动的击飞与镜头音效、冲刺残影、金币抛落和精简角落 HUD。保留 V4 纪录。
+- **验证**：152 项 Vitest、14 项 Chrome 浏览器流程、7 项静态服务测试、TypeScript、Vite 构建及 4173 正式冒烟通过。12 种子直取电扇的 0.8 秒新增击败均值 2.17→22.33。最终普通局双指有声录像 10.05 秒，1.33 秒拾扇，0.65 秒新增 22 击败，第二指冲刺、折返收币并验证双声道与可定位播放。5 个中段种子均进入第二波，第二扇在 4.4–12.4 秒出现。重跑历史 3 条样例通过，炉火退去时远队 8/8 存活。
+- **风险/后续**：桌面 Chrome 模拟触屏，尚待实体手机输入、传感器、音画延迟与长局帧率验证。与第一部的逐帧操控及原声仍未校准。
+
+## 2026-11-19 01:50:18 +08:00 — feature
+
+- **摘要**：重做随走位的近战出招与命中范围、摇杆急转和冲刺衔接，并按屏幕刷新节奏绘制移动。
+- **涉及文件**：
+  - `README.md`
+  - `docs/V4_PLAYTEST.md`
+  - `docs/问题清单/README.md`
+  - `docs/verification/combat/ordinary-attack.webm`
+  - `docs/verification/combat/report.json`
+  - `scripts/gameplay-recording.mjs`
+  - `scripts/verify-combat.mjs`
+  - `scripts/verify-footwork.mjs`
+  - `scripts/verify-opening.mjs`
+  - `src/core/config.ts`
+  - `src/core/game.ts`
+  - `src/core/melee.ts`
+  - `src/core/weapons.ts`
+  - `src/main.ts`
+  - `src/platform/input.ts`
+  - `src/render/battle-frame.ts`
+  - `src/render/character.ts`
+  - `src/render/held-weapon.ts`
+  - `src/render/renderer.ts`
+  - `src/shared/types.ts`
+  - `src/ui/catalog.ts`
+  - `src/ui/ui.ts`
+  - `tests/e2e/v3-movement.spec.ts`
+  - `tests/integration.test.ts`
+  - `tests/platform.test.ts`
+  - `tests/v3-weapons.test.ts`
+  - `tests/v4-core.test.ts`
+  - `agentchanges/CHANGELOG.md`
+- **原因/目标**：用户要求实质处理操作性、角色普通攻击、真实攻击范围和移动丝滑性。旧攻击图形留在发招位置，直角转向异常减速，高刷移动会重画相同脚点。
+- **实现/结果**：取餐夹双向交替横扫 96°，武器轨迹和双方位移共同决定命中。快刀、尺剑、配送伞共用各自的实际姿态；远程从手边出现，斜抛餐盒在边界收口。转身起手可预备，保留伤害与冷却限制。普通满速直角转弯维持速度，浮动摇杆支持微移并贴随手指，冲刺末段接当前输入。战场按固定步之间的位置插值，前台短暂停顿后接续移动。沿用方向自动攻击、原场地和 V4 存档。
+- **验证**：161 项 Vitest、15 项 Chrome E2E、7 项静态服务测试、tsc/Vite 及 4173 正式冒烟通过。实测取餐夹对左右 40° 及正前 202 单位目标扣血，正后 65 和正前 224 单位未命中。状态相同的转身回击延迟 0.633→0.433 秒。满速 90° 转弯 83→50 毫秒。正式页 0.9 秒匀速走位：旧版重复脚点 52/105，新版 0/107。排查开局等待失败时以 400 毫秒前台长帧重现误暂停，修改后专项浏览器回归通过。桌面 Chrome 双指普通第一波避开全部道具：9.367 秒取餐夹 44 击败、29 金币，录像 VP8 + 双声道 Opus 已验证可定位播放。旧拾扇录像脚本和 241 帧试验场样例复验通过。
+- **风险/后续**：手感指标为规则模拟及本机桌面 Chrome 实测，实体手机触屏到显示的延迟、重力传感器与长局帧率仍待真人设备验证。攻击时序和距离为夜市项目调校值。
+
+## 2026-11-19 02:17:00 +08:00 — feature
+
+- **摘要**：放大武器和技能实际判定，重做承重步态与武器击中特效，让每只怪物的真实扣血可持续叠加。
+- **涉及文件**：
+  - `README.md`
+  - `docs/V4_PLAYTEST.md`
+  - `docs/ASSET_PROVENANCE.md`
+  - `docs/问题清单/README.md`
+  - `docs/verification/impact/damage-stack.webp`
+  - `docs/verification/impact/gait.webp`
+  - `docs/verification/impact/weapons.webp`
+  - `docs/verification/impact/ordinary-attack.webm`
+  - `docs/verification/impact/report.json`
+  - `docs/verification/impact/fan/opening.webm`
+  - `docs/verification/impact/fan/burst.webp`
+  - `docs/verification/impact/fan/report.json`
+  - `public/assets/weapon-strikes.webp`
+  - `scripts/verify-combat.mjs`
+  - `scripts/verify-damage-stack.mjs`
+  - `src/core/config.ts`
+  - `src/core/contracts.ts`
+  - `src/core/game.ts`
+  - `src/core/melee.ts`
+  - `src/core/skill-fields.ts`
+  - `src/core/skills.ts`
+  - `src/core/waves.ts`
+  - `src/core/weapons.ts`
+  - `src/main.ts`
+  - `src/render/assets.ts`
+  - `src/render/character.ts`
+  - `src/render/courier-gait.ts`
+  - `src/render/damage-labels.ts`
+  - `src/render/renderer.ts`
+  - `src/render/weapon-effects.ts`
+  - `src/shared/types.ts`
+  - `src/ui/catalog.ts`
+  - `tests/core.test.ts`
+  - `tests/courier-gait.test.ts`
+  - `tests/damage-labels.test.ts`
+  - `tests/integration.test.ts`
+  - `tests/skills.test.ts`
+  - `tests/v3-weapons.test.ts`
+  - `tests/v4-skills.test.ts`
+  - `agentchanges/CHANGELOG.md`
+- **原因/目标**：用户试玩反馈武器打击不鲜明、跑步姿态僵硬、伤害与范围保守，旧的浮动数字单笔到期且拥挤后不能恢复。
+- **实现/结果**：取餐夹 260/130°/54 伤/最多七只，快刀半圆，尺剑直劈 310，飞筷 540，餐盒落点半径 150。十武器均接实际命中反馈与原创透明图集。炉火主圈 250、汽水 260、滑板外圈 140，调整首波群宽与电扇位置保留主动拾取价值。承重脚定位、抬膝、肩胯和停步随步态变化。怪物累计按实际扣血计，保留最近五笔明细，击败后留字 2.4 秒，拥挤时让出命中中心。
+- **验证**：163 项 Vitest、15 项 Chrome E2E、7 项服务测试、tsc、Vite 与正式页冒烟通过。开发服热重载曾中断两项 E2E，固定代码后原断言全量通过。三方向各 57/57 个采样间隔有稳定承重脚。碗怪三夹实画 54/5段、108/10段、120/12段。960×540 的普通局两段均录到 VP8 与 Opus，普攻 9.35 秒 56 击败，取扇后 0.65 秒 20 新增击败（含同期普攻）。试验场拾扇、绕行和换波复核通过。图集透明边缘、四格和正式资源 HTTP 已核对。
+- **风险/后续**：本次参数为网页项目调校。输入和画面验证使用桌面 Chrome 157 及模拟触控，实体手机端到端延迟、重力感应与长局帧率待验证。
+
+## 2026-11-19 03:08:46 +08:00 — feature
+
+- **摘要**：完成绕肩挥击、六款远程齐射与配送员取物动作，登记制服、技能图集和实战画面。
+- **涉及文件**：
+  - `README.md`
+  - `docs/ASSET_PROVENANCE.md`
+  - `docs/V4_PLAYTEST.md`
+  - `docs/问题清单/README.md`
+  - `public/assets/courier-home.webp`
+  - `public/assets/courier-uniform.webp`
+  - `public/assets/delivery-skills.webp`
+  - `scripts/verify-courier-melee.mjs`
+  - `scripts/verify-ranged-volleys.mjs`
+  - `scripts/verify-delivery-skills.mjs`
+  - `src/core/game.ts`
+  - `src/core/melee.ts`
+  - `src/core/skills.ts`
+  - `src/core/weapons.ts`
+  - `src/main.ts`
+  - `src/platform/audio.ts`
+  - `src/render/assets.ts`
+  - `src/render/character.ts`
+  - `src/render/courier-equipment.ts`
+  - `src/render/delivery-skills.ts`
+  - `src/render/market-floor.ts`
+  - `src/render/weapon-effects.ts`
+  - `src/render/renderer.ts`
+  - `src/shared/types.ts`
+  - `src/ui/catalog.ts`
+  - `src/ui/ui.ts`
+  - `tests/e2e/game.spec.ts`
+  - `tests/integration.test.ts`
+  - `tests/v3-weapons.test.ts`
+  - `docs/verification/courier/character.webp`
+  - `docs/verification/courier/equipment.webp`
+  - `docs/verification/courier/melee.webp`
+  - `docs/verification/courier/ranged.webp`
+  - `docs/verification/courier/skills.webp`
+  - `docs/verification/courier/fan/opening.webm`
+  - `docs/verification/courier/fan/burst.webp`
+  - `docs/verification/courier/fan/report.json`
+  - `agentchanges/CHANGELOG.md`
+- **原因/目标**：用户要求近战扫过肩后，远程打到两侧，技能动作贴近外卖员的装备，并细化角色。
+- **实现/结果**：近战挥角 226°、252°、218°、208°。六款远程各有三至九路。换姿时可见头盔、反光制服、箱盖与挂单。空闲手开箱取物后，电扇、热气与小票留在场地，汽水倾倒后留下三滩。
+- **验证**：本轮气浪替换前的基线通过 183 项 Vitest、15 项桌面 Chrome E2E、7 项服务测试、类型检查、Vite 构建和正式页面冒烟。六把远程打中分开的左中右三只，三盘去回命中各一次。试验场 48 怪、减少动态与暂停恢复通过。公开素材 SHA-256 已复核。
+- **风险/后续**：实体手机的端到端延迟与长局手感待实机。下一条改动记录将覆盖四款近战从长兵器过渡到手持工具和独立气浪。
+
+## 2026-11-19 03:17:35 +08:00 — feature
+
+- **摘要**：以四款独立传播的近战气浪代替拉长的武器，实现短工具挥击、三维投影视角下的肩肘动作和可复验的正式局录像。
+- **涉及文件**：
+  - `README.md`
+  - `docs/ASSET_PROVENANCE.md`
+  - `docs/V4_PLAYTEST.md`
+  - `docs/问题清单/README.md`
+  - `src/core/melee.ts`
+  - `src/core/weapons.ts`
+  - `src/core/game.ts`
+  - `src/core/waves.ts`
+  - `src/shared/types.ts`
+  - `src/render/character.ts`
+  - `src/render/held-weapon.ts`
+  - `src/render/melee-waves.ts`
+  - `src/render/renderer.ts`
+  - `src/render/weapon-effects.ts`
+  - `src/platform/audio.ts`
+  - `src/ui/catalog.ts`
+  - `tests/v3-weapons.test.ts`
+  - `tests/skills.test.ts`
+  - `scripts/verify-courier-melee.mjs`
+  - `scripts/gameplay-recording.mjs`
+  - `scripts/verify-opening.mjs`
+  - `scripts/verify-production.mjs`
+  - `docs/verification/courier/melee.webp`
+  - `docs/verification/courier/fan/burst.webp`
+  - `docs/verification/courier/fan/opening.webm`
+  - `docs/verification/courier/fan/report.json`
+  - `agentchanges/CHANGELOG.md`
+- **原因/目标**：用户指出截图中物理取餐夹被拉得过长，要求直接实装多种气浪、运行测试并发布到现有 GitHub Pages。
+- **实现/结果**：夹口双弧与小票、快刀封签切风、尺剑重压尺纹、折伞多瓣柔风分别使用自己的速度、宽度和挥角。物理工具保持正常长度，已离手的波沿世界坐标传播。连续碰撞、伞挡与本体共享单挥命中限制。开局电扇位置优化以保留拾扇群清价值。实体、波前、图鉴、取物动作、合成声音和减少动态显示同步更新。
+- **验证**：192 项 Vitest、15 项 Chrome E2E、7 项服务测试、tsc、Vite、正式页及模拟 Pages 子路径冒烟均通过。开发服热更新曾使两项 E2E 回到首页，冻结源码并关闭测试服热更新后全量通过。四款实测近远及左右各打一回，远处晚约 0.13–0.23 秒，正后和范围外保持满血。六款远程覆盖三靶；三次夹击实际累加 54/108/120。正式局从可见 HUD 与画布录制 10.08 秒有声视频（VP8/双声道 Opus），同批源码打包及地图逐源比对一致。
+- **风险/后续**：横屏操作采用桌面 Chrome 模拟。实体手机和传感器待实机验收，斜向挥击有手持与对敌高度的透视差。远端原有 Pages 工作流已配置为推送 main 自动发布，远端发布结果向用户单独报告。

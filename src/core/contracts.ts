@@ -1,7 +1,7 @@
 import type {DamageSource,Enemy,GameEvent,GameState,Pickup,SkillKind,Vec} from '../shared/types';
 /** All mutation helpers operate on the same simulation and emit actual, deduplicated results. */
 export interface CombatContext {
-  damage(enemy:Enemy,amount:number,source:DamageSource):number;
+  damage(enemy:Enemy,amount:number,source:DamageSource,impactAngle?:number):number;
   emit(event:GameEvent):void;
   id():number;
   random():number;

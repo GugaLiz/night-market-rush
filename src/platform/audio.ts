@@ -20,10 +20,17 @@ export class GameAudio {
   private lastWarn=-Infinity;
   private lastUI=-Infinity;
   private lastHit=-Infinity;
+  private lastFanHit=-Infinity;
+  private lastPickup=-Infinity;
+  private lastCoin=-Infinity;
   private lastAttack=-Infinity;
   private lastSkill=-Infinity;
   private lastEnemyShot=-Infinity;
   private lastDash=-Infinity;
+  private damageTime=0;
+  private recentKills:number[]=[];
+  private lastCrowdTime=-Infinity;
+  private coinNote=0;
   private sfxVoices=new Set<AudioScheduledSourceNode>();
   private musicVoices=new Set<AudioScheduledSourceNode>();
   private disposed=false;
@@ -59,6 +66,7 @@ export class GameAudio {
     if(this.scene===scene)return;
     this.scene=scene;this.stopSources(this.musicVoices);
     if(scene==='paused'||scene==='silent')this.stopSources(this.sfxVoices);
+    this.recentKills=[];this.lastCrowdTime=-Infinity;this.coinNote=0;
     if(this.context){this.nextBeat=this.context.currentTime+.05;this.beat=0;}
     this.setSettings(this.settings);
   }
@@ -74,6 +82,18 @@ export class GameAudio {
     if(event.type==='dash'){if(now-this.lastDash<.15)return;this.lastDash=now;this.noiseBurst(now,.18,.2,900,3800);this.note(180,now,.12,.16,'triangle',420);return;}
     if(event.type==='enemyShot'){if(now-this.lastEnemyShot<.08)return;this.lastEnemyShot=now;this.note(310,now,.13,.15,'square',155);this.noiseBurst(now,.075,.1,1700,450);return;}
     if(event.type==='kill'){
+      this.recentKills=this.recentKills.filter(t=>t>=this.damageTime-.15);
+      this.recentKills.push(this.damageTime);
+      if(this.recentKills.length>=3&&this.damageTime-this.lastCrowdTime>.28){
+        this.lastCrowdTime=this.damageTime;this.lastKill=now;
+        // One pot-lid crack, a short low drum and a scattering tail for the whole cluster.
+        this.note(265,now,.14,.26,'triangle',79);
+        this.note(106,now+.015,.27,.31,'sine',44);
+        this.noiseBurst(now,.085,.22,3100,850);
+        this.noiseBurst(now+.075,.19,.17,1300,380);
+        this.note(492,now+.11,.11,.065,'triangle',305);return;
+      }
+      if(this.damageTime-this.lastCrowdTime<.15)return;
       if(now-this.lastKill<.055)return;this.lastKill=now;
       this.note(event.kind==='bowl'?180:340,now,.07,.14,'triangle',100);
       this.noiseBurst(now,.065,.08,1500);return;
@@ -83,8 +103,18 @@ export class GameAudio {
       this.note(740,now,.09,.15,'triangle');this.note(880,now+.1,.08,.12,'triangle');return;
     }
     if(event.type==='pickup'){
-      // Pickup chime is separate from the activation event; never play the skill twice.
-      this.note(980,now,.06,.065,'sine',1350);return;
+      if(now-this.lastPickup<.06)return;this.lastPickup=now;
+      this.noiseBurst(now,.055,.07,1100,2700);
+      this.note(720,now+.035,.035,.075,'triangle',490);return;
+    }
+    if(event.type==='coin'){
+      const gap=now-this.lastCoin;
+      if(gap<.075)return;
+      this.coinNote=gap>.42?0:(this.coinNote+1)%5;this.lastCoin=now;
+      const pitch=midi([79,81,83,86,88][this.coinNote]);
+      this.note(pitch,now,.093,.17,'triangle');
+      this.note(pitch*2,now+.014,.12,.078,'sine');
+      if(event.amount>1)this.note(pitch*1.5,now+.052,.1,.062,'sine');return;
     }
     if(event.type==='weapon'){
       this.stopSources(this.sfxVoices);this.noiseBurst(now,.09,.14,1600,450);
@@ -96,8 +126,14 @@ export class GameAudio {
     }
     if(event.type==='damage'){
       if(event.amount<=0)return;
+      if(event.time<this.damageTime){this.recentKills=[];this.lastCrowdTime=-Infinity;}
+      this.damageTime=event.time;
       if(event.victimId===0){
         this.stopSources(this.sfxVoices);this.note(145,now,.16,.28,'triangle',80);this.noiseBurst(now,.13,.18,650,280);
+      }else if(event.source==='fan'){
+        if(now-this.lastFanHit<.14)return;this.lastFanHit=now;
+        this.noiseBurst(now+.025,.12,.115,1850,710);
+        this.note(184,now+.04,.08,.09,'triangle',112);
       }else if((event.burstIndex===undefined||event.burstIndex===1)&&now-this.lastHit>=.065){
         this.lastHit=now;
         if(WEAPON_KINDS.includes(event.source as WeaponKind)){this.weaponSound(event.source as WeaponKind,now,true);this.note(event.source==='sword'||event.source==='lunchbox'?80:125,now,.095,.09,'sine',55);}
@@ -122,6 +158,9 @@ export class GameAudio {
       this.note(180,now,.22,.33,'triangle',70);this.noiseBurst(now,.18,.2,600);
       [64,60,55].forEach((n,i)=>this.note(midi(n),now+.16+i*.12,.25,.21,'triangle'));return;
     }
+    if(event.type==='wave'){
+      [62,69,74].forEach((n,i)=>this.note(midi(n),now+i*.085,.21,.13,'triangle'));return;
+    }
     if(event.type==='stage'){
       [67,72].forEach((n,i)=>this.note(midi(n),now+i*.08,.16,.11,'sine'));return;
     }
@@ -131,13 +170,17 @@ export class GameAudio {
     // Each release has a recognizable short material sound; only real damage adds impact.
     const impact=hit?1:.68;
     switch(kind){
-      case 'tongs':this.note(hit?810:590,at,.055,.13*impact,'triangle',hit?420:750);this.noiseBurst(at,.035,.04*impact,2800);break;
+      case 'tongs':
+        this.note(hit?810:590,at,.055,.13*impact,'triangle',hit?420:750);
+        this.noiseBurst(at,.035,.04*impact,2800);
+        if(!hit){this.noiseBurst(at+.025,.12,.075,2300,740);this.noiseBurst(at+.067,.095,.050,2700,850);}
+        break;
       case 'bag':this.noiseBurst(at,hit?.13:.18,.17*impact,hit?900:1700,380);this.note(110,at,.1,.12*impact,'sine',65);break;
       case 'chopsticks':this.note(hit?1250:960,at,.045,.14*impact,'triangle',470);this.note(1770,at+.025,.04,.05*impact,'sine');break;
       case 'spirit':this.noiseBurst(at,.19,.09*impact,2800,1100);this.note(hit?660:400,at,.17,.12*impact,'sine',hit?330:740);break;
-      case 'knife':this.noiseBurst(at,.055,.12*impact,4200,1800);this.note(hit?970:1300,at,.065,.09*impact,'triangle',520);break;
+      case 'knife':this.noiseBurst(at,hit?.055:.125,.12*impact,4200,hit?1800:1100);this.note(hit?970:1300,at,.065,.09*impact,'triangle',520);break;
       case 'tray':this.note(hit?470:310,at,.18,.12*impact,'sine',hit?230:510);this.note(930,at,.12,.035*impact,'triangle');break;
-      case 'umbrella':this.noiseBurst(at,.09,.17*impact,2100,600);this.note(hit?390:220,at,.09,.13*impact,'triangle',140);break;
+      case 'umbrella':this.noiseBurst(at,hit?.09:.22,.17*impact,2100,600);this.note(hit?390:220,at,.09,.13*impact,'triangle',140);break;
       case 'sword':this.noiseBurst(at,hit?.12:.24,.17*impact,hit?1200:3200,400);this.note(hit?165:220,at,.16,.16*impact,'triangle',70);break;
       case 'lunchbox':this.note(hit?120:420,at,hit?.22:.08,.2*impact,'triangle',hit?55:650);this.noiseBurst(at,hit?.17:.07,.16*impact,hit?700:1900,350);break;
       case 'talisman':this.note(hit?1040:790,at,.085,.12*impact,'sine',hit?680:1180);this.noiseBurst(at+.025,.05,.06*impact,3600);break;
@@ -145,9 +188,20 @@ export class GameAudio {
   }
   private skillSound(kind:SkillKind,at:number):void{
     switch(kind){
-      case 'fan':this.noiseBurst(at,.52,.29,1000,4300);this.note(100,at,.3,.2,'sine',42);break;
+      case 'fan':
+        // A switch clicks, the little motor spins up, then hot air rattles the order slip.
+        this.note(610,at+.018,.033,.11,'triangle',310);
+        this.note(103,at+.045,.33,.13,'triangle',205);
+        this.noiseBurst(at+.065,.26,.17,650,2450);
+        this.noiseBurst(at+.22,.32,.13,2150,730);
+        this.noiseBurst(at+.25,.06,.055,3450,1900);
+        break;
       case 'skate':this.noiseBurst(at,.24,.12,2500,550);[67,72,76].forEach((n,i)=>this.note(midi(n),at+i*.055,.23,.13,'triangle',midi(n+2)));break;
-      case 'soda':[0,.065,.14,.23].forEach((t,i)=>this.note(450+i*135,at+t,.11,.13,'sine',960+i*120));this.noiseBurst(at+.07,.25,.07,4800,1000);break;
+      case 'soda':
+        this.note(890,at+.04,.05,.13,'triangle',370);
+        this.noiseBurst(at+.07,.31,.14,3100,1700);
+        [.16,.25,.31].forEach((t,i)=>this.note(420+i*80,at+t,.065,.08,'sine',680+i*110));
+        break;
       case 'lure':this.noiseBurst(at,.1,.1,1200,500);this.note(330,at+.08,.11,.13,'triangle',420);break;
       case 'bubble':this.noiseBurst(at,.2,.12,4000,1700);[450,600,750].forEach((f,i)=>this.note(f,at+i*.05,.12,.11,'sine',f*1.6));break;
       case 'cones':[0,.075,.16].forEach((t,i)=>{this.note(150-i*20,at+t,.075,.15,'triangle',70);this.noiseBurst(at+t,.045,.06,600);});break;

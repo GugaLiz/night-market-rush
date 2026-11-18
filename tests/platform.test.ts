@@ -1,5 +1,6 @@
-import {describe,it,expect} from 'vitest';
+import {describe,it,expect,vi} from 'vitest';
 import {WebStorage,SAVE_KEY,sanitizeSettings,type StorageLike} from '../src/platform/storage';
+import {WebInput} from '../src/platform/input';
 import {DEFAULT_SETTINGS,RULES_VERSION,type BestRecord} from '../src/shared/types';
 
 class MemoryStore implements StorageLike {
@@ -9,7 +10,78 @@ class MemoryStore implements StorageLike {
 }
 const record=(score:number,time=10,rulesVersion=RULES_VERSION):BestRecord=>({score,time,rulesVersion,date:'2026-11-18T00:00:00Z'});
 
+describe('browser steering',()=>{
+  it('reverses a long drag locally and restores held directions after overlapping keys and touch release',()=>{
+    const browser=new EventTarget();
+    class Surface extends EventTarget {
+      private captured:number|null=null;
+      closest(){return null;}
+      getBoundingClientRect(){return {left:0,top:0,width:800,height:450};}
+      setPointerCapture(id:number){this.captured=id;}
+      hasPointerCapture(id:number){return this.captured===id;}
+      releasePointerCapture(){this.captured=null;}
+    }
+    const surface=new Surface();
+    vi.stubGlobal('window',browser);
+    vi.stubGlobal('document',new EventTarget());
+    vi.stubGlobal('Element',Surface);
+    const input=new WebInput(surface as unknown as HTMLElement,()=>{});
+    const pointer=(type:string,x:number)=>surface.dispatchEvent(Object.assign(new Event(type,{cancelable:true}),{pointerId:1,clientX:x,clientY:260,button:0}));
+    const key=(type:string,code:string)=>browser.dispatchEvent(Object.assign(new Event(type,{cancelable:true}),{code}));
+    try{
+      input.setEnabled(true);
+      pointer('pointerdown',100);pointer('pointermove',290);
+      expect(input.getVector().x).toBe(1);
+      pointer('pointermove',260);
+      expect(input.getVector().x).toBeLessThan(0);
+      pointer('pointermove',227);
+      expect(input.getVector().x).toBeLessThan(-.5);
+      key('keydown','ArrowRight');key('keydown','ArrowLeft');
+      expect(input.getVector().x).toBe(-1);
+      pointer('pointerup',227);key('keyup','ArrowLeft');
+      expect(input.getVector().x).toBe(1);
+      key('keyup','ArrowRight');
+      expect(input.getVector()).toEqual({x:0,y:0});
+    }finally{input.dispose();vi.unstubAllGlobals();}
+  });
+
+  it('keeps shallow diagonals on calibrated tilt and responds to a deliberate reversal',async()=>{
+    const browser=new EventTarget();
+    vi.stubGlobal('window',browser);
+    vi.stubGlobal('document',new EventTarget());
+    vi.stubGlobal('screen',{orientation:{angle:0}});
+    vi.stubGlobal('DeviceOrientationEvent',class {});
+    let now=100;
+    const clock=vi.spyOn(performance,'now').mockImplementation(()=>now);
+    const tilt=(gamma:number,beta:number)=>browser.dispatchEvent(Object.assign(new Event('deviceorientation'),{gamma,beta}));
+    const input=new WebInput(new EventTarget() as HTMLElement,()=>{});
+    try{
+      input.setSettings({...DEFAULT_SETTINGS,mode:'tilt'});input.setEnabled(true);
+      tilt(0,0);
+      expect(await input.requestTilt()).toBe(true);
+      expect(input.calibrate()).toBe(true);
+      tilt(6,1.5);now+=100;
+      const east=input.getVector();
+      expect(east.x).toBeGreaterThan(0);
+      expect(east.y/east.x).toBeCloseTo(.25);
+      tilt(-6,-1.5);now+=17;
+      expect(input.getVector().x).toBeLessThan(0);
+    }finally{input.dispose();clock.mockRestore();vi.unstubAllGlobals();}
+  });
+});
+
 describe('browser storage boundary',()=>{
+  it('imports V3 preferences and lets both versions keep independent records',()=>{
+    const store=new MemoryStore(),legacyKey='night-market-rush.save.v1';
+    const legacy={version:1,settings:{...DEFAULT_SETTINGS,hand:'right'},best:record(850,50,'night-market-3.0'),tutorialSeen:true};
+    store.setItem(legacyKey,JSON.stringify(legacy));
+    const v4=new WebStorage(store);
+    expect(v4.load()).toMatchObject({settings:{hand:'right'},best:null,tutorialSeen:true});
+    expect(v4.saveBest(record(19))).toBe(true);
+    expect(JSON.parse(store.getItem(legacyKey)!)).toEqual(legacy);
+    store.setItem(legacyKey,JSON.stringify({...legacy,best:record(999,90,'night-market-3.0')}));
+    expect(new WebStorage(store).load().best?.score).toBe(19);
+  });
   it('starts with independent valid defaults and persists settings',()=>{
     const store=new MemoryStore(),s=new WebStorage(store);const data=s.load();data.settings.music=1;
     expect(s.data.settings.music).toBe(DEFAULT_SETTINGS.music);

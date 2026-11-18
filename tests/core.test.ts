@@ -29,7 +29,7 @@ describe('HP and damage events',()=>{
     const before=structuredClone(g.state);g.update(1,zero);g.healPlayer();g.triggerSkill('fan');expect(g.state).toEqual(before);expect(g.drainEvents()).toEqual([]);
   });
   it('a surviving enemy stays dangerous after an attack, while fan damage is real and bounded',()=>{
-    const g=lab();const e=threat(g,'bowl');g.triggerSkill('fan');expect(e.hp).toBe(60);expect(g.state.kills).toBe(0);
+    const g=lab();const e=threat(g,'bowl');g.triggerSkill('fan');expect(e.hp).toBe(30);expect(g.state.kills).toBe(0);
     e.x=g.state.player.x;e.y=g.state.player.y;g.update(1/60,zero);expect(g.state.player.hp).toBe(82);
     g.triggerSkill('fan');expect(g.state.enemies).toHaveLength(0);expect(g.state.kills).toBe(1);
   });
@@ -51,7 +51,17 @@ describe('movement and seeded simulation',()=>{
   it('uses continuous sweeps even for a fast crossing',()=>{expect(sweepContact({x:0,y:0},{x:100,y:0},{x:50,y:0},10)).toBeCloseTo(.4);expect(relativeSweep({x:0,y:0},{x:100,y:0},{x:100,y:0},{x:0,y:0},10)).toBeCloseTo(.45);const g=lab();const e=threat(g,'box',540,370);e.phase='dash';e.phaseUntil=10;e.dashX=40;g.update(1/60,zero);expect(g.state.player.hp).toBe(80);});
   it('normalizes diagonals, brakes smoothly and slides on boundaries',()=>{const a=lab(),b=lab();tick(a,.5,{x:1,y:0});tick(b,.5,{x:1,y:1});expect(Math.hypot(a.state.player.x-640,a.state.player.y-370)).toBeCloseTo(Math.hypot(b.state.player.x-640,b.state.player.y-370));tick(a,.1);expect(a.state.player.vx).toBeCloseTo(0);a.state.player.x=WORLD.bounds.right-a.state.player.radius;const y=a.state.player.y;tick(a,.2,{x:1,y:1});expect(a.state.player.x).toBe(WORLD.bounds.right-a.state.player.radius);expect(a.state.player.y).toBeGreaterThan(y);});
   it('invalid input/time and huge dt stay finite and bounded',()=>{const g=lab();g.update(NaN,zero);g.update(Infinity,zero);g.update(-1,zero);expect(g.state.time).toBe(0);g.update(Number.MAX_VALUE,{x:NaN,y:Infinity});expect(g.state.time).toBeCloseTo(1);expect(g.state.player.x).toBe(640);});
-  it('spawn grace prevents both receiving and dealing damage',()=>{const g=new Game(31);const e=g.spawnEnemy('bun',g.state.player);g.triggerSkill('fan');tick(g,.3);expect(e.hp).toBe(30);expect(g.state.player.hp).toBe(100);tick(g,.4);expect(g.state.player.hp).toBeLessThan(100);});
+  it('spawn grace protects both sides until a live ground fire can intercept the enemy',()=>{
+    const g=new Game(31);
+    const e=g.spawnEnemy('bun',g.state.player);
+    g.triggerSkill('fan');
+    tick(g,.3);
+    expect(e.hp).toBe(30);
+    expect(g.state.player.hp).toBe(100);
+    tick(g,.4);
+    expect(e.hp).toBe(0);
+    expect(g.state.player.hp).toBe(100);
+  });
   it('phase parameters stay capped without inflating enemy HP or damage',()=>{expect(difficultyAt(30).stage).toBe(2);expect(difficultyAt(90).stage).toBe(3);expect(difficultyAt(180).stage).toBe(4);expect(difficultyAt(1e9)).toEqual(difficultyAt(300));expect(CONFIG.enemies.bowl.hp).toBe(120);});
   it('same seed and inputs reproduce state plus damage event IDs',()=>{const a=new Game(4488),b=new Game(4488);const ea:GameEvent[]=[],eb:GameEvent[]=[];for(let i=0;i<1200;i++){const input={x:Math.cos(i*.01),y:Math.sin(i*.01)};a.update(1/60,input);b.update(1/60,input);ea.push(...a.drainEvents());eb.push(...b.drainEvents());}expect(a.state).toEqual(b.state);expect(ea).toEqual(eb);});
 });

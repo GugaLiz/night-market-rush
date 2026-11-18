@@ -1,0 +1,245 @@
+{
+  "browser": "157.0.8103.79",
+  "viewport": {
+    "width": 960,
+    "height": 540
+  },
+  "capturedPageFrames": 491,
+  "media": {
+    "videoCodec": "VP8",
+    "audioCodec": "Opus",
+    "width": 960,
+    "height": 540,
+    "duration": 9.936,
+    "audioSeconds": 9.96,
+    "channels": 2,
+    "audioPeak": 0.14496226608753204,
+    "audioRms": 0.01784980389301412,
+    "seekPlaybackAt": 5.966099
+  },
+  "errors": [],
+  "method": "从首页一次进入普通第一波，全程用横屏双指控制正常摇杆和冲刺。按可见场上物件绕过技能与武器包，跟踪默认取餐夹的攻击 ID、命中 ID 和局内真实击败数。读取开发快照引导路线，没有修改游戏状态。",
+  "limits": "桌面 Chrome 模拟双指输入。命中列表按采样时刻读取，可能少计短暂出招。未测实体手机输入延迟。",
+  "seed": 4022520035,
+  "practice": false,
+  "weapon": "tongs",
+  "fan": {
+    "x": 858.696,
+    "y": 515.68
+  },
+  "closestFanDistance": 121.577,
+  "visibleSkillsAtEnd": 4,
+  "dashAt": 2.3,
+  "stickCenteredAt": 9.117,
+  "sampledSwings": [
+    {
+      "id": 39,
+      "releasedAt": 0.533,
+      "angle": 0.107,
+      "hits": [
+        15,
+        22,
+        16,
+        8
+      ]
+    },
+    {
+      "id": 64,
+      "releasedAt": 0.983,
+      "angle": 0.107,
+      "hits": [
+        2,
+        3,
+        4,
+        5
+      ]
+    },
+    {
+      "id": 89,
+      "releasedAt": 1.433,
+      "angle": 0.107,
+      "hits": [
+        11,
+        6,
+        19,
+        12
+      ]
+    },
+    {
+      "id": 115,
+      "releasedAt": 1.817,
+      "angle": -2.979,
+      "hits": [
+        7,
+        13,
+        20,
+        10
+      ]
+    },
+    {
+      "id": 147,
+      "releasedAt": 2.717,
+      "angle": -2.979,
+      "hits": [
+        30,
+        29,
+        31
+      ]
+    },
+    {
+      "id": 166,
+      "releasedAt": 3.167,
+      "angle": -2.979,
+      "hits": [
+        33,
+        32,
+        35,
+        34
+      ]
+    },
+    {
+      "id": 191,
+      "releasedAt": 3.617,
+      "angle": -2.979,
+      "hits": [
+        36
+      ]
+    },
+    {
+      "id": 223,
+      "releasedAt": 6.317,
+      "angle": -0.358,
+      "hits": [
+        17,
+        25,
+        23,
+        14
+      ]
+    },
+    {
+      "id": 248,
+      "releasedAt": 6.767,
+      "angle": -0.645,
+      "hits": [
+        24,
+        28,
+        26,
+        21
+      ]
+    },
+    {
+      "id": 273,
+      "releasedAt": 7.217,
+      "angle": -0.469,
+      "hits": [
+        143,
+        142,
+        141,
+        144
+      ]
+    },
+    {
+      "id": 305,
+      "releasedAt": 7.667,
+      "angle": -0.108,
+      "hits": [
+        208,
+        203,
+        202,
+        201
+      ]
+    },
+    {
+      "id": 330,
+      "releasedAt": 8.05,
+      "angle": -2.781,
+      "hits": [
+        145,
+        27,
+        140
+      ]
+    },
+    {
+      "id": 351,
+      "releasedAt": 8.95,
+      "angle": -2.84,
+      "hits": [
+        221
+      ]
+    }
+  ],
+  "distinctSampledHits": 44,
+  "route": [
+    {
+      "stage": 0,
+      "t": 0.35,
+      "from": {
+        "x": 640,
+        "y": 370
+      },
+      "aim": {
+        "x": 963.696,
+        "y": 404.68
+      },
+      "kills": 0
+    },
+    {
+      "stage": 1,
+      "t": 1.633,
+      "from": {
+        "x": 939.51,
+        "y": 402.089
+      },
+      "aim": {
+        "x": 288,
+        "y": 295
+      },
+      "kills": 12
+    },
+    {
+      "stage": 2,
+      "t": 3.933,
+      "from": {
+        "x": 323.51,
+        "y": 300.811
+      },
+      "aim": {
+        "x": 336,
+        "y": 517
+      },
+      "kills": 24
+    },
+    {
+      "stage": 3,
+      "t": 5.6,
+      "from": {
+        "x": 352.322,
+        "y": 552.595
+      },
+      "aim": {
+        "x": 864,
+        "y": 383
+      },
+      "kills": 24
+    },
+    {
+      "stage": 4,
+      "t": 7.767,
+      "from": {
+        "x": 833.985,
+        "y": 386.251
+      },
+      "aim": {
+        "x": 514,
+        "y": 261
+      },
+      "kills": 40
+    }
+  ],
+  "final": {
+    "t": 9.367,
+    "kills": 44,
+    "coins": 29,
+    "hp": 84
+  }
+}
