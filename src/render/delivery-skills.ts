@@ -17,6 +17,10 @@ const trim: Record<SkillKind,string> = {
 const unit = (x:number) => clamp(x,0,1);
 const ease = (x:number) => {const t=unit(x);return t*t*(3-2*t);};
 const lerp = (a:number,b:number,t:number) => a+(b-a)*t;
+const ticketScale=1.32;
+const groundIconY=-39;
+const groundIconHeight=(kind:SkillKind,width:number,height:number)=>
+  ticketScale*Math.min(kind==='fan'?45:39,(kind==='fan'?55:49)*height/width);
 
 /** A short cream stitch on the side the rider is approaching marks the pickup threshold. */
 export function drawPickupReach(c:CanvasRenderingContext2D, item:Vec, player:Vec, radius:number):void {
@@ -48,14 +52,13 @@ export function drawDeliveryPickup(c:CanvasRenderingContext2D, assets:Assets, pi
   const reach=pickupReach(p);
   const near = quiet ? 0 : ease(1-(Math.hypot(p.x-player.x,p.y-player.y)-reach)/44);
   const loose = quiet ? 0 : Math.sin(time*3.5+p.id)*1.9;
-  const height=p.kind==='fan'?45:39;
   if(!p.retiringUntil&&(p.disabledUntil??0)<=time&&(p.readyAt??0)<=time)drawPickupReach(c,p,player,reach);
   c.save();c.translate(p.x,p.y);
   if((p.disabledUntil??0)>time || (p.readyAt??0)>time)c.globalAlpha=.46;
   if(p.retiringUntil)c.globalAlpha*=unit((p.retiringUntil-time)/.4);
-  c.fillStyle='#35262d52';c.beginPath();c.ellipse(0,0,19,5,0,0,tau);c.fill();
-  c.translate(0,-28+loose-near*3);
-  c.save();c.rotate(-.12+near*.09);c.translate(-18,-18);
+  c.fillStyle='#35262d52';c.beginPath();c.ellipse(0,0,23,6,0,0,tau);c.fill();
+  c.translate(0,groundIconY+loose-near*3);
+  c.save();c.translate(0,6);c.scale(ticketScale,ticketScale);c.rotate(-.12+near*.09);c.translate(-18,-18);
   c.fillStyle='#ffedc8';c.strokeStyle=ink;c.lineWidth=1.8;
   c.beginPath();c.moveTo(1,-3);c.lineTo(37,-3);c.lineTo(37,33);
   for(let x=37;x>=1;x-=6){c.lineTo(x-3,30);c.lineTo(x-6,33);}
@@ -64,7 +67,7 @@ export function drawDeliveryPickup(c:CanvasRenderingContext2D, assets:Assets, pi
   c.strokeStyle='#b99b75';c.lineWidth=1;c.setLineDash([2,3]);c.beginPath();c.moveTo(1,24);c.lineTo(33,24);c.stroke();
   c.restore();
   const spr=assets.sprites[p.kind];
-  if(spr)drawSprite(c,assets,p.kind,2,-5,Math.min(height,(height+10)*spr.height/spr.width),-.035+near*.08,1,.5);
+  if(spr)drawSprite(c,assets,p.kind,2,0,groundIconHeight(p.kind,spr.width,spr.height),-.035+near*.08,1,.5);
   c.restore();
 }
 
@@ -99,7 +102,7 @@ export function drawDeliveryUse(c:CanvasRenderingContext2D, assets:Assets, use:U
   const end = use.kind==='fan' ? {x:use.x+cartFanOffset.x,y:use.y+cartFanOffset.y}
     : ground ? {x:use.x+side*21,y:use.y-6}
     : hand;
-  const start=use.pickupFrom ? {x:use.pickupFrom.x+2,y:use.pickupFrom.y-33} : bag;
+  const start=use.pickupFrom ? {x:use.pickupFrom.x+2,y:use.pickupFrom.y+groundIconY} : bag;
   const collect=ease(age/.10), grip=ease((age-.08)/.09), useTool=ease((age-.17)/.21);
   const heldX=lerp(lerp(start.x,bag.x,collect),hand.x,grip);
   const heldY=lerp(lerp(start.y,bag.y,collect),hand.y-4,grip);
@@ -116,7 +119,11 @@ export function drawDeliveryUse(c:CanvasRenderingContext2D, assets:Assets, use:U
   }else if(soda)turn=-side*1.28*useTool;
   c.save();c.globalAlpha=propAlpha;
   const spr=assets.sprites[use.kind], h=fan?40:soda?37:33;
-  if(spr)drawSprite(c,assets,use.kind,x,y,Math.min(h,(h+10)*spr.height/spr.width),turn,1,.5);
+  if(spr){
+    const heldHeight=Math.min(h,(h+10)*spr.height/spr.width);
+    const height=use.pickupFrom?lerp(groundIconHeight(use.kind,spr.width,spr.height),heldHeight,collect):heldHeight;
+    drawSprite(c,assets,use.kind,x,y,height,turn,1,.5);
+  }
   if(soda && age>.18 && age<.66){
     const pour=Math.sin(unit((age-.18)/.48)*Math.PI);
     const neckX=x+Math.sin(turn)*16,neckY=y-Math.cos(turn)*16;

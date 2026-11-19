@@ -1,4 +1,5 @@
 import type {Settings, Vec, WeaponKind} from '../shared/types';
+import {drawChopstickImpact,drawChopstickRelease} from './bamboo-volley';
 
 const TAU = Math.PI * 2;
 const ink = '#493040';
@@ -64,6 +65,7 @@ export function drawWeaponRelease(c:CanvasRenderingContext2D,kind:WeaponKind,x:n
   c.globalAlpha*=Math.min(1,(1-t)*3);
   const stretch=reduced?1:.84+.38*Math.sin(t*Math.PI);
   c.scale(stretch,reduced?1:1.1-.27*t);
+  if(kind==='chopsticks')drawChopstickRelease(c,t,reduced);
   materialStroke(c,kind);c.restore();
 }
 
@@ -78,6 +80,10 @@ export function drawWeaponContact(c:CanvasRenderingContext2D,hit:WeaponContact,s
   const size=(hit.featured?1:.66)*(kind==='sword'||kind==='lunchbox'?1.13:1);
   c.save();c.translate(hit.x,hit.y);c.rotate(hit.angle);c.scale(size,size);
   c.globalAlpha=Math.min(1,(1-t)*1.65);
+  if(kind==='chopsticks'){
+    drawChopstickImpact(c,t,hit.featured,settings.reduceMotion);
+    c.restore();return;
+  }
   // Lit bevel and a dark underside keep these silhouettes legible on market stalls.
   const shard=(x:number,y:number,angle:number,length:number,width:number,fill:string,highlight:boolean)=>{
     c.save();c.translate(x,y);c.rotate(angle);c.beginPath();c.moveTo(-length*.30,0);
@@ -132,10 +138,6 @@ export function drawFlightWake(c:CanvasRenderingContext2D,kind:WeaponKind,x:numb
       c.quadraticCurveTo(-5,-7,-17,-10);c.closePath();c.fill();c.strokeStyle=m.dark;c.lineWidth=1.4;c.stroke();
       c.beginPath();c.moveTo(-46,-8);c.quadraticCurveTo(-24,-4,-29,4);c.quadraticCurveTo(-34,10,-45,9);c.strokeStyle=m.light;c.lineWidth=2;c.stroke();
       break;
-    case 'chopsticks':
-      c.beginPath();c.moveTo(-64,-4);c.lineTo(-6,-2.5);c.lineTo(-24,-.8);c.closePath();c.fill();
-      c.beginPath();c.moveTo(-48,4);c.lineTo(-8,1);c.lineTo(-4,3);c.closePath();c.fillStyle=m.light;c.fill();
-      break;
     case 'tray':
       // Reflected rim light changes to mint on the homing leg.
       c.strokeStyle=returning?'#89efd0':m.mid;c.lineWidth=3.1;
@@ -161,6 +163,21 @@ export function drawFlightWake(c:CanvasRenderingContext2D,kind:WeaponKind,x:numb
       break;
   }
   c.restore();
+}
+
+/** A pleated pressure front pushes open like the gusset of the paper bag. */
+export function drawPaperPuff(c:CanvasRenderingContext2D,x:number,y:number,angle:number,distance:number):void {
+  c.save();c.translate(x,y);c.rotate(angle);
+  const size=.40+.60*Math.min(1,distance/85);
+  c.scale(size,size);c.lineJoin='round';
+  c.beginPath();c.moveTo(-18,-4);c.lineTo(-9,-13);c.lineTo(-1,-11);c.lineTo(6,-15);
+  c.quadraticCurveTo(14,-8,16,0);c.lineTo(7,13);c.lineTo(0,10);c.lineTo(-8,14);
+  c.lineTo(-16,6);c.closePath();
+  c.fillStyle='#efd39bbd';c.fill();c.strokeStyle='#926449';c.lineWidth=1.6;c.stroke();
+  c.beginPath();c.moveTo(-16,-4);c.lineTo(-7,-7);c.lineTo(-4,-11);c.lineTo(1,-5);
+  c.lineTo(7,-12);c.lineTo(12,-4);c.strokeStyle='#fff5cf';c.lineWidth=2;c.stroke();
+  c.beginPath();c.moveTo(-10,11);c.lineTo(-7,4);c.lineTo(0,7);c.lineTo(4,3);c.lineTo(8,5);
+  c.strokeStyle='#c58955';c.lineWidth=1.6;c.stroke();c.restore();
 }
 
 export function drawChainLink(c:CanvasRenderingContext2D,from:Vec,to:Vec,progress:number):void {

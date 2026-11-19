@@ -1,5 +1,20 @@
 // Trimmed source rectangles of the packed soft-clay WebP atlases (x, y, width, height).
 export const clayFrames = {
+  // Source rectangles keep a shared bottom-centre foot pivot across each species' four poses.
+  streetSnacks: {
+    onigiri: [9, 25, 190, 173],
+    onigiriAlert: [217, 25, 190, 173],
+    onigiriHurt: [425, 25, 190, 173],
+    onigiriLow: [633, 25, 190, 173],
+    siumai: [8, 222, 192, 184],
+    siumaiAlert: [216, 222, 192, 184],
+    siumaiHurt: [424, 222, 192, 184],
+    siumaiLow: [632, 222, 192, 184],
+    zongzi: [11, 436, 186, 178],
+    zongziAlert: [219, 436, 186, 178],
+    zongziHurt: [427, 436, 186, 178],
+    zongziLow: [635, 436, 186, 178],
+  },
   mascots: {
     bun: [17, 10, 190, 204],
     bunGrin: [240, 10, 191, 204],

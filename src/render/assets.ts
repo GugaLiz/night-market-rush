@@ -17,10 +17,11 @@ export async function loadAssets(onProgress?: (n: number) => void): Promise<Asse
     'clay-night-market.webp', 'clay-riverside-market.webp', 'clay-chibi-home.webp', 'clay-actors.webp',
     'clay-weapons.webp', 'clay-supplies.webp', 'clay-bun-courier-rig.webp', 'delivery-skills.webp',
     'weapon-strikes.webp', 'clay-ultimate-fx.webp', 'clay-courier-workwear.webp', 'clay-market-mascots.webp',
+    'clay-street-snacks.webp',
   ];
   let completed = 0;
   onProgress?.(0);
-  const [background, riverside, courierHome, atlas, weapons, supplies, rig, deliveryFields, strikes, ultimateFx, workwear, mascots] =
+  const [background, riverside, courierHome, atlas, weapons, supplies, rig, deliveryFields, strikes, ultimateFx, workwear, mascots, streetSnacks] =
     await Promise.all(files.map(name => new Promise<HTMLImageElement>((resolve, reject) => {
       const image = new Image();
       image.onload = () => { onProgress?.(++completed / files.length); resolve(image); };
@@ -35,6 +36,7 @@ export async function loadAssets(onProgress?: (n: number) => void): Promise<Asse
     }
   }
   register(mascots, clayFrames.mascots);
+  register(streetSnacks, clayFrames.streetSnacks);
   register(atlas, clayFrames.ultimates);
   register(weapons, clayFrames.weapons);
   register(supplies, clayFrames.supplies);

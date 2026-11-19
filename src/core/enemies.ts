@@ -18,6 +18,16 @@ export function stunEnemy(e:Enemy,until:number):void {
   }
 }
 
+function turnTowards(heading:number, target:number, maxTurn:number):number {
+  const delta=target-heading;
+  return heading+clamp(Math.atan2(Math.sin(delta),Math.cos(delta)),-maxTurn,maxTurn);
+}
+
+/** The walking and drawing clocks share the crest of each dumpling's hop. */
+export function siumaiHop(e:Pick<Enemy,'id'|'spawnAt'>,time:number):number {
+  return .5-.5*Math.cos((time-e.spawnAt)*9+e.id*2.4);
+}
+
 function wander(e:Enemy,time:number,dt:number,ctx:CombatContext):{x:number;y:number} {
   if(e.wanderAngle===undefined || time>=(e.wanderUntil??0)){
     e.wanderAngle=e.wanderAngle===undefined?ctx.random()*Math.PI*2:e.wanderAngle+(ctx.random()-.5)*Math.PI*1.25;
@@ -29,9 +39,7 @@ function wander(e:Enemy,time:number,dt:number,ctx:CombatContext):{x:number;y:num
   if((y<0&&e.y<b.top+margin)||(y>0&&e.y>b.bottom-margin))y=-y;
   e.wanderAngle=Math.atan2(y,x);
   const heading=e.wanderHeading??e.wanderAngle;
-  const delta=e.wanderAngle-heading;
-  const turn=Math.atan2(Math.sin(delta),Math.cos(delta));
-  e.wanderHeading=heading+clamp(turn,-2.8*dt,2.8*dt);
+  e.wanderHeading=turnTowards(heading,e.wanderAngle,2.8*dt);
   return {x:Math.cos(e.wanderHeading),y:Math.sin(e.wanderHeading)};
 }
 
@@ -59,7 +67,7 @@ export function updateEnemies(s:GameState,dt:number,speedScale:number,ctx:Combat
     if(!ctx.active(e))continue;
     const playerDistance=Math.hypot(p.x-e.x,p.y-e.y),awareness=CONFIG.awareness[e.kind];
     const previousAlert=e.alerted;
-    e.alerted=playerDistance<=(previousAlert?awareness.release:awareness.notice);
+    e.alerted=playerDistance<=(previousAlert?awareness.release:awareness.notice)+1e-9;
     if(previousAlert&&!e.alerted){
       delete e.wanderAngle;
       if(lastDx||lastDy)e.wanderHeading=Math.atan2(lastDy,lastDx);
@@ -84,7 +92,16 @@ export function updateEnemies(s:GameState,dt:number,speedScale:number,ctx:Combat
       dx=march.x;dy=march.y;
     }else if(pursuing){
       if(playerDistance>0){dx=(p.x-e.x)/playerDistance;dy=(p.y-e.y)/playerDistance;}
-      if(e.kind==='bun'&&e.id%3!==0){
+      if(e.kind==='onigiri' && playerDistance>0){
+        // The rice ball keeps rolling through turns. A sharp dodge can send it wide.
+        const target=Math.atan2(dy,dx);
+        e.wanderHeading=turnTowards(e.wanderHeading??target,target,3.6*dt);
+        dx=Math.cos(e.wanderHeading);dy=Math.sin(e.wanderHeading);
+      }else if(e.kind==='zongzi' && playerDistance>0){
+        // Approach from one flank; unfold the arc into a direct approach in the last few steps.
+        const angle=Math.atan2(dy,dx)+(e.id%2?1:-1)*.69*clamp((playerDistance-28)/70,0,1);
+        dx=Math.cos(angle);dy=Math.sin(angle);
+      }else if(e.kind==='bun'&&e.id%3!==0){
         const beat=s.time*(2.8+e.id%4*.21)+e.id*2.4;
         const arc=clamp((playerDistance-30)/90,0,1)*Math.sin(beat)*.40;
         const cos=Math.cos(arc),sin=Math.sin(arc);
@@ -94,6 +111,7 @@ export function updateEnemies(s:GameState,dt:number,speedScale:number,ctx:Combat
     }else{
       const direction=wander(e,s.time,dt,ctx);dx=direction.x;dy=direction.y;speed*=.55;
     }
+    if(e.kind==='siumai' && !march && !lured)speed*=.55+siumaiHop(e,s.time)*.90;
     if(e.kind==='box'){
       if(e.phase==='warn'&&!pursuing){e.phase='chase';e.phaseUntil=s.time+CONFIG.dash.approach;reservations--;}
       else if(e.phase==='chase'&&pursuing&&!march&&s.time>=e.phaseUntil&&playerDistance<310&&reservations<CONFIG.dash.concurrent){e.phase='warn';e.phaseUntil=s.time+CONFIG.dash.warning;e.dashX=dx||(dy===0?1:0);e.dashY=dy;reservations++;ctx.emit({type:'warn',x:e.x,y:e.y});}

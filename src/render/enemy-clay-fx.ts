@@ -1,6 +1,7 @@
 import {CONFIG,WORLD} from '../core/config';
 import {clamp} from '../core/geometry';
 import {giantJumpHeight,giantPulseLifetime,giantPulseRadius} from '../core/giant-bun';
+import {siumaiHop} from '../core/enemies';
 import type {Enemy,EnemyShot,GameState,Player,Settings} from '../shared/types';
 import type {Assets} from './assets';
 
@@ -80,6 +81,11 @@ export function drawEnemyAttackGround(c:Canvas,e:Enemy,time:number,settings:Sett
 
 export function enemyExpression(e:Enemy,time:number):string {
   const hurt=time-e.hurtAt<.16,low=e.hp<=e.maxHp*.35;
+  if(e.kind==='onigiri'||e.kind==='siumai'||e.kind==='zongzi'){
+    if(hurt)return e.kind+'Hurt';
+    if(low)return e.kind+'Low';
+    return e.alerted && e.stunUntil<=time ? e.kind+'Alert' : e.kind;
+  }
   if(e.kind==='giantBun'||e.kind==='bun'){
     if(hurt)return e.kind+'Hurt';
     if(low)return e.kind+'Low';
@@ -122,6 +128,18 @@ export function getEnemyAttackPose(e:Enemy,time:number,settings:Settings){
       (e.lureX!==undefined && Math.hypot(e.lureX-e.x,(e.lureY??e.y)-e.y)<24);
     if(resting){
       pose.scaleY+=.016*Math.sin(time*2.8+e.id);
+    }else if(e.kind==='siumai'){
+      const hop=siumaiHop(e,time);
+      pose.lift=hop*6.5;
+      pose.scaleX+=.08-hop*.11;pose.scaleY+=hop*.13-.085;
+    }else if(e.kind==='onigiri'){
+      // Rock over the rounded bottom corners as the rice triangle banks through a turn.
+      const roll=Math.sin((time-e.spawnAt)*7*pace+e.id);
+      pose.tilt=e.facing*(roll*.18+.045);
+      pose.lift=Math.abs(roll)*2;
+    }else if(e.kind==='zongzi'){
+      const sway=Math.sin((time-e.spawnAt)*4.9*pace+e.id);
+      pose.tilt=e.facing*sway*.12;pose.lift=Math.abs(sway)*1.5;
     }else{
       const hop=Math.max(0,wave);
       pose.lift=hop*(e.kind==='bun'?5.4:e.kind==='box'?2.0:1.6)*pace;

@@ -50,9 +50,10 @@ describe('enemy attention and soup-shot range',()=>{
     expect(trace(140)).toEqual(trace(1120));
   });
 
-  it.each(['bun','box','bowl'] as const)('%s notices the player locally and disengages past a separate outer radius',kind=>{
+  it.each(['bun','onigiri','siumai','zongzi','box','bowl'] as const)('%s notices the player locally and disengages past a separate outer radius',kind=>{
     const g=arena(),e=g.spawnEnemy(kind,{x:160,y:370});
     e.shotReadyAt=Infinity;e.phaseUntil=Infinity;
+    e.wanderHeading=e.wanderAngle=0;e.wanderUntil=10;
     const {notice,release}=CONFIG.awareness[kind];
     const sample=(distance:number)=>{
       g.state.player.x=e.x+distance;
@@ -67,6 +68,28 @@ describe('enemy attention and soup-shot range',()=>{
     expect(e.x).toBeGreaterThan(x);
     expect(sample(release+8)).toBe(false);
     expect(sample(release-4)).toBe(false);
+  });
+
+  it('carries the rice ball through a sharp dodge, gives shumai a pulsed stride and wraps leaves around a flank',()=>{
+    const g=arena(),p=g.state.player;
+    const rice=g.spawnEnemy('onigiri',{x:p.x-115,y:p.y});
+    advance(g,.1);
+    p.x=rice.x-120;
+    const x=rice.x;advance(g,.1);
+    expect(rice.x).toBeGreaterThan(x);
+    advance(g,1.25);
+    expect(rice.x).toBeLessThan(x);
+
+    const h=arena(),dumpling=h.spawnEnemy('siumai',{x:490,y:370});
+    const stride:number[]=[];
+    for(let i=0;i<48;i++){advance(h,1/60);stride.push(dumpling.x-dumpling.px);}
+    expect(Math.max(...stride)).toBeGreaterThan(Math.min(...stride)*2);
+    expect(dumpling.y).toBe(370);
+
+    const j=arena(),leaf=j.spawnEnemy('zongzi',{x:490,y:370});
+    advance(j,.4);
+    expect(leaf.x).toBeGreaterThan(500);
+    expect(Math.abs(leaf.y-370)).toBeGreaterThan(8);
   });
 
   it('turns away from arena edges and separates overlapping unalerted walkers',()=>{

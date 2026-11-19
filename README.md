@@ -2,7 +2,7 @@
 
 **[本机试玩软陶版《夜市急送》](http://localhost:4173/)**。点「配送试验场 → 实战试打」，选四款大招中的一款，向右取道具即可在同一组靶怪上比较覆盖范围。选「巨包三连坐」可以练习穿过末跳的面粉浪，再折返补刀。[四招实战](docs/verification/clay/ultimates.webp) · [巨包实战](docs/verification/clay/giant.webp) · [手机横屏试打](docs/verification/clay/mobile.webp)
 
-普通局从「开始挑战」进入。包子怪散在街面各处，可以穿过空隙取电扇，也可以把追来的小妖带进取餐夹的横扫范围。碗怪能隔着大半条街瞄准。正式局约第 8 秒起有机会补入大招，随后按保冷箱、蒸笼、急送、杨梅汽水的顺序轮换。此前公开发布的版本可在 [GitHub Pages](https://gugaliz.github.io/night-market-rush/) 游玩。
+普通局从「开始挑战」进入。第一波里，包子、三角饭团、金黄烧卖和青叶粽散在街面各处。穿过怪群空隙可以拾取票面上的电扇，也可以把追来的小妖带进取餐夹的横扫范围。碗怪能隔着大半条街瞄准。正式局约第 8 秒起有机会补入大招，随后按保冷箱、蒸笼、急送、杨梅汽水的顺序轮换。[普通挑战首波实拍](docs/verification/clay/street-snacks-opening.webp) · [此前公开发布的版本](https://gugaliz.github.io/night-market-rush/)
 
 取餐夹贴身挥过 226°，夹口带出的双弧金风最远扫到 260 个场地单位，一挥最多打七只。在「配送试验场」换上拆箱快刀、签收尺剑或配送伞，可以试到切风、重压波和伞瓣风。换成纸袋气炮能同时打出九路纸风，三只回旋餐盘则会从不同方向飞回手中。[四款近战气浪](docs/verification/courier/melee.webp) · [六款远程弹道](docs/verification/courier/ranged.webp) · [V4 试玩与参数](docs/V4_PLAYTEST.md)
 

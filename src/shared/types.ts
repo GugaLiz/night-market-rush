@@ -1,4 +1,4 @@
-export type EnemyKind='bun'|'box'|'bowl'|'giantBun';
+export type EnemyKind='bun'|'onigiri'|'siumai'|'zongzi'|'box'|'bowl'|'giantBun';
 export type WeaponKind='tongs'|'bag'|'chopsticks'|'spirit'|'knife'|'tray'|'umbrella'|'sword'|'lunchbox'|'talisman';
 export type MeleeKind=Extract<WeaponKind,'tongs'|'knife'|'umbrella'|'sword'>;
 export const ULTIMATE_KINDS = ['icebox','steamer','express','berry'] as const;
@@ -70,7 +70,7 @@ export const DEFAULT_SETTINGS:Settings={mode:'joystick',joystickSize:'medium',ha
 export interface BestRecord {score:number;time:number;rulesVersion:string;date:string}
 export interface SaveData {version:1;settings:Settings;best:BestRecord|null;tutorialSeen:boolean}
 export const RULES_VERSION='night-market-4.0';
-export const ENEMY_NAMES:Record<EnemyKind,string>={bun:'包子怪',box:'外卖盒怪',bowl:'大碗面怪',giantBun:'巨包三连坐'};
+export const ENEMY_NAMES:Record<EnemyKind,string>={bun:'包子怪',onigiri:'三角饭团',siumai:'金黄烧卖',zongzi:'青叶粽',box:'外卖盒怪',bowl:'大碗面怪',giantBun:'巨包三连坐'};
 export const WEAPON_NAMES:Record<WeaponKind,string>={tongs:'伸缩取餐夹',bag:'纸袋气炮',chopsticks:'飞筷匣',spirit:'汤灵保温壶',knife:'拆箱快刀',tray:'回旋餐盘',umbrella:'折叠配送伞',sword:'签收尺剑',lunchbox:'弹射餐盒',talisman:'派单符册'};
 export const SKILL_NAMES:Record<SkillKind,string>={fan:'旋风电扇',skate:'滑板环绕',soda:'汽水缓速',lure:'试吃保温盒',bubble:'气泡缓冲卷',cones:'三联反光路锥',bell:'到站手铃',route:'导航纸地图',hook:'伸缩取餐钩',heat:'加热餐包',dispatch:'派单终端',stamp:'加急印章',supply:'补给扫码券',icebox:'保冷箱冰浪',steamer:'蒸笼开席',express:'加急三连送',berry:'杨梅汽水炸屏'};
 export const WEAPON_KINDS=Object.keys(WEAPON_NAMES) as WeaponKind[];

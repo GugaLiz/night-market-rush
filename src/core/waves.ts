@@ -5,6 +5,9 @@ import {distanceSquared} from './geometry';
 
 type Spawn = (kind:EnemyKind, position:Vec) => Enemy;
 
+// One market tray gives ordinary packs varied silhouettes while keeping their shared wave budget.
+const snackTray=['bun','onigiri','siumai','bun','zongzi','onigiri','bun','siumai'] as const;
+
 export function advanceWave(s: GameState, ctx: CombatContext): void {
   const duration = s.wave === 1 ? CONFIG.waves.firstDuration : CONFIG.waves.duration;
   if (s.time + 1e-9 < s.waveStartedAt + duration) return;
@@ -19,9 +22,16 @@ export function spawnMarketEnemies(s:GameState,difficulty:Difficulty,count:numbe
   const {bounds}=WORLD,settings=CONFIG.spawn;
   const available=Math.min(count,difficulty.cap-s.enemies.length);
   const eliteDue=s.wave%2===0 && s.lastGiantWave!==s.wave && !s.enemies.some(e=>e.kind==='giantBun');
+  let snackIndex:number|undefined;
   for(let i=0;i<available;i++){
-    const roll=ctx.random(),[bun,box]=difficulty.weights;
-    const kind:EnemyKind=i===0&&eliteDue?'giantBun':roll<bun?'bun':roll<bun+box?'box':'bowl';
+    const roll=ctx.random(),[snacks,box]=difficulty.weights;
+    let kind:EnemyKind;
+    if(i===0&&eliteDue)kind='giantBun';
+    else if(roll<snacks){
+      snackIndex??=Math.floor(roll/snacks*snackTray.length);
+      kind=snackTray[snackIndex%snackTray.length];
+      snackIndex++;
+    }else kind=roll<snacks+box?'box':'bowl';
     const radius=CONFIG.enemies[kind].radius;
     const minY=Math.max(CONFIG.player.minY,bounds.top+radius);
     for(let attempt=0;attempt<settings.attempts;attempt++){

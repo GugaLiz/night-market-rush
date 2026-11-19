@@ -582,3 +582,35 @@
 - **实现/结果**：基础满速由348.3提高到405单位每秒，调整收步和30 Hz短腿换步。十种武器分别缩短前摇与冷却，实际连续普攻频率提高17.4%至20%。四种近战在工具前端留下专有造型，六种远程从手部发射并画出不同尾迹与命中笔形。十组出手音和十组命中音按材质合成，群攻合并近同时的落点声。试玩说明更新并附上正式页20.8秒十武器有声实录。
 - **验证**：240项Vitest、17项Chrome端到端、TypeScript和Vite通过。Chrome检查148帧步态和移动攻击，四种近战范围、六种远程命中与十种空挥视效正常；标准、简化和减少动态均可辨。声音检查逐把确认20个合成动机，餐盒同帧击中8只碗怪只响一次，总静音时无声音输出。本地4173实际返回的脚本与dist一致，正式版有声录像已解码复查。
 - **风险/后续**：手机交互使用Chrome触控模拟。GitHub当前凭据的推送权限检查返回403，本版在本地4173可玩。
+## 2026-11-19 23:16:19 +08:00 — feature
+
+- **摘要**：重做飞筷弹道和命中特效，在普通挑战加入三种软陶小吃怪，放大技能掉落物。
+- **涉及文件**：
+  - `agentchanges/CHANGELOG.md`
+  - `docs/ASSET_PROVENANCE.md`
+  - `docs/V4_PLAYTEST.md`
+  - `docs/verification/clay/bamboo-volley.webp`
+  - `docs/verification/clay/street-snacks-opening.webp`
+  - `public/assets/clay-street-snacks.webp`
+  - `README.md`
+  - `scripts/verify-enemy-vitals.mjs`
+  - `src/core/config.ts`
+  - `src/core/enemies.ts`
+  - `src/core/waves.ts`
+  - `src/render/assets.ts`
+  - `src/render/bamboo-volley.ts`
+  - `src/render/clay-frames.ts`
+  - `src/render/delivery-skills.ts`
+  - `src/render/enemy-clay-fx.ts`
+  - `src/render/enemy-vitals.ts`
+  - `src/render/renderer.ts`
+  - `src/render/weapon-effects.ts`
+  - `src/shared/types.ts`
+  - `src/ui/catalog.ts`
+  - `tests/core.test.ts`
+  - `tests/enemy-awareness.test.ts`
+  - `tests/v4-core.test.ts`
+- **原因/目标**：玩家在正常游戏尺度下只能看见几道细筷，第一波包子轮廓过于重复，地面技能难以辨认。
+- **实现/结果**：飞筷以开匣、青绸带双筷、交叉筷印呈现五路贯穿，纸袋炮形成带折痕的气团。三角饭团滚动转向、金黄烧卖跳行、青叶粽侧绕，各带日常、警戒、受击、残血帧；开局与增援混合普通小怪，保留原有弓形追击包子与特殊敌人。技能票面和道具各放大32%，拾起后平滑收回手中。保存实战首波和飞筷前后对照。
+- **验证**：244项Vitest、TypeScript、Vite构建通过。首次17项浏览器回归中一次冲刺冷却等待期间画面返回首页，停止并行改动后全套17项通过。1024个种子检查首批比例、间距与安全距离。正式4173从开始挑战进入即实绘三种新怪，Chrome战斗画布验证全部12种表情状态。风扇45→59.4单位，同路线实际拾取生效；桌面和844×390横屏模拟验证飞筷五路扇射，三只碗怪各扣74血。减少动态与正式版横屏触控检查通过，正式服务JS和新图集与dist逐字节相同。
+- **风险/后续**：GitHub当前凭据的推送权限检查返回403，本地4173已更新。触控使用Chrome模拟。

@@ -10,7 +10,8 @@ import {drawPackingWrap,drawPaperRoute,drawRouteStride} from './courier-equipmen
 import {DamageLabels} from './damage-labels';
 import {drawDeliveryPickup, drawDeliveryUse, drawPickupReach, drawUseRipple, nearestPickupHint, useLifetime} from './delivery-skills';
 import {WEAPONS} from '../core/weapons';
-import {drawChainLink, drawFlightWake, drawWeaponContact, drawWeaponRelease, type WeaponContact} from './weapon-effects';
+import {drawChainLink, drawFlightWake, drawPaperPuff, drawWeaponContact, drawWeaponRelease, type WeaponContact} from './weapon-effects';
+import {drawFlyingChopsticks} from './bamboo-volley';
 import {drawMeleeWaves} from './melee-waves';
 import {drawUltimateGround,drawUltimateAir} from './ultimate-fx';
 import {drawEnemyAttackGround,drawEnemyAttackDetail,drawGiantPulses,drawSoupShot,getEnemyAttackPose,enemyExpression,drawIceShell} from './enemy-clay-fx';
@@ -326,8 +327,8 @@ export class Renderer {
     const c=this.ctx,time=s.time,reduced=this.settings.reduceMotion;
     const t=reduced?0:time,age=time-e.spawnAt,giant=e.kind==='giantBun';
     const bun=giant||e.kind==='bun',low=e.hp<=e.maxHp*.35;
-    const hurt=bun&&time-e.hurtAt<.16,frozen=(e.chilledUntil??0)>time;
     const sprite=enemyExpression(e,time);
+    const hurt=sprite.endsWith('Hurt'),frozen=(e.chilledUntil??0)>time;
     const height=enemyHeight(e.kind)*(bun&&low&&!hurt?.84:1);
     const posed=getEnemyAttackPose(e,time,this.settings);
     const strike=time-e.hurtAt<.21?this.contacts.find(hit=>hit.seed===e.id&&hit.age<=.21):undefined;
@@ -410,7 +411,7 @@ export class Renderer {
         const motion=this.settings.reduceMotion?0:progress;
         const distance=e.power??12, angle=e.angle??0, push=1-(1-motion)**2;
         const height=enemyHeight(e.sprite);
-        const face=e.sprite+(e.sprite==='bun'||e.sprite==='giantBun'?'Hurt':'Low');
+        const face=e.sprite+(e.sprite==='box'||e.sprite==='bowl'?'Low':'Hurt');
         const hop=Math.sin(motion*Math.PI)*distance*.82;
         const x=e.x+Math.cos(angle)*distance*push, groundY=e.y+Math.sin(angle)*distance*push*.6;
         const spin=Math.cos(angle)*motion*(distance>35?1.25:.45);
@@ -517,12 +518,11 @@ export class Renderer {
         }
       }
       const trailLimit=this.settings.reduceMotion?18:this.settings.quality==='simple'?43:65;
-      if(q.phase==='out'||q.phase==='return')drawFlightWake(c,q.kind,x,y,a,Math.min(trailLimit,q.travelled),q.phase==='return');
+      if(q.kind!=='chopsticks'&&(q.phase==='out'||q.phase==='return'))drawFlightWake(c,q.kind,x,y,a,Math.min(trailLimit,q.travelled),q.phase==='return');
       if(q.kind==='bag'){
-        c.strokeStyle='#fff3c4';c.lineWidth=2;
-        c.beginPath();c.arc(x,y,14,a-1.05,a+1.05);c.stroke();
+        drawPaperPuff(c,x,y,a,q.travelled);
       }else if(q.kind==='chopsticks'){
-        drawSprite(c,this.assets,'chopstick',x,y,10,a,1,.5,41);
+        drawFlyingChopsticks(c,x,y,a,q.travelled,q.id,this.settings.reduceMotion||this.settings.quality==='simple');
       }else if(q.kind==='tray'){
         drawSprite(c,this.assets,'tray',x,y,28,this.settings.reduceMotion?0:s.time*17,1,.5,38);
       }else if(q.kind==='spirit'){

@@ -4,8 +4,8 @@ import {giantJumpHeight} from '../core/giant-bun';
 import {TOSS_DURATION} from '../core/ultimates';
 import type {EnemyKind, GameState} from '../shared/types';
 
-export const enemyHeight = (kind: EnemyKind) =>
-  kind === 'giantBun' ? 152 : kind === 'bowl' ? 75 : kind === 'box' ? 65 : 55;
+const heights:Record<EnemyKind,number>={bun:55,onigiri:52,siumai:51,zongzi:58,box:65,bowl:75,giantBun:152};
+export const enemyHeight = (kind: EnemyKind) => heights[kind];
 
 export interface VitalsRect {x:number; y:number; w:number; h:number}
 export interface EnemyVitals extends VitalsRect {

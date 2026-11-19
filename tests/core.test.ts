@@ -74,6 +74,7 @@ describe('movement and seeded simulation',()=>{
       const g=new Game(seed),s=g.state;
       s.player.invulnerableUntil=1000;s.weapon.readyAt=Infinity;
       const quadrants=[new Set<number>(),new Set<number>()],interior=[0,0];
+      const kinds=[new Set<EnemyKind>(),new Set<EnemyKind>()];
       tick(g,.4);s.enemies=[];
       for(let frame=0;frame<60*46;frame++){
         const previous=s.enemies.map(e=>({x:e.x,y:e.y,r:e.radius}));
@@ -87,12 +88,14 @@ describe('movement and seeded simulation',()=>{
           expect(previous.every(q=>Math.hypot(e.x-q.x,e.y-q.y)-e.radius-q.r>=CONFIG.spawn.gap)).toBe(true);
           previous.push({x:e.x,y:e.y,r:e.radius});
           quadrants[wave].add(Number(e.x>640)+2*Number(e.y>410));
+          kinds[wave].add(e.kind);
           if(e.x>340&&e.x<940&&e.y>288&&e.y<535)interior[wave]++;
         }
         // Leave these bodies on the floor for the next arrival, and make vacancies for subsequent sets.
         s.enemies=born;
       }
       expect(quadrants.map(q=>q.size)).toEqual([4,4]);
+      for(const waveKinds of kinds)for(const snack of ['bun','onigiri','siumai','zongzi'] as const)expect(waveKinds.has(snack)).toBe(true);
       expect(interior.every(count=>count>=2)).toBe(true);
     }
   });

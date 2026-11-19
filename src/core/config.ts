@@ -21,12 +21,18 @@ export const CONFIG = {
   },
   enemies: {
     bun: {speed: .075 * S, radius: .020 * S, coins:1, hp:30, damage:8},
+    onigiri: {speed: .096 * S, radius:11, coins:1, hp:26, damage:8},
+    siumai: {speed: .086 * S, radius:10, coins:1, hp:32, damage:8},
+    zongzi: {speed: .078 * S, radius:12, coins:1, hp:38, damage:8},
     box: {speed: .065 * S, radius: .022 * S, coins:2, hp:60, damage:12},
     bowl: {speed: .045 * S, radius: .040 * S, coins:3, hp:120, damage:18},
     giantBun: {speed:0, radius:34, coins:12, hp:520, damage:20},
   } satisfies Record<EnemyKind, {speed: number; radius: number; coins:number; hp:number; damage:number}>,
   awareness: {
     bun: {notice:190, release:270},
+    onigiri: {notice:200, release:275},
+    siumai: {notice:175, release:255},
+    zongzi: {notice:200, release:285},
     box: {notice:235, release:330},
     bowl: {notice:soupRange, release:920},
     giantBun: {notice:1400, release:1500},
@@ -48,7 +54,7 @@ export const CONFIG = {
     route: {length:420, width:110, duration:5, speedMultiplier:1.2},
     cones: {reach:114, spacing:52, radius:21},
   },
-  spawn: {warning:.6, safeDistance:.22*S, gap:43, attempts:32, openingCount:40},
+  spawn: {warning:.6, safeDistance:.22*S, gap:43, attempts:48, openingCount:40},
   pickup: {radius: .027 * S, reach:56, choiceReach:42, firstAt: .35, interval: 4, emptyGrace: 2, cap: 4},
   weapons: {projectileCap:24, dropFirst:4, dropInterval:12, dropRadius:12, pickupReach:42},
   // V4 tuning values for the night-market adaptation. The video only establishes visible outcomes.
@@ -67,7 +73,7 @@ export interface Difficulty {
   cap: number;
   interval: number;
   speedScale: number;
-  weights: readonly [number, number, number];
+  weights: readonly [snacks:number, box:number, bowl:number];
 }
 
 function mix(a: number, b: number, t: number): number {

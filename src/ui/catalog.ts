@@ -8,7 +8,7 @@ const weaponDetail=(kind:WeaponKind,extra='')=>{const w=WEAPONS[kind];return `${
 export const WEAPON_GUIDE:Record<WeaponKind,CatalogEntry>={
   tongs:{short:'取餐夹',role:'双弧夹风',description:'取餐夹交替正反手挥动，夹口扫出两道金色气浪。贴身和远处的怪都能打到，一挥最多打七只。',detail:weaponDetail('tongs',`挥角 ${MELEE_WEAPONS.tongs.sweep}° · 气浪最远 ${WEAPONS.tongs.range}`)},
   bag:{short:'纸袋气炮',role:'九路散射',description:'一压纸袋，九股纸风扇形铺开。每股打中一只便散去，同一只怪每轮受击一次。',detail:weaponDetail('bag',`射程 ${WEAPONS.bag.range} · 张角 144°`)},
-  chopsticks:{short:'飞筷匣',role:'五路贯穿',description:'五支飞筷排成扇面，每支最多穿过七只，逐只衰减。同轮共可击中十四只。',detail:weaponDetail('chopsticks',`射程 ${WEAPONS.chopsticks.range} · 张角 84° · 后续 ${RANGED_HITS.chopsticks.slice(1).join(" / ")}`)},
+  chopsticks:{short:'飞筷匣',role:'五路贯穿',description:'筷匣一开，系着青绸的竹筷成对扇射。每路最多贯穿七只，伤害逐只衰减。同轮最多命中十四只。',detail:weaponDetail('chopsticks',`射程 ${WEAPONS.chopsticks.range} · 张角 84° · 后续 ${RANGED_HITS.chopsticks.slice(1).join(" / ")}`)},
   spirit:{short:'汤灵壶',role:'三路寻客',description:'三股汤灵分头飞向前方和两侧，各自寻找目标。击中后能再跳向一只附近的敌人。',detail:weaponDetail('spirit',`首段索敌距离 ${WEAPONS.spirit.range} · 跳转距离 ${RANGED_HITS.spiritBounce} · 第二目标 ${RANGED_HITS.spirit[1]}`)},
   knife:{short:'拆箱快刀',role:'封签快斩',description:'短刀从肩后快速划过，带出一道薄而锋利的封签切风，一挥最多削中十只。',detail:weaponDetail('knife',`挥角 ${MELEE_WEAPONS.knife.sweep}° · 气浪最远 ${WEAPONS.knife.range}`)},
   tray:{short:'回旋餐盘',role:'分盘回收',description:'三只餐盘铺向左、中、右，飞至尽头或场边后回到外卖员手中。移动可以改变回程路线。每程最多打九只。',detail:weaponDetail('tray',`去程 ${WEAPONS.tray.range} · 张角 88° · 回程伤害 ${RANGED_HITS.trayReturn}`)},

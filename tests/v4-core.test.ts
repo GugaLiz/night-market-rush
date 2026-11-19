@@ -19,6 +19,8 @@ describe('V4 continuous play', () => {
       const cells=new Set<number>(),quadrants=new Set<number>();
       let nearestEnemy=Infinity,nearestPlayer=Infinity;
       expect(enemies).toHaveLength(CONFIG.spawn.openingCount);
+      expect(Object.fromEntries(['bun','onigiri','siumai','zongzi'].map(kind=>[kind,enemies.filter(e=>e.kind===kind).length])))
+        .toEqual({bun:15,onigiri:10,siumai:10,zongzi:5});
       for(const [i,e] of enemies.entries()){
         cells.add(Math.floor((e.x-WORLD.bounds.left)/280)+4*Math.floor((e.y-CONFIG.player.minY)/154));
         quadrants.add(Number(e.x>640)+2*Number(e.y>410));

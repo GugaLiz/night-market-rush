@@ -39,6 +39,8 @@ try {
   const frame=()=>page.evaluate(()=>window.enemyFrame);
   const opening=await frame();
   assert.ok(['bun','bunGrin','bunCurious'].every(name=>opening.sprites.includes(name)));
+  const snacks=['onigiri','siumai','zongzi'];
+  for(const kind of snacks)assert.ok(opening.sprites.some(name=>name.startsWith(kind)),kind+' drawn in the first wave');
   const canvasCapture=async(file,clip)=>{
     const data=await page.evaluate(([x,y,w,h])=>{
       const source=document.querySelector('#game-canvas'),out=document.createElement('canvas');
@@ -49,6 +51,24 @@ try {
     await writeFile(folder+'/'+file,Buffer.from(data,'base64'));
   };
   await canvasCapture('enemy-opening.webp',[0,100,1280,525]);
+  await page.evaluate(kinds=>{
+    const game=window.__gameTest.game();game.reset(738,true);
+    game.state.weapon.readyAt=Infinity;
+    for(const [row,kind] of kinds.entries()){
+      const y=283+row*87;
+      for(const [col,x] of [320,740,880,1010].entries()){
+        const enemy=game.spawnEnemy(kind,{x,y});
+        enemy.march={x:0,y:0,until:10};
+        if(col===2)enemy.hurtAt=game.state.time;
+        if(col===3)enemy.hp=1;
+      }
+    }
+  },snacks);
+  await page.clock.runFor(64);
+  const snackLineup=await frame();
+  for(const kind of snacks)for(const pose of ['', 'Alert', 'Hurt', 'Low']){
+    assert.ok(snackLineup.sprites.includes(kind+pose),'Missing battle sprite '+kind+pose);
+  }
   // Seat the nine full-health personalities apart, then deal genuine skate damage to a single bun.
   await page.evaluate(()=>{
     window.__gameTest.scenario('showcase');
@@ -130,5 +150,5 @@ try {
   assert.equal(await page.evaluate(()=>window.__gameTest.snapshot().player.hp),100);
   assert.ok((await frame()).text.includes('+8'),'rider healing indicator');
   assert.deepEqual(errors,[]);
-  console.log('Nine face/species combinations, hurt and 10/30 HP, 30 KOs with one empty plaque, no enemy damage text across frames, rider −8 and +8.');
+  console.log('Mixed opening, 12 street-snack poses and nine original face/species combinations. Hurt and 10/30 HP, 30 KOs with one empty plaque, no enemy damage text across frames, rider −8 and +8.');
 } finally {await browser.close();}
