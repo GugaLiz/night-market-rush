@@ -463,3 +463,23 @@
 - **实现/结果**：修复小腿旋转与鞋口铰接并抬高手中取餐夹。三连送改为快递包独立折返，方向冲刺可松手刹车，触摸取消、失焦和倾斜回正清除旧输入。道具拾取距离56，补给和换装42，金币吸附110。游荡逐渐转向，包子差异化弧线追击。包子、盒怪与碗怪各有三种表情，余血胶囊持续显示，群杀时仅预留一个空血条和最多三组累计伤害。
 - **验证**：244项Vitest、17项Chrome端到端、7项HTTP、TypeScript和Vite通过。修正端到端复活测试受到残留火场击退干扰的布置后全套重跑通过。384次实机画布采样的鞋口与小腿末端均对齐；普通挑战横屏触控距道具42单位擦过仍拾取，松手余移1.60后停稳，反打成功。绘制验证九种脸、10/30与−20、同帧30击杀；四大招横屏实测触发，正式4173页面加载的脚本与两份新图集均逐字节匹配dist。
 - **风险/后续**：移动端基于Chrome触控和模拟传感器验收，未验证实体手机。
+## 2026-11-19 16:27:50 +08:00 — fix
+
+- **摘要**：移除怪物受击数字、累计伤害与分段明细。
+- **涉及文件**：
+  - `README.md`
+  - `docs/V4_PLAYTEST.md`
+  - `docs/verification/clay/enemy-health.webp`
+  - `docs/verification/clay/enemy-opening.webp`
+  - `docs/verification/clay/enemy-sweep.webp`
+  - `docs/verification/impact/damage-stack.webp`
+  - `scripts/verify-damage-stack.mjs`
+  - `scripts/verify-enemy-vitals.mjs`
+  - `src/render/damage-labels.ts`
+  - `src/render/renderer.ts`
+  - `tests/damage-labels.test.ts`
+  - `agentchanges/CHANGELOG.md`
+- **原因/目标**：玩家反馈战斗飘字突兀，遮挡命中动作。
+- **实现/结果**：敌人用受击动画和余血条反馈扣血，保留骑手受伤与回血提示。更新试玩说明、浏览器检查和对应实战截图。
+- **验证**：236项单测、TypeScript和Vite通过。Chrome验证连续三挥、30只群杀无怪物伤害飘字，骑手−8和+8正常。4173正式页验证通过。
+- **风险/后续**：None

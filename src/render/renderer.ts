@@ -246,7 +246,7 @@ export class Renderer {
     this.playerStatus(s);
     if (s.player.skateUntil > s.time) this.skateRing(s, true);
     this.labels.drawVitals(c);
-    this.labels.draw(c,this.assets,s,this.settings.reduceMotion);
+    this.labels.draw(c,this.assets,this.settings.reduceMotion);
     for(const shot of s.enemyShots??[])drawSoupShot(c,shot);
   }
 

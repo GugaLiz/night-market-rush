@@ -29,7 +29,11 @@ try {
       }
       return draw(img,...args);
     };
-    c.fillText=(str,...args)=>{window.enemyFrame.text.push(str);return fill(str,...args);};
+    window.enemySceneText=new Set();
+    c.fillText=(str,...args)=>{
+      window.enemyFrame.text.push(str);window.enemySceneText.add(str);
+      return fill(str,...args);
+    };
   });
   await page.clock.runFor(1300);
   const frame=()=>page.evaluate(()=>window.enemyFrame);
@@ -62,12 +66,17 @@ try {
   for(const kind of ['bun','box','bowl'])for(const face of ['', 'Grin','Curious'])assert.ok(lineup.sprites.includes(kind+face));
   assert.ok(lineup.text.includes('30/30'));
   await canvasCapture('enemy-expressions.webp',[538,195,335,339]);
-  await page.evaluate(()=>{const g=window.__gameTest.game();g.triggerSkill('skate');g.state.player.skateUntil=0;});
+  const assertNoDamageNumbers=async()=>{
+    const painted=await page.evaluate(()=>[...window.enemySceneText]);
+    assert.deepEqual(painted.filter(t=>/^[+−-]?\d+(?:\.\d+)?(?:段|(?:\s+\+\d+)+)?$/.test(t)),[]);
+  };
+  await page.evaluate(()=>{const g=window.__gameTest.game();window.enemySceneText.clear();g.triggerSkill('skate');g.state.player.skateUntil=0;});
   await page.clock.runFor(96);
   const impact=await frame();
-  assert.ok(impact.sprites.includes('bunHurt') && impact.text.includes('−20') && impact.text.includes('10/30'));
+  assert.ok(impact.sprites.includes('bunHurt') && impact.text.includes('10/30'));
   await page.clock.runFor(3100);
-  const injured=await frame();assert.ok(injured.sprites.includes('bunLow') && injured.text.includes('10/30') && injured.text.includes('−20'));
+  const injured=await frame();assert.ok(injured.sprites.includes('bunLow') && injured.text.includes('10/30'));
+  await assertNoDamageNumbers();
   await canvasCapture('enemy-health.webp',[202,183,278,204]);
   await page.evaluate(()=>{
     window.__gameTest.scenario('showcase');const g=window.__gameTest.game();
@@ -76,14 +85,27 @@ try {
       const angle=i*Math.PI*2/30,r=95+i%3*15;
       g.spawnEnemy('bun',{x:g.state.player.x+Math.cos(angle)*r,y:g.state.player.y+Math.sin(angle)*r});
     }
-    g.triggerSkill('fan');
+    window.enemySceneText.clear();g.triggerSkill('fan');
   });
   await page.clock.runFor(230);
   assert.equal(await page.evaluate(()=>window.__gameTest.game().state.kills),30);
-  const crowd=await frame(),empty=crowd.text.filter(t=>t==='0/30').length,damage=crowd.text.filter(t=>t==='−30').length;
-  assert.equal(empty,1,'Painted crowd readouts '+crowd.text.join(', '));assert.ok(damage>0 && damage<=3);
+  const crowd=await frame(),empty=crowd.text.filter(t=>t==='0/30').length;
+  assert.equal(empty,1,'Painted crowd readouts '+crowd.text.join(', '));
   await canvasCapture('enemy-sweep.webp',[394,128,508,419]);
   await page.clock.runFor(630);assert.ok(!(await frame()).text.includes('0/30'));
+  await assertNoDamageNumbers();
+  await page.evaluate(()=>{
+    window.__gameTest.scenario('showcase');
+    const g=window.__gameTest.game();g.reset(45,true);g.state.weapon.readyAt=999;
+    g.spawnEnemy('bun',g.state.player);
+  });
+  await page.clock.runFor(80);
+  assert.equal(await page.evaluate(()=>window.__gameTest.snapshot().player.hp),92);
+  assert.ok((await frame()).text.includes('−8'),'rider damage indicator');
+  await page.evaluate(()=>window.__gameTest.game().healPlayer());
+  await page.clock.runFor(48);
+  assert.equal(await page.evaluate(()=>window.__gameTest.snapshot().player.hp),100);
+  assert.ok((await frame()).text.includes('+8'),'rider healing indicator');
   assert.deepEqual(errors,[]);
-  console.log('Opening expressions, 9 face/species combinations, full/10 HP and 30 simultaneous KOs; '+empty+' empty plaque, '+damage+' damage totals.');
+  console.log('Nine face/species combinations, hurt and 10/30 HP, 30 KOs with one empty plaque, no enemy damage text across frames, rider −8 and +8.');
 } finally {await browser.close();}
