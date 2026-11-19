@@ -1,5 +1,14 @@
 # 资产来源与重建说明
 
+新版首页立绘以工装骑手为参照，为短臂、短腿的新战斗比例单独生成。战斗造型可在同一机位、同样的走位下对照。[首页原型](../public/assets/clay-workwear-home.webp) · [战斗画面对照](verification/clay/chibi-battle-comparison.webp)
+
+<details>
+<summary>短手脚首页立绘生成提示词（内置 ImageGen）</summary>
+
+Use case precise-object-edit. Redesign the proportions of the exact same polymer-clay game character shown in the reference. Deliver one complete, isolated RGBA title-screen portrait of a tiny food-delivery rider caught in a brisk short running step, facing three-quarter RIGHT. Make the whole silhouette clearly squat and cuter than before: the orange helmet + head takes about 52–54 percent of her total height, a single round cheeky head with full cheeks, proud friendly expression, ponytail. Head should sit close down to her shoulders. Dramatically shorten upper arms and forearms, keep elbows close to plump torso, gloved mitten-sized hands reach just past jacket hem at rest; visible hand up near cheek holding the original small cream order slip, other hand on satchel. A compact egg-shaped uniformed body, blue trousers with dark denim clay cuffs, noticeably SHORT chubby legs with only enough length to show knee bends, low round cream shoes, small orange heel pulls and a sliver of charcoal sole. Very short compact running stride, back shoe lifted under seat, front foot tucked near body. Width of each shoe well under half face width. Both shoes readable, both within frame, shoes join trouser cuffs. Preserve the reference costume, orange and ivory helmet stripe, dark brown raised hair, jade hot-food bag, diagonal strap, matching orange jacket, handmade matte clay texture and detailed toy lighting. No giant feet, no lanky legs, no stretched-out stride, no extra limbs or extra bits. Make a single beautifully sculpted chibi miniature in the same identity. No text, no mockup, no character sheet, no background or ground shadow. Real transparent alpha and wide enough clear padding around all extremities; separate head/hair from raised hand in silhouette.
+
+</details>
+
 ## 2026-11-19 骑手工装裤与工鞋
 
 内置 imagegen 以游戏中的骑手为原型，画出支撑脚着地、后脚蹬地、摆腿及背面提跟四种姿态。选定的设计使用深蓝裤料、奶白鞋头、炭色薄底和橙色后跟提带。[动作设计稿](art-directions/chibi/courier-workwear.webp)
@@ -26,11 +35,12 @@ Identity-preserving precise character costume edit. First reference is the edit 
 
 | 文件 | 游戏中的用途 |
 |---|---|
-| [clay-workwear-home.webp](../public/assets/clay-workwear-home.webp) | 首页独立跑姿。用内置 ImageGen 参考旧立绘与工装设计稿，保留橙色头盔、保温箱和送餐小票，换上深蓝长裤、奶白工鞋及橙色后跟提带。RGBA 原图缩至 542 × 640 后编码为 WebP。 |
+| [clay-chibi-home.webp](../public/assets/clay-chibi-home.webp) | 首页独立跑姿。用内置 ImageGen 参考上一版工装立绘，缩短手臂和小腿、收紧步幅，保留橙色头盔、送餐单、绿保温箱和奶白工鞋。透明原图裁至角色外缘，导出为 588 × 640 RGBA WebP。 |
 | [clay-courier-rig.webp](../public/assets/clay-courier-rig.webp) | 四列五行，16 件头盔、制服、手脚和保温箱分件，加上挥击与受伤表情。站姿、转向、跑步着地和扶盔护箱按当前输入组成 |
 | [clay-shoe-views.webp](../public/assets/clay-shoe-views.webp) | 旧版橙白短裤造型的三向软陶运动鞋图集，尺寸为 384 × 144 |
-| [clay-actors.webp](../public/assets/clay-actors.webp) | 四列三行，包子普通、挤压、残血，盒怪、碗怪、三件外卖武器和四款大招拾取物 |
-| [clay-enemy-faces.webp](../public/assets/clay-enemy-faces.webp) | 以软陶怪物图集为参考，由内置 imagegen 生成的咧嘴笑、惊讶两排表情。按包子、餐盒、面碗三列裁切，保留透明通道并对齐脚底 |
+| [clay-market-mascots.webp](../public/assets/clay-market-mascots.webp) | 2026-11-19 用内置 ImageGen 参考[旧版九种表情](verification/clay/enemy-expressions.webp)和[巨包设计](art-directions/chibi/combat-fx/elite-bun.png)制作。要求圆脸、芝麻眼、短手脚，分别以辣椒、筷子和薄荷色碗沿区分三种小怪，给精英加红色面结和小乳牙。各格清理透明底、对齐脚底后排为 896 × 896 RGBA WebP。前三行是包子、餐盒、面碗的日常、笑、惊、受击或残血表情，末行是巨包的常态、受击、残血与普通包子残血。SHA-256 为 `014a894ab24cb0092ecb836b9904a2d565873882a698fa8f216e99167f8a915d`。 |
+| [clay-actors.webp](../public/assets/clay-actors.webp) | 四列三行的首版战斗图集。现用于四款大招拾取物及其 HUD 图标 |
+| [clay-enemy-faces.webp](../public/assets/clay-enemy-faces.webp) | 首版咧嘴笑、惊讶两排表情。内置 ImageGen 以旧软陶怪物图集为参考生成，依包子、餐盒、面碗三列裁切 |
 | [clay-weapons.webp](../public/assets/clay-weapons.webp) | 四列四行，十件可换武器、五种关联飞行物或展开件及装备箱。猫爪夹、纸袋、葱花盘使用已选概念造型 |
 | [clay-supplies.webp](../public/assets/clay-supplies.webp) | 四列四行，原有十三件技能道具，以及路锥、诱饵餐箱和补给箱 |
 | [clay-ultimate-fx.webp](../public/assets/clay-ultimate-fx.webp) | 内置 imagegen 生成并整理为两列四行，依次为冰晶、蒸汽卷、签收票、汽水飞沫、冰浪扇面、中空蒸汽环、奶泡喷泉、杨梅。运行时随伤害波前和真实落点组合绘制 |

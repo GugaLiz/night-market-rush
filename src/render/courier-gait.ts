@@ -14,7 +14,7 @@ function swingTravel(t:number):number {
 }
 // Time before the fixed support shoe leaves the pelvis's reachable stride ellipse.
 function supportTime(foot:Vec,home:Vec,p:Player,scale:number):number {
-  const horizontal=22*scale,vertical=(p.vy<0?14:16)*scale;
+  const horizontal=16.5*scale,vertical=(p.vy<0?11:12.5)*scale;
   const x=(foot.x-home.x)/horizontal,y=(foot.y-home.y)/vertical;
   const vx=-p.vx/horizontal,vy=-p.vy/vertical,speed=vx*vx+vy*vy;
   if(speed<1e-6)return Infinity;
@@ -54,7 +54,7 @@ export class CourierGait {
     // The hips overlap in profile. Keep depth between the two lanes so that
     // the far foot can pass behind the near foot without swapping sides.
     const profile=running*Math.abs(p.vx)/Math.max(1,speed);
-    const lane=(8-3*profile)*scale,stagger=(2+1.5*profile)*scale;
+    const lane=(6.75-2*profile)*scale,stagger=(1.75+1.15*profile)*scale;
     const rightHome={x:p.x+lane,y:p.y+stagger};
     const leftHome={x:p.x-lane,y:p.y-stagger};
     if(!this.last||Math.hypot(p.x-this.last.x,p.y-this.last.y)>80*scale){
@@ -76,10 +76,10 @@ export class CourierGait {
       const direction=p.dashDirection??p.moveDirection;
       for(const side of [1,-1] as const){
         const foot=side===1?this.right:this.left,home=side===1?rightHome:leftHome;
-        const trail=(side===1?4:14)*scale;
+        const trail=(side===1?3:10.5)*scale;
         foot.x=follow(foot.x+travel.x,home.x-direction.x*trail,dt,.04);
         foot.y=follow(foot.y+travel.y,home.y-direction.y*trail,dt,.04);
-        foot.lift=follow(foot.lift,side===1?10:5,dt,.035);
+        foot.lift=follow(foot.lift,side===1?8:4.2,dt,.035);
         foot.pitch=follow(foot.pitch,side===1?-.15:.33,dt,.04);
         swivel(foot,Math.atan2(direction.y,direction.x),dt,26);
       }
@@ -117,7 +117,7 @@ export class CourierGait {
         const foot=side===1?this.right:this.left;
         const home=side===1?rightHome:leftHome;
         const support=side===1?this.left:this.right,supportHome=side===1?leftHome:rightHome;
-        const duration=walking?Math.min(pivot?.083:clamp(scale*(11+24*running)*(1-.21*depth)/speed,.09,.29),
+        const duration=walking?Math.min(pivot?.073:clamp(scale*(9+18.5*running)*(1-.18*depth)/speed,.073,.26),
           Math.max(.047,supportTime(support,supportHome,p,scale)+dt)):.14;
         // The game position is already at the end of this frame. Predict a
         // world-space touchdown half a support phase ahead of the body.
@@ -125,7 +125,7 @@ export class CourierGait {
         const lead=walking?Math.max(0,1.5*duration-age-dt):0;
         this.swing={side,start:{...foot},end:{x:home.x+p.vx*lead,y:home.y+p.vy*lead},age,duration,
           heading:walking?{x:p.vx/speed,y:p.vy/speed}:{x:0,y:0},
-          height:pivot?3:walking?2.2+7.5*Math.sqrt(running)*(1-.12*depth):Math.min(3.6,error/scale*.28)};
+          height:pivot?2.5:walking?1.6+6.2*Math.sqrt(running)*(1-.12*depth):Math.min(3.2,error/scale*.28)};
         this.next=side===1?-1:1;
       }else this.carry=0;
     }

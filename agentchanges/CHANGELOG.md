@@ -506,3 +506,28 @@
 - **实现/结果**：深蓝裤胯、膝与裤脚衔接，奶白圆头工鞋使用独立的正面、侧面、背面与斜后视图。落脚经由脚跟、全掌、前掌交替承重，每只脚在急转时独立换向。首页沿用同一制服。保存同路线前后对照与12帧分镜。
 - **验证**：238项Vitest（含11项步态）、17项Chrome端到端、TypeScript及Vite通过。148帧真实画布检查5个朝向和运动中攻击，裤鞋轮廓相连，停稳后鞋底漂移0像素。正式4173横屏触控模拟验证四招与转屏；正式页首页与实战均实际绘制新版图像并与dist逐字节一致。
 - **风险/后续**：触控在Chrome模拟环境验证，未使用实体手机。
+## 2026-11-19 19:41:59 +08:00 — feature
+
+- **摘要**：缩短骑手四肢、增加头身比，更新三种小怪和精英巨包的软陶造型并重新部署本地版。
+- **涉及文件**：
+  - `agentchanges/CHANGELOG.md`
+  - `docs/ASSET_PROVENANCE.md`
+  - `docs/verification/clay/chibi-battle-comparison.webp`
+  - `public/assets/clay-chibi-home.webp`
+  - `public/assets/clay-market-mascots.webp`
+  - `scripts/verify-clay-actors.mjs`
+  - `scripts/verify-clay-footwork.mjs`
+  - `scripts/verify-enemy-vitals.mjs`
+  - `src/render/assets.ts`
+  - `src/render/character.ts`
+  - `src/render/clay-frames.ts`
+  - `src/render/courier-gait.ts`
+  - `src/render/enemy-clay-fx.ts`
+  - `src/render/renderer.ts`
+  - `src/ui/style.css`
+  - `src/ui/ui.ts`
+  - `tests/courier-gait.test.ts`
+- **原因/目标**：用户希望原有Q版骑手和怪物更圆润可爱，跑动和持武器时也能看出短手短脚。
+- **实现/结果**：缩短手臂、腿和步幅，调整双手握点和前后脚动作；用独立透明立绘同步首页。怪物图集含16种普通、表情、受伤和残血造型，击败计数同步使用新版头像。
+- **验证**：238项单测、17项Chrome端到端、tsc、Vite通过。同场景原尺寸对比测得手臂约短21%、髋至承重鞋底约短26%。148帧走跑转向与移动攻击、四近战、六远程、餐盘回手及四种怪物预警通过。正式4173页面实绘新版首页和怪物，分发的JS和两张新图逐字节匹配dist。
+- **风险/后续**：手机横屏采用Chrome触控模拟。

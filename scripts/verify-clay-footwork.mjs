@@ -22,7 +22,7 @@ try {
     const parts=new Map(Object.entries(assets.sprites).map(([name,s])=>[[s.image.src,s.x,s.y].join('|'),name]));
     const canvas=document.querySelector('#game-canvas'),ctx=canvas.getContext('2d');
     const draw=ctx.drawImage.bind(ctx),ellipse=ctx.ellipse.bind(ctx);
-    const readings=window.shoeCheck={views:[],ground:null,shoes:[]};
+    const readings=window.shoeCheck={views:[],ground:null,shoes:[],parts:{}};
     // Compare the battle pixels before and after the trousers and shoes are painted.
     // This includes the clipped openings of the sneakers and the renderer's actual layer order.
     const width=144,height=110;
@@ -53,6 +53,11 @@ try {
     ctx.drawImage=(image,...args)=>{
       if(image instanceof HTMLImageElement && args.length===8){
         const name=parts.get([image.src,args[0],args[1]].join('|'));
+        if(['rigUpperR','rigForeR','rigHipFront','rigHeadFront'].includes(name)){
+          const [x,y,w,h]=args.slice(4),m=ctx.getTransform();
+          const center=m.transformPoint({x:x+w/2,y:y+h/2});
+          readings.parts[name]={height:Math.hypot(m.c,m.d)*h,y:center.y};
+        }
         if(readings.ground && /^rig(Thigh|Shin|Shoe|Hip)/.test(name)){
           if(!before)before=lowerPixels();
           if(name.startsWith('rigShoe')){
@@ -71,7 +76,7 @@ try {
     ctx.ellipse=(x,y,rx,ry,...rest)=>{
       if(ry===4&&ctx.strokeStyle==='#fff1bc'){
         readings.ground=ctx.getTransform().transformPoint({x,y}).toJSON();
-        readings.shoes=[];before=null;after=null;
+        readings.shoes=[];readings.parts={};before=null;after=null;
       }
       return ellipse(x,y,rx,ry,...rest);
     };
@@ -90,6 +95,7 @@ try {
   const cards=[];
   if(process.env.FOOTWORK_FRAMES)await mkdir(process.env.FOOTWORK_FRAMES,{recursive:true});
   const samples=[];
+  let idleProportions;
   for(let i=0;i<148;i++){
     if(i===96)await page.evaluate(()=>{window.__gameTest.game().state.weapon.readyAt=0;});
     const keys=route.find(event=>event.at===i);
@@ -102,6 +108,16 @@ try {
       return {shoes:soles,islands:window.lowerBodyConnected(),speed:Math.hypot(player.vx,player.vy),phase:weapon.attack?.phase};
     });
     samples.push(sample);
+    if(i===4){
+      idleProportions=await page.evaluate(()=>{
+        const {parts,shoes}=window.shoeCheck;
+        return {head:parts.rigHeadFront.height,arm:parts.rigUpperR.height+parts.rigForeR.height,
+          hipToSole:Math.max(...shoes.map(foot=>foot.y))-parts.rigHipFront.y};
+      });
+      // Use projected lengths, so changes to scale or atlas pixel dimensions are harmless.
+      assert.ok(idleProportions.arm/idleProportions.head<.48,'The two arm segments must fit the compact courier silhouette');
+      assert.ok(idleProportions.hipToSole/idleProportions.head<.50,'Standing legs must remain short relative to the head');
+    }
     if(!captions.has(i)&&!process.env.FOOTWORK_FRAMES)continue;
     const crop=await page.evaluate(()=>{
       const {ground}=window.shoeCheck;
@@ -147,5 +163,6 @@ try {
   await page.screenshot({clip:{x:Math.round(dash.ground.x)-82,y:Math.round(dash.ground.y)-136,width:163,height:152},path:'test-results/footwork/dash.png'});
   await page.keyboard.up('ArrowLeft');
   assert.deepEqual(errors,[]);
-  console.log('Checked '+samples.length+' connected lower-body silhouettes (five views), a real moving attack, a dash and a settled shoe drift of '+drift.toFixed(2)+' px.');
+  console.log('Checked '+samples.length+' connected lower-body silhouettes (five views), a real moving attack, a dash and a settled shoe drift of '+drift.toFixed(2)+' px.',
+    'Standing lengths in canvas pixels:',idleProportions);
 } finally {await browser.close();}

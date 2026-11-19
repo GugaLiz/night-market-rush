@@ -405,7 +405,7 @@ export class Renderer {
         const motion=this.settings.reduceMotion?0:progress;
         const distance=e.power??12, angle=e.angle??0, push=1-(1-motion)**2;
         const height=enemyHeight(e.sprite);
-        const face=e.sprite==='bun'||e.sprite==='giantBun'?'bunHurt':e.sprite+'Curious';
+        const face=e.sprite+(e.sprite==='bun'||e.sprite==='giantBun'?'Hurt':'Low');
         const hop=Math.sin(motion*Math.PI)*distance*.82;
         const x=e.x+Math.cos(angle)*distance*push, groundY=e.y+Math.sin(angle)*distance*push*.6;
         const spin=Math.cos(angle)*motion*(distance>35?1.25:.45);

@@ -13,23 +13,42 @@ const blend=(a:Point,b:Point,t:number):Point=>({x:lerp(a.x,b.x,t),y:lerp(a.y,b.y
 const smooth=(v:number)=>{const t=clamp(v);return t*t*(3-2*t);};
 const angleBlend=(a:number,b:number,t:number)=>a+Math.atan2(Math.sin(b-a),Math.cos(b-a))*t;
 const widths:Record<WeaponKind,number>={tongs:34,bag:26,chopsticks:31,spirit:23,knife:29,tray:27,umbrella:35,sword:43,lunchbox:26,talisman:24};
-const hipHeight=29;
-const legReach=34;
+const hipHeight=21;
+const legReach=26;
+const upperArm=8.5,forearm=9.5;
 const bagTilt=1.33;
 
 // The trouser hem wraps around each sneaker at its opening. The measurements
 // are normalized against the trimmed sprite, not the atlas cell.
 const shoes={
-  side:{name:'rigShoeR',width:16.5,height:9.8,cuffX:.31,cuffY:.27},
-  front:{name:'rigShoeToe',width:10.7,height:11.5,cuffX:.50,cuffY:.19},
-  rear:{name:'rigShoeHeel',width:10.7,height:10.7,cuffX:.50,cuffY:.19},
-  rearSide:{name:'rigShoeHeelSide',width:14,height:9.8,cuffX:.40,cuffY:.24},
+  side:{name:'rigShoeR',width:14,height:8.9,cuffX:.31,cuffY:.27},
+  front:{name:'rigShoeToe',width:10,height:9.8,cuffX:.50,cuffY:.19},
+  rear:{name:'rigShoeHeel',width:10,height:9.4,cuffX:.50,cuffY:.19},
+  rearSide:{name:'rigShoeHeelSide',width:12.5,height:8.9,cuffX:.40,cuffY:.24},
 };
 type Shoe=typeof shoes.side;
 function shoeView(yaw:number):Shoe {
   const y=Math.sin(yaw);
   if(y<-.50)return Math.abs(Math.cos(yaw))<.41?shoes.rear:shoes.rearSide;
   return y>.80?shoes.front:shoes.side;
+}
+
+/** Bring the whole handle into reach while keeping both palms on their original grip points. */
+function fitTwoHandedGrip(right:Point,left:Point,shoulderR:Point,shoulderL:Point):void {
+  const gripX=left.x-right.x,gripY=left.y-right.y;
+  // For the right-hand grip, each shoulder describes a reachable disc. Their
+  // midpoint can support the handle; extend from there towards the intended pose.
+  const halfX=(shoulderR.x-shoulderL.x+gripX)*.5;
+  const halfY=(shoulderR.y-shoulderL.y+gripY)*.5;
+  const cx=shoulderR.x-halfX,cy=shoulderR.y-halfY;
+  const dx=right.x-cx,dy=right.y-cy,length=Math.hypot(dx,dy);
+  if(length<.001)return;
+  const projection=Math.abs(dx*halfX+dy*halfY)/length;
+  const reach=upperArm+forearm-.1;
+  const distance=Math.sqrt(Math.max(0,reach*reach-halfX*halfX-halfY*halfY+projection*projection))-projection;
+  const scale=clamp(distance/length);
+  right.x=cx+dx*scale;right.y=cy+dy*scale;
+  left.x=right.x+gripX;left.y=right.y+gripY;
 }
 
 export class CourierRig {
@@ -96,9 +115,9 @@ export class CourierRig {
     const turnLean=clamp(p.vx/CONFIG.player.speed*flip-delayedX,-1,1);
     const shift=this.gait.weight*flip*accent;
     const profile=running*Math.abs(this.look.x);
-    const hipWidth=6.5-profile*2.4, hipRoll=shift*.095;
-    const stepSwing=clamp(((footR.x-footL.x)-(16-6*profile))/30 * this.look.x*flip+
-      (footR.y-footL.y+footR.lift-footL.lift)*this.look.y/28,-1,1)*running;
+    const hipWidth=6-profile*2.1, hipRoll=shift*.085;
+    const stepSwing=clamp(((footR.x-footL.x)-(13.5-4*profile))/25 * this.look.x*flip+
+      (footR.y-footL.y+footR.lift-footL.lift)*this.look.y/23,-1,1)*running;
     const cue=windup?-smooth(phase):active?1-smooth(phase)*.24:recovering?.76*settle:0;
     this.effort=lerp(this.effort,cue,1-Math.exp(-step/.032));
     const effort=this.effort;
@@ -106,7 +125,7 @@ export class CourierRig {
     const lean=effort*(heavy?5.5:3.7);
     // Load one leg while standing and shift onto the striking side through release.
     // The shoes stay on their planted world positions during a standing attack.
-    const hipX=shift*(2.7+1.4*depth)+(1-running)*(.7+hx*flip*effort*.96);
+    const hipX=shift*(2.1+1.1*depth)+(1-running)*(.7+hx*flip*effort*.85);
     const hurtAge=time-p.hurtAt;
     const hurt=dead||hurtAge<0?0:smooth(hurtAge/.035)*(1-smooth((hurtAge-.055)/.28));
     const upperX=hipX*.55+clamp(delayedX*(dash?7:5.6)+turnLean*4,-10,10)*accent+hx*flip*lean-hurt*3*accent;
@@ -125,15 +144,15 @@ export class CourierRig {
     const bodyY=dead?bounce:bounce+this.crouch;
     // The quiet breath lifts the jacket and shoulders without bouncing both knees.
     const breath=dead||settings.reduceMotion?0:Math.sin(time*2.45)*.44*(1-running);
-    const chest:Point={x:upperX,y:-42+bodyY+breath+delayedY*running*1.3*accent};
+    const chest:Point={x:upperX,y:-33+bodyY+breath+delayedY*running*1.1*accent};
     const sweepTurn=melee?Math.sin(melee.angle-heading)*(windup?smooth(phase):settle):0;
     const shoulderRoll=-hipRoll*.8+(stepSwing*.045+sweepTurn*(heavy?.17:.11))*accent;
-    const shoulderR={x:upperX+8,y:chest.y-6+shoulderRoll*8},shoulderL={x:upperX-8,y:chest.y-6-shoulderRoll*8};
+    const shoulderR={x:upperX+8,y:chest.y-5+shoulderRoll*8},shoulderL={x:upperX-8,y:chest.y-5-shoulderRoll*8};
     const twoHanded=['bag','chopsticks','lunchbox','talisman','sword','umbrella'].includes(kind);
-    const arms=stepSwing*(twoHanded?1.7:5.2)*accent;
+    const arms=stepSwing*(twoHanded?1.4:4.2)*accent;
     const carryTongs=kind==='tongs';
-    const idleRight={x:upperX+(carryTongs?17:14)-arms,y:(twoHanded?-40:carryTongs?-39:-32)+bodyY+arms*.28};
-    const idleLeft={x:upperX+(twoHanded?1:-10)+arms,y:(twoHanded?-36:-31)+bodyY-arms*.47};
+    const idleRight={x:upperX+(carryTongs?15:12)-arms,y:chest.y+(twoHanded?1:carryTongs?2:7)+arms*.28};
+    const idleLeft={x:upperX+(twoHanded?.5:-10)+arms,y:chest.y+(twoHanded?5:8)-arms*.47};
     const idleAngle=twoHanded?.06:carryTongs?-.29+stepSwing*.06:.48;
     let right={...idleRight},left={...idleLeft},toolAngle=idleAngle,stretch=1,umbrellaSpread=0;
     let releasePoint:Point|undefined;
@@ -148,14 +167,14 @@ export class CourierRig {
         // The windup draws the grip behind the shoulder. During the cut the
         // arm lowers toward the release plane while following the strike angle.
         const drive=active?smooth(phase/.28):1;
-        const reach=windup?lerp(13,11,pull):lerp(11,23,drive);
+        const reach=windup?lerp(11,8,pull):lerp(8,18,drive);
         right=point(reach,windup?-6*pull:lerp(-6,10,drive));
         if(!windup&&kind!=='umbrella'){
           releasePoint={x:aim.x*melee.reach/scale,y:(aim.y*melee.reach-28)/scale};
           right=blend(right,{x:releasePoint.x-aim.x*widths[kind],y:releasePoint.y-aim.y*widths[kind]},drive);
           if(carryTongs)right.x+=10*Math.max(0,aim.y)**3*drive;
         }
-        left=twoHanded?{x:right.x-6,y:right.y+4}:{x:upperX-8-aim.x*5*effort+arms,y:-34+bodyY-aim.y*4*effort-arms*.47};
+        left=twoHanded?{x:right.x-6,y:right.y+4}:{x:upperX-8-aim.x*4*effort+arms,y:chest.y+6-aim.y*3.5*effort-arms*.47};
         toolAngle=kind==='umbrella'?angle+.32:angle;
         if(kind==='umbrella'){
           umbrellaSpread=windup?smooth((phase-.55)/.45):active?1:1-smooth((phase-.20)/.45);
@@ -172,7 +191,7 @@ export class CourierRig {
             toolAngle=windup?-.23*pull:angleBlend(0,angle+Math.PI/2,.65)*settle;break;
           case 'tray':
             right=point(windup?lerp(10,-9,pull):22,windup?-pull*7:0);
-            left={x:upperX-10,y:-32+bodyY};toolAngle=angle;break;
+            left={x:upperX-10,y:chest.y+7};toolAngle=angle;break;
           case 'lunchbox':
             right=point(windup?10:18,windup?pull*3:-6);left={x:right.x-8,y:right.y+6};
             toolAngle=windup?.23*pull:-.30*settle;break;
@@ -189,9 +208,9 @@ export class CourierRig {
     this.packSwing=lerp(this.packSwing,packTarget,1-Math.exp(-step/.074));
     const backWeight=lerp(Number(this.previousBack),Number(back),smooth(this.turnMix));
     const packX=upperX*.54+lerp(-13,-4,backWeight)+this.packSwing*7+hurt*1.8;
-    const packY=-26.5+bodyY*.83-Math.abs(this.packSwing)*5-hurt*2.4;
+    const packY=-20+bodyY*.83-Math.abs(this.packSwing)*4-hurt*2.4;
     const tilt=shoulderRoll*.48+this.packSwing;
-    const packHeight=lerp(23,25,backWeight),packWidth=lerp(27,30,backWeight);
+    const packHeight=lerp(21,23,backWeight),packWidth=lerp(25,28,backWeight);
     const handleY=-packHeight*.91;
     const handle={x:packX-Math.sin(tilt)*handleY,y:packY+Math.cos(tilt)*handleY};
     this.bagPoint={x:p.x+flip*scale*handle.x,y:p.y+scale*handle.y};
@@ -214,7 +233,8 @@ export class CourierRig {
         toolAngle=angleBlend(toolAngle,.76,guard);
       }
     }
-    if(dead){right={x:20,y:-17};left={x:-20,y:-17};toolAngle=1.1;footR.x=17;footL.x=-16;footR.y=0;footL.y=0;}
+    if(dead){right={x:16,y:-10};left={x:-16,y:-10};toolAngle=1.1;footR.x=13;footL.x=-12;footR.y=0;footL.y=0;}
+    else if(twoHanded&&take===0&&guard===0)fitTwoHandedGrip(right,left,shoulderR,shoulderL);
     ctx.save();
     // Small atlas details such as shoelaces should stay steady as a foot moves between pixels.
     ctx.imageSmoothingQuality='medium';
@@ -224,14 +244,14 @@ export class CourierRig {
     const rightInFront=(footR.y+footR.lift)>(footL.y+footL.lift);
     this.leg(ctx,rightInFront?hipL:hipR,rightInFront?footL:footR,rightInFront?'L':'R',dead);
     this.leg(ctx,rightInFront?hipR:hipL,rightInFront?footR:footL,rightInFront?'R':'L',dead);
-    this.bodyPart(ctx,'rigHipFront','rigHipBack',hipX,-24+bodyY,11.5,hipRoll,27-profile*2);
+    this.bodyPart(ctx,'rigHipFront','rigHipBack',hipX,-16.8+bodyY,10,hipRoll,25-profile*2);
     if(take===0&&guard===0)this.arm(ctx,shoulderL,left,'L',-1);
     const drawPack=()=>{
       this.bodyPart(ctx,'rigBagSide','rigBag',packX,packY,packHeight,tilt,packWidth);
       if(lid>.01)this.openLid(ctx,packX,packY,tilt,packWidth,packHeight,lid);
     };
     if(!back)drawPack();
-    this.bodyPart(ctx,'rigTorsoFront','rigTorsoBack',upperX*.70,-28+bodyY+breath,25-hurt*.8,dead?-.08:upperX*.023+shoulderRoll,31);
+    this.bodyPart(ctx,'rigTorsoFront','rigTorsoBack',upperX*.70,-19.5+bodyY+breath,22-hurt*.8,dead?-.08:upperX*.023+shoulderRoll,30.5);
     if(back)drawPack();
     if(take>0&&guard===0)this.arm(ctx,shoulderL,left,'L',-1);
     this.arm(ctx,shoulderR,right,'R',1);
@@ -259,10 +279,10 @@ export class CourierRig {
     };
     const toolBehindHead=melee?Math.sin(toolAngle)<-.12:back;
     if(toolBehindHead)drawTool();
-    const headX=upperX-2-hurt*1.8,headY=-47+bodyY*.84+breath*.65;
+    const headX=upperX-2-hurt*1.8,headY=-37.5+bodyY*.84+breath*.65;
     const headTilt=dead?-.19:shoulderRoll*.38+upperX*.009-hurt*.15*accent;
     const face=hurt>.16?'rigHeadHurt':attack&&Math.abs(effort)>.42?'rigHeadStrike':'rigHeadFront';
-    this.bodyPart(ctx,face,'rigHeadBack',headX,headY,49,headTilt,59);
+    this.bodyPart(ctx,face,'rigHeadBack',headX,headY,53,headTilt,64);
     if(guard>0)this.arm(ctx,shoulderL,left,'L',-1);
     // Use the physical wrist even while the courier is reaching for a supply and flinching together.
     this.supplyHand={x:p.x+flip*scale*left.x,y:p.y+scale*left.y};
@@ -305,11 +325,12 @@ export class CourierRig {
   }
   private part(ctx:CanvasRenderingContext2D,name:string,x:number,y:number,height:number,angle=0,anchorY=1,width?:number):void {drawSprite(ctx,this.assets,name,x,y,height,angle,1,anchorY,width);}
   private arm(ctx:CanvasRenderingContext2D,shoulder:Point,desired:Point,side:'L'|'R',bend:number):void {
-    const upper=11.5,fore=12.5,dx=desired.x-shoulder.x,dy=desired.y-shoulder.y,d=Math.max(.1,Math.min(upper+fore-.1,Math.hypot(dx,dy))),angle=Math.atan2(dy,dx);
-    const elbowAngle=angle+bend*Math.acos(clamp((upper*upper+d*d-fore*fore)/(2*upper*d),-1,1));
-    const elbow={x:shoulder.x+Math.cos(elbowAngle)*upper,y:shoulder.y+Math.sin(elbowAngle)*upper},wrist={x:shoulder.x+Math.cos(angle)*d,y:shoulder.y+Math.sin(angle)*d};
-    this.part(ctx,side==='R'?'rigUpperR':'rigUpperL',shoulder.x,shoulder.y,upper+2,elbowAngle-Math.PI/2,.06,9);
-    this.part(ctx,side==='R'?'rigForeR':'rigForeL',elbow.x,elbow.y,fore+2,Math.atan2(wrist.y-elbow.y,wrist.x-elbow.x)-Math.PI/2,.1,8.6);
+    const dx=desired.x-shoulder.x,dy=desired.y-shoulder.y;
+    const d=clamp(Math.hypot(dx,dy),forearm-upperArm+.01,upperArm+forearm-.1),angle=Math.atan2(dy,dx);
+    const elbowAngle=angle+bend*Math.acos(clamp((upperArm*upperArm+d*d-forearm*forearm)/(2*upperArm*d),-1,1));
+    const elbow={x:shoulder.x+Math.cos(elbowAngle)*upperArm,y:shoulder.y+Math.sin(elbowAngle)*upperArm},wrist={x:shoulder.x+Math.cos(angle)*d,y:shoulder.y+Math.sin(angle)*d};
+    this.part(ctx,side==='R'?'rigUpperR':'rigUpperL',shoulder.x,shoulder.y,upperArm+2,elbowAngle-Math.PI/2,.06,8.6);
+    this.part(ctx,side==='R'?'rigForeR':'rigForeL',elbow.x,elbow.y,forearm+2,Math.atan2(wrist.y-elbow.y,wrist.x-elbow.x)-Math.PI/2,.1,8);
     desired.x=wrist.x;desired.y=wrist.y;
   }
   private leg(ctx:CanvasRenderingContext2D,hip:Point,foot:Point&{pitch:number;lift:number;forward:number;shoe:Shoe},side:'L'|'R',dead:boolean):void {
@@ -325,7 +346,7 @@ export class CourierRig {
     const dx=ankle.x-hip.x,dy=ankle.y-hip.y,d=Math.max(.1,Math.hypot(dx,dy));
     // A support leg takes the weight relatively straight. The advancing
     // leg folds forward at its knee, still aiming into the boot's toebox.
-    const bendLimit=lerp(2,11,clamp(foot.lift/7));
+    const bendLimit=lerp(1.7,8,clamp(foot.lift/6));
     const fold=Math.sqrt(Math.max(0,(legReach*.5)**2-d*d*.25));
     const bend=Math.min(dead?11:bendLimit,fold)*foot.forward;
     const knee={x:lerp(hip.x,ankle.x,.5)+dy/d*bend,

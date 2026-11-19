@@ -98,7 +98,7 @@ export class UI {
         <div class="hud-top">
           <div class="battle-ledger">
             <div class="kill-tally" title="本局击败">
-              <span class="tally-monster" aria-hidden="true" style="background-image:url('${import.meta.env.BASE_URL}assets/clay-actors.webp')"></span>
+              <span class="tally-monster" aria-hidden="true" style="background-image:url('${import.meta.env.BASE_URL}assets/clay-market-mascots.webp')"></span>
               <div><span class="tally-caption">击败</span><strong id="score-value">0</strong></div>
             </div>
             <div class="battle-vitals">

@@ -14,13 +14,13 @@ export interface Assets {
 
 export async function loadAssets(onProgress?: (n: number) => void): Promise<Assets> {
   const files = [
-    'clay-night-market.webp', 'clay-riverside-market.webp', 'clay-workwear-home.webp', 'clay-actors.webp',
+    'clay-night-market.webp', 'clay-riverside-market.webp', 'clay-chibi-home.webp', 'clay-actors.webp',
     'clay-weapons.webp', 'clay-supplies.webp', 'clay-courier-rig.webp', 'delivery-skills.webp',
-    'weapon-strikes.webp', 'clay-ultimate-fx.webp', 'clay-courier-workwear.webp', 'clay-enemy-faces.webp',
+    'weapon-strikes.webp', 'clay-ultimate-fx.webp', 'clay-courier-workwear.webp', 'clay-market-mascots.webp',
   ];
   let completed = 0;
   onProgress?.(0);
-  const [background, riverside, courierHome, atlas, weapons, supplies, rig, deliveryFields, strikes, ultimateFx, workwear, enemyFaces] =
+  const [background, riverside, courierHome, atlas, weapons, supplies, rig, deliveryFields, strikes, ultimateFx, workwear, mascots] =
     await Promise.all(files.map(name => new Promise<HTMLImageElement>((resolve, reject) => {
       const image = new Image();
       image.onload = () => { onProgress?.(++completed / files.length); resolve(image); };
@@ -34,8 +34,7 @@ export async function loadAssets(onProgress?: (n: number) => void): Promise<Asse
       sprites[name] = {image, x, y, width, height};
     }
   }
-  register(atlas, clayFrames.actors);
-  register(enemyFaces, clayFrames.enemyFaces);
+  register(mascots, clayFrames.mascots);
   register(atlas, clayFrames.ultimates);
   register(weapons, clayFrames.weapons);
   register(supplies, clayFrames.supplies);
@@ -43,6 +42,5 @@ export async function loadAssets(onProgress?: (n: number) => void): Promise<Asse
   register(workwear, clayFrames.workwear);
   sprites.courierA = {image: courierHome, x: 0, y: 0, width: courierHome.naturalWidth, height: courierHome.naturalHeight};
   sprites.courierB = sprites.courierA;
-  sprites.giantBun = sprites.bun;
   return {background, riverside, atlas, deliveryFields, strikes, ultimateFx, sprites};
 }

@@ -81,12 +81,13 @@ export function drawEnemyAttackGround(c:Canvas,e:Enemy,time:number,settings:Sett
 export function enemyExpression(e:Enemy,time:number):string {
   const hurt=time-e.hurtAt<.16,low=e.hp<=e.maxHp*.35;
   if(e.kind==='giantBun'||e.kind==='bun'){
-    if(hurt)return 'bunHurt';
-    if(low)return 'bunLow';
-    if(e.kind==='giantBun')return 'giantBun';
+    if(hurt)return e.kind+'Hurt';
+    if(low)return e.kind+'Low';
+    if(e.kind==='giantBun')return e.kind;
   }
-  if(e.stunUntil>time||hurt||e.phase==='recover')return e.kind+'Curious';
   if(e.phase==='warn'||e.phase==='dash'||(e.shotWarnUntil??0)>time||(e.volleyRemaining??0)>0)return e.kind;
+  if(e.stunUntil>time||hurt||e.phase==='recover')return e.kind+'Curious';
+  if(low)return e.kind+'Low';
   if(e.lureX!==undefined)return e.kind+'Grin';
   const mood=e.id%3;
   return mood===0?e.kind:mood===1?e.kind+'Grin':e.kind+'Curious';

@@ -17,8 +17,8 @@ function scene() {
     gait.update(player,dt,scale,(player.dashUntil??0)>game.state.time);
   };
   const homeError=()=>Math.max(
-    distance(gait.right,{x:player.x+8*scale,y:player.y+2*scale}),
-    distance(gait.left,{x:player.x-8*scale,y:player.y-2*scale}),
+    distance(gait.right,{x:player.x+6.75*scale,y:player.y+1.75*scale}),
+    distance(gait.left,{x:player.x-6.75*scale,y:player.y-1.75*scale}),
   );
   return {game,player,gait,tick,homeError};
 }
@@ -34,7 +34,8 @@ describe('courier foot placement',()=>{
         expect(Math.min(distance(gait.right,right),distance(gait.left,left))).toBeLessThan(1e-6);
         rightLift=Math.max(rightLift,gait.right.lift);leftLift=Math.max(leftLift,gait.left.lift);
       }
-      expect(Math.min(rightLift,leftLift)).toBeGreaterThan(8);
+      expect(Math.min(rightLift,leftLift)).toBeGreaterThan(6);
+      expect(Math.max(rightLift,leftLift)).toBeLessThan(8.2);
     }
   });
 
@@ -92,7 +93,7 @@ describe('courier foot placement',()=>{
         tick({x:-1,y:0},1/hz);
         for(const [side,foot] of [[1,gait.right],[-1,gait.left]] as const){
           // A missed pivot leaves the old landing more than fifty rig units behind the body.
-          expect(Math.abs((foot.x-player.x)/scale-side*8)).toBeLessThan(34);
+          expect(Math.abs((foot.x-player.x)/scale-side*6.75)).toBeLessThan(29);
         }
       }
     }
@@ -111,8 +112,8 @@ describe('courier foot placement',()=>{
       }
       for(let i=0;i<80;i++)tick({x:0,y:0},1/120);
       expect(homeError()).toBeLessThan(.62);
-      expect((gait.right.x-gait.left.x)/scale).toBeCloseTo(16,0);
-      expect((gait.right.y-gait.left.y)/scale).toBeCloseTo(4,0);
+      expect((gait.right.x-gait.left.x)/scale).toBeCloseTo(13.5,0);
+      expect((gait.right.y-gait.left.y)/scale).toBeCloseTo(3.5,0);
       expect(gait.weight).toBeLessThan(-.12);
       const rest=[{...gait.right},{...gait.left}];
       for(let i=0;i<12;i++)tick({x:0,y:0},1/120);

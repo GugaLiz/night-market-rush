@@ -18,7 +18,7 @@ try {
   await page.evaluate(async()=>{
     const {loadAssets}=await import('/src/render/assets.ts'),{sprites}=await loadAssets();
     const names=new Map();
-    for(const [name,s] of Object.entries(sprites))if(name!=='giantBun')names.set([s.image.src,s.x,s.y].join(','),name);
+    for(const [name,s] of Object.entries(sprites))names.set([s.image.src,s.x,s.y].join(','),name);
     const c=document.querySelector('#game-canvas').getContext('2d');
     const draw=c.drawImage.bind(c),clear=c.clearRect.bind(c),fill=c.fillText.bind(c);
     c.clearRect=(...args)=>{window.enemyFrame={sprites:[],text:[]};return clear(...args);};
@@ -78,6 +78,29 @@ try {
   const injured=await frame();assert.ok(injured.sprites.includes('bunLow') && injured.text.includes('10/30'));
   await assertNoDamageNumbers();
   await canvasCapture('enemy-health.webp',[202,183,278,204]);
+  await page.evaluate(()=>{
+    const g=window.__gameTest.game();g.reset(61,true);
+    g.state.weapon.readyAt=9999;
+    for(const kind of ['box','bowl']){
+      const e=g.spawnEnemy(kind,{x:g.state.player.x+150,y:g.state.player.y+(kind==='box'?-60:60)});
+      e.hp=1;e.phaseUntil=e.shotReadyAt=9999;
+    }
+    g.spawnEnemy('giantBun',{x:300,y:300});
+    g.spawnEnemy('giantBun',{x:300,y:480}).hurtAt=g.state.time;
+    g.spawnEnemy('giantBun',{x:950,y:450}).hp=1;
+  });
+  await page.clock.runFor(64);
+  const tired=await frame();
+  for(const face of ['boxLow','bowlLow','giantBun','giantBunHurt','giantBunLow'])
+    assert.ok(tired.sprites.includes(face),'Missing mascot state '+face);
+  await page.evaluate(()=>{
+    const g=window.__gameTest.game();
+    for(const e of g.state.enemies)if(e.kind==='box'||e.kind==='bowl')e.phaseUntil=e.shotReadyAt=g.state.time;
+  });
+  await page.clock.runFor(48);
+  const warning=await frame();
+  assert.ok(warning.sprites.includes('box') && warning.sprites.includes('bowl'),'Low-health monsters face the player during attack warnings');
+  assert.ok(!warning.sprites.includes('boxLow') && !warning.sprites.includes('bowlLow'));
   await page.evaluate(()=>{
     window.__gameTest.scenario('showcase');const g=window.__gameTest.game();
     g.reset(44,true);g.state.weapon.readyAt=999;

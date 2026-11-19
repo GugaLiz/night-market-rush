@@ -19,7 +19,7 @@ try {
     const {loadAssets}=await import('/src/render/assets.ts'),assets=await loadAssets();
     const aliases=new Map();
     for(const [name,sprite] of Object.entries(assets.sprites)){
-      if(name==='giantBun'||name==='courierB')continue;
+      if(name==='courierB')continue;
       aliases.set([sprite.image.src,sprite.x,sprite.y].join('|'),name);
     }
     const canvas=document.querySelector('#game-canvas'),c=canvas.getContext('2d');
