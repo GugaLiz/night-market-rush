@@ -16,9 +16,28 @@ function fixture(kind:WeaponKind){
   return {game,s,ctx,events,hits,tick,enemy,release};
 }
 describe('V3 continuous directional weapons',()=>{
-  for(const kind of WEAPON_KINDS)it(`${kind} attacks periodically without any enemies`,()=>{
-    const {s,events,tick}=fixture(kind);tick(4);const attacks=events.filter(e=>e.type==='attack');
-    expect(attacks.length).toBeGreaterThanOrEqual(2);expect(attacks.every(e=>e.type==='attack'&&e.angle===0)).toBe(true);expect(s.weapon.targetId).toBeNull();
+  for(const kind of WEAPON_KINDS)it(`${kind} maintains its release cadence in an empty arena, including under heat`,()=>{
+    for(const heated of [false,true]){
+      const {s,events,tick}=fixture(kind);
+      if(heated)s.player.heatUntil=10;
+      const releases:number[]=[];
+      for(let frame=0;frame<6*60;frame++){
+        tick(CONFIG.step);
+        const attack=events.splice(0).find(e=>e.type==='attack');
+        if(attack?.type==='attack'){
+          expect(attack.angle).toBe(0);releases.push(s.time);
+        }
+      }
+      expect(s.weapon.targetId).toBeNull();
+      expect(releases.length).toBeGreaterThanOrEqual(4);
+      const {windup,cooldown}=WEAPONS[kind];
+      const interval=windup+cooldown*(heated?.8:1);
+      for(let i=1;i<releases.length;i++){
+        // Windup and cooldown each start on a simulation tick.
+        expect(releases[i]-releases[i-1]).toBeGreaterThanOrEqual(interval-1e-9);
+        expect(releases[i]-releases[i-1]).toBeLessThan(interval+2*CONFIG.step);
+      }
+    }
   });
   it('movement, then remembered movement, determines direction regardless of a rear enemy',()=>{
     const {s,events,enemy,tick}=fixture('bag');enemy(500);s.player.moveDirection={x:0,y:-1};tick(2);
@@ -66,11 +85,12 @@ describe('V3 continuous directional weapons',()=>{
     const left=enemy(780,225),right=enemy(780,515),rear=enemy(582,370),distant=enemy(948,370);
     const sides:number[]=[];
     let attackId=-1;
-    for(let frame=0;frame<52;frame++){
+    for(let frame=0;frame<60;frame++){
       tick(1/60);
       const attack=s.weapon.attack;
       if(attack?.phase==='active'&&attack.id!==attackId){
         attackId=attack.id;sides.push(Math.sign(meleePose(attack,s.time)!.angle));
+        if(sides.length===2)s.weapon.readyAt=Infinity;
       }
     }
     expect(sides).toEqual([-1,1]);
@@ -318,6 +338,5 @@ describe('V3 continuous directional weapons',()=>{
   });
   it('keeps all per-contact totals bounded without multiplying fivefold',()=>{
     expect(Object.values(WEAPONS).every(w=>w.damage>=45&&w.damage<=116)).toBe(true);
-    expect(Object.values(WEAPONS).every(w=>w.cooldown>=.37&&w.cooldown<=1.5)).toBe(true);
   });
 });

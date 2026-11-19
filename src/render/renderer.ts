@@ -10,7 +10,7 @@ import {drawPackingWrap,drawPaperRoute,drawRouteStride} from './courier-equipmen
 import {DamageLabels} from './damage-labels';
 import {drawDeliveryPickup, drawDeliveryUse, drawPickupReach, drawUseRipple, nearestPickupHint, useLifetime} from './delivery-skills';
 import {WEAPONS} from '../core/weapons';
-import {drawChainLink, drawFlightWake, drawWeaponContact, type WeaponContact} from './weapon-effects';
+import {drawChainLink, drawFlightWake, drawWeaponContact, drawWeaponRelease, type WeaponContact} from './weapon-effects';
 import {drawMeleeWaves} from './melee-waves';
 import {drawUltimateGround,drawUltimateAir} from './ultimate-fx';
 import {drawEnemyAttackGround,drawEnemyAttackDetail,drawGiantPulses,drawSoupShot,getEnemyAttackPose,enemyExpression,drawIceShell} from './enemy-clay-fx';
@@ -487,10 +487,16 @@ export class Renderer {
 
   private projectiles(s:GameState):void {
     const c=this.ctx;
+    const launched=this.rig.launch,attack=s.weapon.attack;
+    if(attack && launched?.id===attack.id){
+      // All lanes leave the same glove. Paint one release at its recorded world
+      // position while the rider remains free to turn or run away.
+      drawWeaponRelease(c,attack.kind,launched.point.x,launched.point.y,attack.angle,
+        (s.time-attack.releaseAt)/.18,this.settings.reduceMotion);
+    }
     for(const q of s.projectiles){
       const a=Math.atan2(q.vy,q.vx);
       c.save();
-      const launched=this.rig.launch;
       const baseHeight=q.kind==='lunchbox'?28:q.kind==='tray'||q.kind==='bag'?18:24;
       const offsetX=launched?launched.point.x-q.originX:0, offsetY=launched?launched.point.y-q.originY+baseHeight:0;
       let fromHand=0;

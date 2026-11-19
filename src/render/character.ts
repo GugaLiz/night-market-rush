@@ -3,6 +3,7 @@ import {meleePose, WEAPONS} from '../core/weapons';
 import {CONFIG} from '../core/config';
 import type {Assets} from './assets';
 import {HeldBlades} from './held-weapon';
+import {drawWeaponRelease} from './weapon-effects';
 import {CourierGait} from './courier-gait';
 import {drawSprite} from './sprite';
 
@@ -264,6 +265,11 @@ export class CourierRig {
       toolAngle+=clamp(adjust,-.34,.34)*smooth(phase/.16)*smooth((1-phase)/.14);
     }
     const drawTool=()=>{
+      if(melee&&active){
+        const rim=kind==='umbrella'?24:widths[kind];
+        const x=right.x+Math.cos(toolAngle)*rim,y=right.y+Math.sin(toolAngle)*rim;
+        drawWeaponRelease(ctx,kind,x,y,toolAngle,phase,settings.reduceMotion);
+      }
       if(kind==='tongs'||kind==='knife'||kind==='sword'){
         const jaws=windup?.045*smooth(phase):active?.04-.064*smooth(phase):0;
         this.blades.draw(ctx,kind,right,toolAngle,widths[kind],jaws);

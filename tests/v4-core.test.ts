@@ -125,9 +125,9 @@ describe('V4 continuous play', () => {
     expect(p.vx).toBeGreaterThan(9);expect(p.vx).toBeLessThan(11);
     game.update(step,still);
     game.update(step,{x:1,y:0});
-    expect(p.vx).toBeGreaterThan(175);
+    expect(p.vx).toBeGreaterThan(220);
     game.update(step,{x:1,y:0});
-    expect(p.vx).toBeGreaterThanOrEqual(345);expect(p.vx).toBeLessThanOrEqual(350);
+    expect(p.vx).toBeCloseTo(405);
     const fullSpeed=p.vx,corner=p.x;
     for(let i=0;i<2;i++){
       game.update(step,{x:0,y:1});
@@ -182,7 +182,7 @@ describe('V4 continuous play', () => {
     const firstSkills=new Set<string>(),supports=new Set<string>(),fireSides=new Set<number>();
     for(let seed=1;seed<=24;seed++){
       const game=new Game(seed);
-      run(game,1.1);
+      run(game,CONFIG.pickup.firstAt+CONFIG.step);
       const {player,pickups,enemies}=game.state;
       expect(pickups).toHaveLength(2);
       const fan=pickups.find(p=>p.kind==='fan')!,alternate=pickups.find(p=>p.kind!=='fan')!;

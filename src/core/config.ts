@@ -14,8 +14,8 @@ const soupRange=820;
 export const CONFIG = {
   step: 1 / 60,
   player: {
-    speed: .645 * S, precisionSpeed: .46 * S, accelerationTime: .030, decelerationTime: .023,
-    turnRate: 16 * Math.PI, aimThreshold: .075,
+    speed: .75 * S, precisionSpeed: .46 * S, accelerationTime: .030, decelerationTime: .022,
+    turnRate: 18 * Math.PI, aimThreshold: .075,
     radius: .018 * S, minY:180, hp:100, protection:.75, sprintAfter:1.8, sprintMax:1.12,
     dashDuration:.18, dashCooldown:3, dashSpeed:1.42*S, dashExitTime:.055,
   },

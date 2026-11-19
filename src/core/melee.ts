@@ -3,10 +3,10 @@ import type {CombatContext} from './contracts';
 import {clamp, segmentDistanceSquared, sweepContact} from './geometry';
 
 export const MELEE_WEAPONS = {
-  tongs:    {bodyReach:72,range:260,waveSpeed:1000,waveWidth:22,windup:.055,cooldown:.37,active:.16,damage:54,limit:7, width:14,sweep:226},
-  knife:    {bodyReach:64,range:215,waveSpeed:1120,waveWidth:14,windup:.08, cooldown:.55,active:.18,damage:62,limit:10,width:16,sweep:252},
-  umbrella: {bodyReach:70,range:205,waveSpeed:760, waveWidth:26,windup:.10, cooldown:.9, active:.30,damage:66,limit:9, width:36,sweep:208},
-  sword:    {bodyReach:98,range:310,waveSpeed:900, waveWidth:32,windup:.16, cooldown:1.15,active:.26,damage:110,limit:10,width:24,sweep:218},
+  tongs:    {bodyReach:72,range:260,waveSpeed:1000,waveWidth:22,windup:.05, cooldown:.32, active:.14,damage:54,limit:7, width:14,sweep:226},
+  knife:    {bodyReach:64,range:215,waveSpeed:1120,waveWidth:14,windup:.065,cooldown:.465,active:.16,damage:62,limit:10,width:16,sweep:252},
+  umbrella: {bodyReach:70,range:205,waveSpeed:760, waveWidth:26,windup:.08, cooldown:.76, active:.30,damage:66,limit:9, width:36,sweep:208},
+  sword:    {bodyReach:98,range:310,waveSpeed:900, waveWidth:32,windup:.14, cooldown:.96, active:.24,damage:110,limit:10,width:24,sweep:218},
 } as const;
 export type {MeleeKind} from '../shared/types';
 export const isMelee = (kind:WeaponKind): kind is MeleeKind => Object.hasOwn(MELEE_WEAPONS, kind);
@@ -25,7 +25,8 @@ export function meleePose(attack:WeaponAttack, time:number): MeleePose | null {
   const cfg = MELEE_WEAPONS[kind];
   const phase = unit((time-attack.releaseAt)/cfg.active);
   const windup = unit((time-attack.startedAt)/cfg.windup);
-  const recovery = attack.phase==='recovery' ? unit(1-(attack.endsAt-time)/.16) : 0;
+  const activeEnd = attack.releaseAt+cfg.active;
+  const recovery = attack.phase==='recovery' ? unit((time-activeEnd)/Math.max(.001,attack.endsAt-activeEnd)) : 0;
   // The knife flicks quickly into its cut. The heavy ruler gathers speed
   // after release; tongs and the open umbrella stay even through the pass.
   const progress = kind==='sword' ? phase*(.52+.48*phase)

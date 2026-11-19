@@ -25,12 +25,12 @@ const FLIGHT_SPEED:Record<RangedKind,number>={bag:440,chopsticks:700,spirit:470,
 export interface WeaponConfig {range:number;windup:number;cooldown:number;active:number;damage:number;limit:number;width:number}
 export const WEAPONS:Record<WeaponKind,WeaponConfig>={
   ...MELEE_WEAPONS,
-  bag:{range:410,windup:.1,cooldown:.7,active:.12,damage:45,limit:VOLLEY_ANGLES.bag.length,width:30},
-  chopsticks:{range:540,windup:.1,cooldown:.9,active:.12,damage:RANGED_HITS.chopsticks[0],limit:14,width:24},
-  spirit:{range:470,windup:.16,cooldown:1.15,active:.18,damage:RANGED_HITS.spirit[0],limit:6,width:34},
-  tray:{range:420,windup:.12,cooldown:1.05,active:.16,damage:58,limit:2*RANGED_HITS.trayTargetsPerLeg,width:48},
-  lunchbox:{range:420,windup:.15,cooldown:1.5,active:.18,damage:116,limit:14,width:150},
-  talisman:{range:470,windup:.12,cooldown:1.1,active:.18,damage:RANGED_HITS.talisman[0],limit:10,width:165},
+  bag:{range:410,windup:.08,cooldown:.58,active:.12,damage:45,limit:VOLLEY_ANGLES.bag.length,width:30},
+  chopsticks:{range:540,windup:.08,cooldown:.76,active:.12,damage:RANGED_HITS.chopsticks[0],limit:14,width:24},
+  spirit:{range:470,windup:.13,cooldown:.96,active:.18,damage:RANGED_HITS.spirit[0],limit:6,width:34},
+  tray:{range:420,windup:.10,cooldown:.90,active:.16,damage:58,limit:2*RANGED_HITS.trayTargetsPerLeg,width:48},
+  lunchbox:{range:420,windup:.135,cooldown:1.24,active:.18,damage:116,limit:14,width:150},
+  talisman:{range:470,windup:.10,cooldown:.94,active:.18,damage:RANGED_HITS.talisman[0],limit:10,width:165},
 };
 const distance=(a:{x:number;y:number},b:{x:number;y:number})=>Math.hypot(a.x-b.x,a.y-b.y);
 const angleDelta=(a:number,b:number)=>Math.atan2(Math.sin(a-b),Math.cos(a-b));
@@ -198,7 +198,10 @@ export function updateWeapons(s:GameState,dt:number,ctx:CombatContext):void {
   updateMelee(s,a?.phase==='active'?a:null,dt,ctx);
   if(a){
     if(a.phase==='active'){
-      if(s.time>=a.endsAt){a.phase='recovery';a.endsAt=s.time+.16;}
+      if(s.time>=a.endsAt){
+        a.phase='recovery';
+        a.endsAt=Math.min(s.time+.16,s.weapon.readyAt);
+      }
     }else if(a?.phase==='recovery'){
       preparingTurn=canPrepareTurn(s,a,ctx);
       const waitingForTurn=a.kind==='tongs' && s.time<s.weapon.readyAt && s.weapon.readyAt<=a.releaseAt+WEAPONS.tongs.cooldown+1e-9;

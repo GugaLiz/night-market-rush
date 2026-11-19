@@ -559,3 +559,26 @@
 - **实现/结果**：12 个头部表情、外套、手套和箱包分件接入战斗骨架，调整站姿、步态和挥夹姿势。最近可用技能显示拾取提示，发动时显示用途。路线、脚后风线和状态栏与实际加速判定一致。保存普通挑战新旧动作及进出纸地图的实拍对照。
 - **验证**：240 项 Vitest、17 项 Chrome 端到端、TypeScript 和 Vite 构建通过。相同普通挑战输入在 4173 实绘新图集。实测线上速度 417.96，线外 348.30，来回切换和到期正常，减少动态关闭风线。148 帧步态、近战、远程、四种大招与横屏触控模拟通过。正式服务的脚本和两份骑手纹理与 dist 逐字节一致。
 - **风险/后续**：本地已部署。GitHub 当前凭据对目标仓库的推送权限检查返回 HTTP 403，Pages 上线依赖可写入此仓库的账号。手机使用 Chrome 触控模拟验证。
+## 2026-11-19 22:38:54 +08:00 — feature
+
+- **摘要**：加快骑手移动和十款武器普攻，为每把武器接入独立的出手与命中视听反馈。
+- **涉及文件**：
+  - `agentchanges/CHANGELOG.md`
+  - `docs/V4_PLAYTEST.md`
+  - `docs/verification/clay/basic-attacks.webm`
+  - `scripts/verify-weapon-audio.mjs`
+  - `src/core/config.ts`
+  - `src/core/melee.ts`
+  - `src/core/weapons.ts`
+  - `src/platform/audio.ts`
+  - `src/render/character.ts`
+  - `src/render/courier-gait.ts`
+  - `src/render/renderer.ts`
+  - `src/render/weapon-effects.ts`
+  - `tests/ultimates.test.ts`
+  - `tests/v3-weapons.test.ts`
+  - `tests/v4-core.test.ts`
+- **原因/目标**：玩家希望略微加快移动、攻击，并在实战中看出和听出每把武器的区别。
+- **实现/结果**：基础满速由348.3提高到405单位每秒，调整收步和30 Hz短腿换步。十种武器分别缩短前摇与冷却，实际连续普攻频率提高17.4%至20%。四种近战在工具前端留下专有造型，六种远程从手部发射并画出不同尾迹与命中笔形。十组出手音和十组命中音按材质合成，群攻合并近同时的落点声。试玩说明更新并附上正式页20.8秒十武器有声实录。
+- **验证**：240项Vitest、17项Chrome端到端、TypeScript和Vite通过。Chrome检查148帧步态和移动攻击，四种近战范围、六种远程命中与十种空挥视效正常；标准、简化和减少动态均可辨。声音检查逐把确认20个合成动机，餐盒同帧击中8只碗怪只响一次，总静音时无声音输出。本地4173实际返回的脚本与dist一致，正式版有声录像已解码复查。
+- **风险/后续**：手机交互使用Chrome触控模拟。GitHub当前凭据的推送权限检查返回403，本版在本地4173可玩。

@@ -117,8 +117,10 @@ export class CourierGait {
         const foot=side===1?this.right:this.left;
         const home=side===1?rightHome:leftHome;
         const support=side===1?this.left:this.right,supportHome=side===1?leftHome:rightHome;
+        // Allow a visible mid-swing sample even when a 30 Hz frame spans a quick depth step.
+        const minSwing=Math.max(.047,Math.min(2*dt,.073));
         const duration=walking?Math.min(pivot?.073:clamp(scale*(9+18.5*running)*(1-.18*depth)/speed,.073,.26),
-          Math.max(.047,supportTime(support,supportHome,p,scale)+dt)):.14;
+          Math.max(minSwing,supportTime(support,supportHome,p,scale)+dt)):.14;
         // The game position is already at the end of this frame. Predict a
         // world-space touchdown half a support phase ahead of the body.
         const age=Math.min(this.carry,duration*.16);
