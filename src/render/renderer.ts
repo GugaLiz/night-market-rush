@@ -18,6 +18,8 @@ import {drawElementalGround,drawIceFragments,drawPoisonedEnemy,drawVortexMouth} 
 import {drawEnemyAttackGround,drawEnemyAttackDetail,drawGiantPulses,drawSoupShot,getEnemyAttackPose,enemyExpression,drawIceShell} from './enemy-clay-fx';
 import {enemyHeight} from './enemy-vitals';
 import {drawGroundCoins, drawMarketBackground, drawSkillFields} from './market-floor';
+import {drawMarketStalls} from './market-stalls';
+import {drawIceShardLane,drawSplitShell,drawTrayBrine} from './market-upgrades';
 
 type Effect = {kind: string; x: number; y: number; age: number; duration: number; label?: string; angle?:number; sprite?:Enemy['kind']; facing?:number; power?:number; from?:Vec};
 type Particle = {x: number; y: number; vx: number; vy: number; age: number; duration: number; size: number; color: string};
@@ -92,6 +94,10 @@ export class Renderer {
         this.shake=Math.max(this.shake,force);
       } else if(event.type==='elementalBurst'){
         this.shake=Math.max(this.shake,event.kind==='vortex'?.16:.10);
+      } else if(event.type==='frostShatter'){
+        this.effects.push({kind:'splitShell',x:event.x,y:event.y,age:0,duration:.28});
+      } else if(event.type==='iceShards'){
+        this.effects.push({kind:'shardLane',x:event.x,y:event.y,angle:event.angle,power:event.reach,age:0,duration:.29});
       } else if (event.type === 'kill') {
         const seed=event.victimId??Math.round(event.x);
         if(event.source==='vortex'){
@@ -219,6 +225,7 @@ export class Renderer {
     this.zones(s,onRoute);
     drawGroundCoins(c, s.coins, s.time, this.settings.reduceMotion);
     this.drawGroundImpact();
+    drawMarketStalls(c,s,this.settings,this.assets,'ground');
     for (const e of s.enemies) {
       const age = s.time - e.spawnAt;
       if (age < CONFIG.spawn.warning) {
@@ -279,6 +286,14 @@ export class Renderer {
     if (s.player.skateUntil > s.time) this.skateRing(s, true);
     this.labels.drawVitals(c);
     this.labels.draw(c,this.assets,this.settings.reduceMotion);
+    const signArea=drawMarketStalls(c,s,this.settings,this.assets,'signs');
+    if(signArea){
+      // Keep the reward readable through crowds, and preserve current attack boundaries across the paper.
+      c.save();c.clip(signArea);
+      for(const e of s.enemies)if(s.time-e.spawnAt>=CONFIG.spawn.warning)drawEnemyAttackGround(c,e,s.time,this.settings);
+      drawGiantPulses(c,s,this.settings,this.assets,true);
+      c.restore();
+    }
     for(const shot of s.enemyShots??[])drawSoupShot(c,shot);
   }
 
@@ -316,6 +331,7 @@ export class Renderer {
     const use=this.skillUses.at(-1);
     const useAge=use?Math.max(0,s.time-use.time):Infinity;
     const trayInFlight=s.weapon.kind==='tray'&&s.projectiles.some(q=>q.kind==='tray');
+    const fallen=s.ended&&p.hp<=0;
     const movingGhosts=!this.settings.reduceMotion&&this.settings.quality==='standard';
     this.shadow(p.x,p.y,24,.28);
     // Keep the ground marker below the planted shoes so the soles read against the floor.
@@ -341,11 +357,11 @@ export class Renderer {
       stamp.clearRect(0,0,size,size);
       const x=p.x-ghostRadius,y=p.y-ghostRadius-28;
       stamp.save();stamp.translate(-x,-y);
-      this.rig.draw(stamp,p,s.weapon,s.time,this.frameDt,this.settings,1.35,s.ended,trayInFlight,useAge);
+      this.rig.draw(stamp,p,s.weapon,s.time,this.frameDt,this.settings,1.35,fallen,trayInFlight,useAge,s.market?.upgrade);
       stamp.restore();c.drawImage(image,x,y);
       this.ghosts.push({image,x,y,time:s.time});
     }else{
-      this.rig.draw(c,p,s.weapon,s.time,this.frameDt,this.settings,1.35,s.ended,trayInFlight,useAge);
+      this.rig.draw(c,p,s.weapon,s.time,this.frameDt,this.settings,1.35,fallen,trayInFlight,useAge,s.market?.upgrade);
     }
   }
 
@@ -381,7 +397,7 @@ export class Renderer {
     if(!hurt&&!strike&&time-e.hurtAt<.13){c.strokeStyle='#fff2bb';c.lineWidth=2;c.beginPath();c.ellipse(e.x,foot-height*.45,height*.42,height*.48,0,0,Math.PI*2);c.stroke();}
     const headY=foot-height*posed.scaleY;
     if(frozen){
-      drawIceShell(c,e.x,foot,height);
+      drawIceShell(c,e.x,foot,height,s.market?.upgrade==='frost'&&(e.frostUntil??0)>time);
     }else{
       if(!pulled&&e.stunUntil>time)for(let i=0;i<3;i++){const angle=t*4+i*2.1;this.caption('✦',e.x+Math.cos(angle)*18,headY-12+Math.sin(angle)*3,14,'#fff2a1');}
       if(e.slowUntil>time){
@@ -441,6 +457,8 @@ export class Renderer {
       if(!front&&e.kind==='chainLink'&&e.from)drawChainLink(c,e.from,e,progress);
       if(front&&e.kind==='hit'){c.translate(e.x,e.y);c.strokeStyle='#fff7d8';c.lineWidth=3;for(let i=0;i<6;i++){const a=i*Math.PI/3+.2,r=8+progress*20;c.beginPath();c.moveTo(Math.cos(a)*r,Math.sin(a)*r);c.lineTo(Math.cos(a)*(r+10),Math.sin(a)*(r+10));c.stroke();}}
       if(front&&e.kind==='iceFragments')drawIceFragments(c,e.x,e.y,progress,e.power??0,this.settings);
+      if(front&&e.kind==='splitShell')drawSplitShell(c,e.x,e.y,progress,this.settings.reduceMotion);
+      if(front&&e.kind==='shardLane')drawIceShardLane(c,e.x,e.y,e.angle??0,e.power??0,progress,this.settings);
       if(front&&e.kind==='swallowed'&&e.sprite){
         const size=enemyHeight(e.sprite)*(this.settings.reduceMotion?1:.45*(1-progress));
         this.sprite(e.sprite,e.x,e.y,size,e.facing,this.settings.reduceMotion?0:(e.angle??0)*(1+progress));
@@ -563,6 +581,7 @@ export class Renderer {
         drawFlyingChopsticks(c,x,y,a,q.travelled,q.id,this.settings.reduceMotion||this.settings.quality==='simple');
       }else if(q.kind==='tray'){
         drawSprite(c,this.assets,'tray',x,y,28,this.settings.reduceMotion?0:s.time*17,1,.5,38);
+        if(q.brined)drawTrayBrine(c,x,y,a,q.travelled,this.settings);
       }else if(q.kind==='spirit'){
         drawSprite(c,this.assets,'spiritOrb',x,y,39,0,q.vx<0?-1:1,.5);
       }else if(q.kind==='lunchbox'){

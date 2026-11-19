@@ -1,4 +1,4 @@
-import type {Player, Settings, Vec, WeaponKind, WeaponState} from '../shared/types';
+import type {MarketUpgrade, Player, Settings, Vec, WeaponKind, WeaponState} from '../shared/types';
 import {meleePose, WEAPONS} from '../core/weapons';
 import {CONFIG} from '../core/config';
 import type {Assets} from './assets';
@@ -6,6 +6,7 @@ import {HeldBlades} from './held-weapon';
 import {drawWeaponRelease} from './weapon-effects';
 import {CourierGait} from './courier-gait';
 import {drawSprite} from './sprite';
+import {drawBoxPatch} from './market-upgrades';
 
 type Point=Vec;
 const clamp=(n:number,a=0,b=1)=>Math.max(a,Math.min(b,n));
@@ -74,7 +75,7 @@ export class CourierRig {
     this.look={x:1,y:0};this.turnMix=1;this.effort=0;this.crouch=0;this.packSwing=0;this.launch=null;this.bagPoint=null;this.supplyHand=null;this.trayCatch=null;
   }
 
-  draw(ctx:CanvasRenderingContext2D,p:Player,weapon:WeaponState,time:number,dt:number,settings:Settings,scale=1,dead=false,trayInFlight=false,skillUseAge=Infinity):void {
+  draw(ctx:CanvasRenderingContext2D,p:Player,weapon:WeaponState,time:number,dt:number,settings:Settings,scale=1,dead=false,trayInFlight=false,skillUseAge=Infinity,upgrade:MarketUpgrade|null=null):void {
     const step=clamp(dt,0,.1),speed=Math.hypot(p.vx,p.vy);
     const dash=!dead&&(p.dashUntil??0)>time;
     this.gait.update(p,dead?0:step,scale,dash);
@@ -251,6 +252,10 @@ export class CourierRig {
     this.bodyPart(ctx,'rigHipFront','rigHipBack',hipX,-10.2+bodyY,10,hipRoll,28-profile*2);
     const drawPack=()=>{
       this.bodyPart(ctx,'rigBagSide','rigBag',packX,packY,packHeight,tilt,packWidth);
+      if(upgrade){
+        ctx.save();ctx.translate(packX-(back?0:3),packY-packHeight*.40);ctx.rotate(tilt);ctx.scale(.67,.67);
+        drawBoxPatch(ctx,0,0,1,upgrade);ctx.restore();
+      }
       if(lid>.01)this.openLid(ctx,packX,packY,tilt,packWidth,packHeight,lid);
     };
     if(back&&take===0&&guard===0)this.arm(ctx,shoulderL,left,'L',-1);

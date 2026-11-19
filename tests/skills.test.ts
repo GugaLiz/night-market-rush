@@ -2,13 +2,14 @@ import {describe,expect,it} from 'vitest';
 import {activateSkill,updateSkills} from '../src/core/skills';
 import {CONFIG} from '../src/core/config';
 import {Game} from '../src/core/game';
+import {newMarket} from '../src/core/market-orders';
 import {isOnPaperRoute} from '../src/core/geometry';
 import {nearestPickupHint} from '../src/render/delivery-skills';
 import type {CombatContext} from '../src/core/contracts';
 import type {Enemy,GameEvent,GameState,Pickup,SkillKind} from '../src/shared/types';
 
 function fixture(){
-  const s:GameState={time:10,score:0,kills:0,stage:1,ended:false,cause:null,seed:1,practice:true,
+  const s:GameState={market:newMarket(),time:10,score:0,kills:0,stage:1,ended:false,cause:null,seed:1,practice:true,
     wave:1,waveStartedAt:0,coins:[],collectedCoins:0,combo:0,comboUntil:0,revivesUsed:0,fields:[],
     player:{x:640,y:370,px:640,py:370,vx:0,vy:0,facing:1,radius:10,skateUntil:0,hp:100,maxHp:100,invulnerableUntil:0,hurtAt:0,bubbleUntil:0,heatUntil:0,stampUntil:0,moveDirection:{x:1,y:0}},
     enemies:[],pickups:[],weapon:{kind:'tongs',readyAt:0,equippedAt:0,targetId:null,attack:null},meleeWaves:[],projectiles:[],weaponDrops:[],zones:[],

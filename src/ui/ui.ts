@@ -7,13 +7,19 @@ import {isOnPaperRoute} from '../core/geometry';
 import {EXPRESS,expressCast} from '../core/ultimates';
 
 const previewSkills=[...ELEMENTAL_KINDS,...ULTIMATE_KINDS] as const;
+const marketDemos={marketFood:'热汤与涡锅',marketUpgrade:'配送箱改装',marketFinal:'五分钟尾单'} as const;
+const upgradeGuide={
+  frost:{name:'碎冰箱',icon:'frost',action:'冲刺撞碎带裂纹的冻怪',detail:'沿怪群冲刺，第一只碎裂的冰壳会向前射出冰片。'},
+  brine:{name:'泡菜箱',icon:'poison',action:'让回旋餐盘飞过毒雾',detail:'餐盘沾汁后，侧移引导它在回程给沿途的追兵挂毒。'},
+} as const;
 
-export type View = 'home'|'loading'|'tutorial'|'countdown'|'play'|'pause'|'settings'|'confirm'|'revive'|'result'|'rotate'|'lab'|'catalog';
+export type View = 'home'|'loading'|'tutorial'|'countdown'|'play'|'pause'|'settings'|'confirm'|'revive'|'closing'|'result'|'rotate'|'lab'|'catalog';
 export interface UIActions {
   start:()=>void; resume:()=>void; pause:()=>void; settings:()=>void; dash:()=>void;
   applySettings:(settings:Settings)=>void; previewSettings:(settings:Settings)=>void;
   cancelSettings:()=>void; home:()=>void; abandon:()=>void; retry:()=>void;
-  revive:()=>void; endRun:()=>void; demo:(kind:'pickup'|'wave'|'giantBun'|typeof previewSkills[number])=>void;
+  revive:()=>void; endRun:()=>void; resolveClosing:(choice:'settle'|'night')=>void;
+  demo:(kind:'pickup'|'wave'|'giantBun'|typeof previewSkills[number]|keyof typeof marketDemos)=>void;
   practice:()=>void; lab:()=>void; closeLab:()=>void; catalog:()=>void; closeCatalog:()=>void;
   selectWeapon:(kind:WeaponKind)=>void; triggerSkill:(kind:SkillKind)=>void; spawnEnemy:(kind:EnemyKind,group:boolean)=>void;
   heal:()=>void; clear:()=>void; resetLab:()=>void; setSpeed:(speed:number)=>void;
@@ -157,6 +163,7 @@ export class UI {
     if(view==='settings'&&previous!=='settings'&&previous!=='rotate'){this.draft=clone(data.settings??this.settings);this.tab='operation';this.defaultConfirm=false;this.cancelConfirm=false;}
     if(view==='settings'&&previous==='rotate')this.actions.previewSettings(clone(this.draft));
     this._shell.dataset.view=view;
+    if(view==='closing'||view==='result'||view==='home')this.toastEl.hidden=true;
     this._shell.dataset.hand=this.settings.hand;
     this._shell.dataset.motion=this.settings.reduceMotion?'reduced':'full';
     this._shell.dataset.size=this.settings.joystickSize;
@@ -184,9 +191,21 @@ export class UI {
     this.updateCombatTally(state);
     const coins=String(state.collectedCoins);if(this.coinEl.textContent!==coins)this.coinEl.textContent=coins;
     const wave=String(state.wave);if(this.waveEl.textContent!==wave)this.waveEl.textContent=wave;
-    const waveMessage=`WAVE ${wave}`;
-    this.waveBanner.hidden=state.wave<2||state.time-state.waveStartedAt>=CONFIG.waves.transition;
-    if(!this.waveBanner.hidden&&this.waveBanner.textContent!==waveMessage)this.waveBanner.textContent=waveMessage;
+    const waveEnd=state.waveStartedAt+CONFIG.waves.transition;
+    const showingWave=state.wave>=2&&state.time<waveEnd;
+    const offer=state.market.offer;
+    let banner='';
+    if(showingWave)banner=`WAVE ${wave}`;
+    else if(offer){
+      const openedDuringWaveIntro=state.wave>=2&&offer.openedAt>=state.waveStartedAt-1e-8&&offer.openedAt<=waveEnd;
+      const introStart=openedDuringWaveIntro?waveEnd:offer.openedAt;
+      if(state.time<introStart+2.8)banner=offer.group==='final'?'收摊铃响 · 最后一单':'两家摊位等你接单';
+    }
+    this.waveBanner.hidden=!banner;
+    if(banner!==this.waveBanner.textContent){
+      this.waveBanner.textContent=banner;
+      this.waveBanner.classList.toggle('market-banner',!!banner&&!showingWave);
+    }
     if(state.time>=3||state.kills>0)this.hintEl.hidden=true;
     const time=formatTime(state.time);if(this.timeEl.textContent!==time)this.timeEl.textContent=time;
     const hp=Math.max(0,state.player.hp),ratio=Math.max(0,Math.min(1,hp/state.player.maxHp));
@@ -208,10 +227,13 @@ export class UI {
     if(this.sprintLabel.textContent!==sprintText)this.sprintLabel.textContent=sprintText;
     this.labButton.hidden=!state.practice;this._shell.dataset.practice=String(state.practice);
     const weapon=state.weapon,remaining=Math.max(0,weapon.readyAt-state.time),heat=Math.max(0,state.player.heatUntil-state.time);
-    if(weapon.kind!==this.lastWeapon){
-      this.lastWeapon=weapon.kind;
-      this.weaponEl.innerHTML=`<span class="weapon-mini" aria-hidden="true">${icon(weapon.kind)}</span><div class="weapon-copy"><strong>${WEAPON_GUIDE[weapon.kind].short}</strong><div class="weapon-track"><i></i></div></div>`;
-      this.weaponEl.setAttribute('aria-label',`当前武器 ${WEAPON_NAMES[weapon.kind]}`);
+    const upgrade=state.market.upgrade?upgradeGuide[state.market.upgrade]:null;
+    const equipment=`${weapon.kind}/${state.market.upgrade??''}`;
+    if(equipment!==this.lastWeapon){
+      this.lastWeapon=equipment;
+      const sticker=upgrade?`<span class="box-sticker" data-upgrade="${state.market.upgrade}" title="${upgrade.action}">${icon(upgrade.icon)}<b>${upgrade.name}</b></span>`:'';
+      this.weaponEl.innerHTML=`<span class="weapon-mini" aria-hidden="true">${icon(weapon.kind)}</span><div class="weapon-copy"><strong>${WEAPON_GUIDE[weapon.kind].short}</strong><div class="weapon-track"><i></i></div></div>${sticker}`;
+      this.weaponEl.setAttribute('aria-label',`当前武器 ${WEAPON_NAMES[weapon.kind]}${upgrade?'，配送箱改装 '+upgrade.name:''}`);
     }
     this.weaponEl.style.setProperty('--weapon-ready',String(Math.max(0,Math.min(1,1-remaining/WEAPONS[weapon.kind].cooldown))));
     const activeZones=state.zones.filter(z=>z.expiresAt>state.time);
@@ -282,6 +304,11 @@ export class UI {
     this.hintEl.hidden=false;
   }
 
+  showUpgrade(kind:keyof typeof upgradeGuide):void{
+    const upgrade=upgradeGuide[kind];
+    this.toast(`${upgrade.name} · ${upgrade.action}`,3500);
+  }
+
   toast(message:string,duration=3200):void{
     if(this.toastTimer)window.clearTimeout(this.toastTimer);
     if(this.view==='lab'){
@@ -308,6 +335,7 @@ export class UI {
   private paper(content:string,classes=''){return `<section class="paper ${classes}" role="dialog" aria-modal="true" aria-labelledby="dialog-title">${content}</section>`;}
   private render():void{
     const s=this.data.state;
+    const upgrade=s?.market.upgrade?upgradeGuide[s.market.upgrade]:null;
     switch(this.view){
       case 'home':{
         const best=this.data.best;
@@ -333,12 +361,14 @@ export class UI {
             <article><div class="guide-icon guide-crate">${icon('weaponCrate')}</div><h3>靠近武器箱</h3><p>金色方箱停在原地。<br>走近换装，旧武器可回来取。</p></article>
           </div>
           <div class="guide-controls"><span><b>电脑</b> WASD / 方向键移动 · Space / Shift 冲刺</span><span><b>手机</b> 摇杆 / 倾斜移动 · 点按冲刺</span></div>
-          <p class="warning-note">受伤时，迎上带红心的暖心汤包可恢复最多 ${CONFIG.skills.health.amount} 点生命。生命耗尽后可免费复活一次。</p>
+          <p class="warning-note">第 2、4 波各有两家摊位亮灯。进圈签一单，也可以绕过。红心汤包最多回 ${CONFIG.skills.health.amount} 点生命，首次倒下可免费复活。</p>
           <div class="paper-actions">${this.button('查看全部图鉴','catalog','secondary')}${this.button('返回首页','home','secondary')}${this.button('开始挑战','start','primary','data-primary')}</div>`,'guide-card');break;
       case 'countdown':
         this.overlay.innerHTML=`<div class="countdown" aria-live="assertive"><span>准备出发</span><strong>${this.data.count??1}</strong><p>${this.settings.mode==='tilt'?'保持舒适姿势，倾斜手机移动':'移动躲避，触碰道具反击'}</p></div>`;break;
       case 'pause':
-        this.overlay.innerHTML=this.paper(`<div class="tape" aria-hidden="true"></div><h2 id="dialog-title">已暂停</h2><div class="paper-divider"></div><p class="run-summary">第 ${s?.wave??1} 波<span>·</span>击败 ${s?.kills??0}<span>·</span>用时 ${formatTime(s?.time??0)}</p><div class="pause-bag">${icon('rigBagSide')}</div>${this.button('继续挑战','resume','primary wide','data-primary')}<div class="paper-actions">${this.button('设置','settings','secondary')}${this.button('返回首页','home','secondary')}</div>`,'pause-card');break;
+        this.overlay.innerHTML=this.paper(`<div class="tape" aria-hidden="true"></div><h2 id="dialog-title">已暂停</h2><div class="paper-divider"></div><p class="run-summary">第 ${s?.wave??1} 波<span>·</span>击败 ${s?.kills??0}<span>·</span>用时 ${formatTime(s?.time??0)}</p>
+          ${upgrade?`<div class="upgrade-instructions"><span>${icon(upgrade.icon)}</span><div><b>${upgrade.name} · ${upgrade.action}</b><p>${upgrade.detail}</p></div></div>`:`<div class="pause-bag">${icon('rigBagSide')}</div>`}
+          ${this.button('继续挑战','resume','primary wide','data-primary')}<div class="paper-actions">${this.button('设置','settings','secondary')}${this.button('返回首页','home','secondary')}</div>`,'pause-card');break;
       case 'settings':this.renderSettings();break;
       case 'revive':
         this.overlay.innerHTML=this.paper(`<h2 id="dialog-title">要继续这一单吗？</h2>
@@ -347,23 +377,29 @@ export class UI {
           ${this.button('免费复活','revive','primary wide','data-primary')}
           ${this.button('放弃复活，查看成绩','end-run','secondary wide')}`,'confirm-card');break;
       case 'lab':this.renderLab();break;
+      case 'closing':
+        this.overlay.innerHTML=this.paper(`<div class="receipt-stamp">夜市急送 / 收摊签收联</div><h2 id="dialog-title">尾单已送达</h2>
+          <p class="run-summary">签收 ${s?.market.completed??0} 单<span>·</span>击败 ${s?.kills??0} 只</p>
+          <p class="muted">可以结清今天的单，也可以带着当前装备和生命继续跑夜班。</p>
+          <div class="paper-actions">${this.button('收摊结算','settle','primary','data-primary')}${this.button('继续夜班','night','secondary')}</div>`,'closing-card');break;
       case 'catalog':this.renderCatalog();break;
       case 'confirm':
         this.overlay.innerHTML=this.paper(`<div class="paper-kicker">先歇一会儿？</div><h2 id="dialog-title">结束本局？</h2><p class="confirm-message">本局进度将结束，<br>不计入最佳纪录。</p>${this.button('继续挑战','resume','primary wide','data-primary')}${this.button('结束本局','abandon','secondary wide')}`,'confirm-card');break;
       case 'result':{
         const cause=s?.cause?ENEMY_NAMES[s.cause]:'敌人';
         this.overlay.innerHTML=this.paper(`<div class="receipt-stamp">夜市急送 / 本局小票</div>
-          <h2 id="dialog-title">${s?.practice?'试验结束':'本局结束'}</h2>
+          <h2 id="dialog-title">${s?.market.closing==='settled'?'收摊结算':s?.practice?'试验结束':'本局结束'}</h2>
           ${this.data.isRecord?'<div class="record-badge">新纪录</div>':''}
           <div class="result-score"><span>本局击败</span><strong id="result-kills">${score(s?.kills??0)}</strong></div>
           <div class="receipt-dots"></div><dl class="result-stats">
+            <div><dt>签收订单</dt><dd id="result-orders">${s?.market.completed??0}</dd></div>
             <div><dt>已收金币</dt><dd id="result-coins">${s?.collectedCoins??0}</dd></div>
             <div><dt>存活时间</dt><dd id="result-time">${formatTime(s?.time??0)}</dd></div>
             <div><dt>到达波次</dt><dd>${s?.wave??1}</dd></div></dl>
-          <p class="failure-reason">生命耗尽 · ${cause}${s?.lastDamageAmount?`造成 ${s.lastDamageAmount} 点最后伤害`:''}</p>
+          ${s?.market.closing==='settled'?'':`<p class="failure-reason">生命耗尽 · ${cause}${s?.lastDamageAmount?`造成 ${s.lastDamageAmount} 点最后伤害`:''}</p>`}
           ${s?.practice?'<p class="muted">试验记录不写入正式最佳成绩。</p>':`<p class="result-best">本地最佳击败 ${this.data.best?.score??0}</p>`}
           ${this.data.saved===false?'<p class="error-text" role="status">纪录暂未保存，关闭页面可能丢失。</p>':''}
-          ${this.button('再来一局','retry','primary wide','data-primary')}${this.button('返回首页','home','secondary wide')}`,'result-card');break;
+          <div class="receipt-actions">${this.button('再来一局','retry','primary wide','data-primary')}${this.button('返回首页','home','secondary wide')}</div>`,'result-card');break;
       }
       case 'rotate':
         this.overlay.innerHTML=this.paper(`<div class="rotate-phone">${icon('phone')}</div><h2 id="dialog-title">横过来，更好玩</h2><p class="muted">请横屏继续挑战。<br>当前对局已经暂停。</p>${this.button('我已横屏，继续','resume','primary wide','data-primary')}${this.button('返回首页','home','secondary wide')}`,'rotate-card');break;
@@ -373,7 +409,9 @@ export class UI {
   private renderLab():void{
     const weapon=WEAPON_GUIDE[this.selectedWeapon],skill=SKILL_GUIDE[this.selectedSkill];
     const showcases=previewSkills.map(kind=>`<button class="clay-sample" data-preview="${kind}"><span>${icon(kind)}</span>${SKILL_NAMES[kind]}</button>`).join('');
-    this.overlay.innerHTML=this.paper(`<div class="lab-title"><div><div class="paper-kicker">自由体验 · 不记入正式纪录</div><h2 id="dialog-title">配送试验场</h2></div>${this.button('继续试验','close-lab','primary compact','data-primary')}</div><div class="lab-grid"><section><h3>更换武器</h3><label class="sr-only" for="lab-weapon">试验武器</label><select id="lab-weapon" data-lab="weapon">${WEAPON_KINDS.map(k=>`<option value="${k}" ${k===this.selectedWeapon?'selected':''}>${WEAPON_NAMES[k]}</option>`).join('')}</select><p>${weapon.description}</p><small>${weapon.detail}</small>${this.button('装备并体验','choose-weapon','primary wide')}</section><section><h3>立即触发技能</h3><label class="sr-only" for="lab-skill">试验技能</label><select id="lab-skill" data-lab="skill">${SKILL_KINDS.map(k=>`<option value="${k}" ${k===this.selectedSkill?'selected':''}>${SKILL_NAMES[k]}</option>`).join('')}</select><p>${skill.description}</p><small>${skill.detail}</small>${this.button('触发并体验','trigger-skill','primary wide')}</section><section><h3>布置敌人</h3><label class="sr-only" for="lab-enemy">敌人类型</label><select id="lab-enemy" data-lab="enemy">${(Object.keys(ENEMY_NAMES) as EnemyKind[]).map(k=>`<option value="${k}" ${k===this.selectedEnemy?'selected':''}>${ENEMY_NAMES[k]}</option>`).join('')}</select><p>单只观察攻击判定，敌群体验贯穿、范围与防护。敌人会正常攻击。</p><div class="lab-spawns">${this.button('生成单只','spawn-single','secondary')}${this.button('生成敌群','spawn-group','secondary')}</div></section></div><section class="clay-samples" aria-label="技能与精英试打"><h3>实战试打</h3><div>${showcases}${this.button(`<span>${icon('giantBun')}</span>巨包三连坐`,'demo-giant','clay-sample giant-sample')}</div></section><div class="lab-demos"><h3>基础练习</h3>${this.button('取卡清场','demo-pickup','secondary compact')}${this.button('连续换波','demo-wave','secondary compact')}</div><div class="lab-footer"><div class="lab-speed" role="group" aria-label="试验速度">${[.5,1].map(speed=>`<button class="segment ${speed===(this.data.speed??1)?'selected':''}" data-speed="${speed}" aria-pressed="${speed===(this.data.speed??1)}">${speed}× 速度</button>`).join('')}</div><div>${this.button('补满生命','heal','secondary compact')}${this.button('清空场地','clear','secondary compact')}${this.button('重置试验','reset-lab','secondary compact')}${this.button('查看图鉴','catalog','secondary compact')}</div></div><p class="lab-hint">操作面板打开时模拟暂停。按 Esc 或“继续试验”回到场地；顶部“试验工具”可再次打开。</p>`,'lab-card');
+    this.overlay.innerHTML=this.paper(`<div class="lab-title"><div><div class="paper-kicker">自由体验 · 不记入正式纪录</div><h2 id="dialog-title">配送试验场</h2></div>${this.button('继续试验','close-lab','primary compact','data-primary')}</div>
+      <section class="market-lab lab-demos" aria-label="夜市接单"><h3>夜市接单</h3>${Object.entries(marketDemos).map(([key,label])=>`<button class="button secondary compact" data-market-demo="${key}">${label}</button>`).join('')}</section>
+      <div class="lab-grid"><section><h3>更换武器</h3><label class="sr-only" for="lab-weapon">试验武器</label><select id="lab-weapon" data-lab="weapon">${WEAPON_KINDS.map(k=>`<option value="${k}" ${k===this.selectedWeapon?'selected':''}>${WEAPON_NAMES[k]}</option>`).join('')}</select><p>${weapon.description}</p><small>${weapon.detail}</small>${this.button('装备并体验','choose-weapon','primary wide')}</section><section><h3>立即触发技能</h3><label class="sr-only" for="lab-skill">试验技能</label><select id="lab-skill" data-lab="skill">${SKILL_KINDS.map(k=>`<option value="${k}" ${k===this.selectedSkill?'selected':''}>${SKILL_NAMES[k]}</option>`).join('')}</select><p>${skill.description}</p><small>${skill.detail}</small>${this.button('触发并体验','trigger-skill','primary wide')}</section><section><h3>布置敌人</h3><label class="sr-only" for="lab-enemy">敌人类型</label><select id="lab-enemy" data-lab="enemy">${(Object.keys(ENEMY_NAMES) as EnemyKind[]).map(k=>`<option value="${k}" ${k===this.selectedEnemy?'selected':''}>${ENEMY_NAMES[k]}</option>`).join('')}</select><p>单只观察攻击判定，敌群体验贯穿、范围与防护。敌人会正常攻击。</p><div class="lab-spawns">${this.button('生成单只','spawn-single','secondary')}${this.button('生成敌群','spawn-group','secondary')}</div></section></div><section class="clay-samples" aria-label="技能与精英试打"><h3>实战试打</h3><div>${showcases}${this.button(`<span>${icon('giantBun')}</span>巨包三连坐`,'demo-giant','clay-sample giant-sample')}</div></section><div class="lab-demos"><h3>基础练习</h3>${this.button('取卡清场','demo-pickup','secondary compact')}${this.button('连续换波','demo-wave','secondary compact')}</div><div class="lab-footer"><div class="lab-speed" role="group" aria-label="试验速度">${[.5,1].map(speed=>`<button class="segment ${speed===(this.data.speed??1)?'selected':''}" data-speed="${speed}" aria-pressed="${speed===(this.data.speed??1)}">${speed}× 速度</button>`).join('')}</div><div>${this.button('补满生命','heal','secondary compact')}${this.button('清空场地','clear','secondary compact')}${this.button('重置试验','reset-lab','secondary compact')}${this.button('查看图鉴','catalog','secondary compact')}</div></div><p class="lab-hint">操作面板打开时模拟暂停。按 Esc 或“继续试验”回到场地；顶部“试验工具”可再次打开。</p>`,'lab-card');
   }
   private renderCatalog():void{
     const {cards,note}=CATALOG[this.catalogTab];
@@ -416,6 +454,8 @@ export class UI {
     const button=(event.target as Element).closest<HTMLButtonElement>('button');if(!button||button.disabled)return;
     const preview=previewSkills.find(kind=>kind===button.dataset.preview);
     if(preview){this.actions.demo(preview);return;}
+    const marketDemo=button.dataset.marketDemo as keyof typeof marketDemos|undefined;
+    if(marketDemo&&Object.hasOwn(marketDemos,marketDemo)){this.actions.demo(marketDemo);return;}
     if(button.dataset.catalog&&Object.hasOwn(CATALOG,button.dataset.catalog)){
       this.catalogTab=button.dataset.catalog as keyof typeof CATALOG;
       this.renderCatalog();
@@ -436,6 +476,8 @@ export class UI {
       case 'heal':this.actions.heal();break;case 'clear':this.actions.clear();break;case 'reset-lab':this.actions.resetLab();break;
       case 'revive':this.actions.revive();break;
       case 'end-run':this.actions.endRun();break;
+      case 'settle':this.actions.resolveClosing('settle');break;
+      case 'night':this.actions.resolveClosing('night');break;
       case 'demo-pickup':this.actions.demo('pickup');break;
       case 'demo-wave':this.actions.demo('wave');break;
       case 'demo-giant':this.actions.demo('giantBun');break;

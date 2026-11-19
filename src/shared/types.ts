@@ -9,6 +9,21 @@ export type SkillKind='fan'|'skate'|'soda'|'lure'|'bubble'|'cones'|'bell'|'route
 export function isUltimate(kind:SkillKind):kind is UltimateKind {return ULTIMATE_KINDS.some(k=>k===kind);}
 export type DamageSource=WeaponKind|SkillKind|EnemyKind|'dash';
 export interface Vec {x:number;y:number}
+export type MarketGroup='food'|'upgrade'|'final';
+export type MarketUpgrade='frost'|'brine';
+export type MarketStallKind='soup'|'vortex'|MarketUpgrade|'final';
+export type MarketDemo='marketFood'|'marketUpgrade'|'marketFinal';
+export interface MarketStall extends Vec {kind:MarketStallKind;radius:number}
+export interface MarketOffer {
+  group:MarketGroup;stalls:MarketStall[];openedAt:number;expiresAt:number|null;
+  guardianId:number|null;ready:boolean;mustReenter:boolean;
+}
+export interface MarketState {
+  upgrade:MarketUpgrade|null;completed:number;closing:'open'|'choice'|'settled'|'night';
+  offer:MarketOffer|null;receipt:{stall:MarketStall;stalls:MarketStall[];signedAt:number;soupCoins:boolean;soupHeal?:number}|null;
+  expired:{stalls:MarketStall[];at:number}|null;
+  opened:MarketGroup[];retryAt:number;reprieveUntil:number;
+}
 export interface ElementalField extends Vec {
   id:number;kind:ElementalKind;radius:number;bornAt:number;releaseAt:number;expiresAt:number;released:boolean;
 }
@@ -40,7 +55,7 @@ export interface Enemy extends Vec {
   march?:{x:number;y:number;until:number};
   volleyRemaining?:number;nextVolleyAt?:number;
   bellStunUntil?:number;chilledUntil?:number;tossAt?:number;tossHeight?:number;
-  poisonUntil?:number;poisonNextAt?:number;frostUntil?:number;
+  poisonUntil?:number;poisonNextAt?:number;frostUntil?:number;frostFieldId?:number;
 }
 export interface GroundCoin extends Vec {id:number;bornAt:number;value:number;dropOrigin?:Vec;attracted?:boolean}
 export interface SkillField extends Vec {id:number;castId:number;kind:'fire'|'blue';radius:number;bornAt:number;expiresAt:number;hitIds:number[]}
@@ -54,6 +69,7 @@ export interface MeleeWaveSlice extends Vec {angle:number;halfAngle:number;bornA
 export interface MeleeWave {id:number;kind:MeleeKind;swingSide:1|-1;releaseAt:number;hitIds:number[];slices:MeleeWaveSlice[];nextSlice:number}
 export interface WeaponState {kind:WeaponKind;readyAt:number;equippedAt:number;targetId:number|null;attack:WeaponAttack|null;swingSide?:1|-1}
 export interface Projectile extends Vec {
+  brined?:boolean;
   id:number;attackId:number;kind:WeaponKind;px:number;py:number;vx:number;vy:number;radius:number;
   originX:number;originY:number;targetX:number;targetY:number;bornAt:number;expiresAt:number;
   travelled:number;maxDistance:number;phase:'out'|'return'|'flight'|'chain';hitIds:number[];phaseHitIds:number[];targetId:number;retargets:number;nextHitAt:number;hits:number;
@@ -62,6 +78,8 @@ export interface EnemyShot extends Vec {id:number;ownerId:number;px:number;py:nu
 export interface Zone extends Vec {id:number;kind:'lure'|'cone'|'route'|'supply';radius:number;bornAt:number;expiresAt:number;angle:number;length:number;width:number;hp:number;groupId?:number}
 export interface SkillEffects {dispatchUntil:number;dispatchStartedAt:number;dispatchCooldownUntil:number;pendingSupplyAt:number;pendingSupplyUntil:number;supplyGroupId:number;[key:string]:number}
 export type GameEvent=
+  {type:'frostShatter';x:number;y:number}|{type:'iceShards';x:number;y:number;angle:number;reach:number}|
+  {type:'market';action:'open'|'sign'|'closing';group:MarketGroup;kind:MarketStallKind|null;x:number;y:number}|
   {type:'elementalBurst';kind:'vortex'|'frost';x:number;y:number}|
   {type:'giantLand';x:number;y:number;hop:GiantHop}|
   {type:'ultimateBeat';kind:UltimateKind;beat:number;x:number;y:number}|
@@ -74,7 +92,7 @@ export type GameEvent=
   {type:'heal';id:number;amount:number;x:number;y:number}|{type:'defend';kind:'umbrella'|'bubble';x:number;y:number;victimId:number}|
   {type:'weapon';kind:WeaponKind;previous:WeaponKind;x:number;y:number}|{type:'attack';id:number;kind:WeaponKind;x:number;y:number;angle:number}|
   {type:'skill';kind:SkillKind;x:number;y:number;time:number;facing:Vec;pickupFrom?:Vec}|{type:'notice';message:string}|{type:'dash';x:number;y:number;angle:number}|{type:'enemyShot';x:number;y:number;angle:number};
-export interface GameState {elementalFields?:ElementalField[];giantPulses?:GiantPulse[];lastGiantWave?:number;ultimates?:UltimateCast[];time:number;score:number;kills:number;stage:number;wave:number;waveStartedAt:number;coins:GroundCoin[];collectedCoins:number;combo:number;comboUntil:number;revivesUsed:number;fields:SkillField[];ended:boolean;cause:EnemyKind|null;player:Player;enemies:Enemy[];pickups:Pickup[];seed:number;practice:boolean;weapon:WeaponState;meleeWaves:MeleeWave[];projectiles:Projectile[];enemyShots?:EnemyShot[];weaponDrops:WeaponDrop[];zones:Zone[];effects:SkillEffects;lastDamage:DamageSource|null;lastDamageAmount:number}
+export interface GameState {market:MarketState;elementalFields?:ElementalField[];giantPulses?:GiantPulse[];lastGiantWave?:number;ultimates?:UltimateCast[];time:number;score:number;kills:number;stage:number;wave:number;waveStartedAt:number;coins:GroundCoin[];collectedCoins:number;combo:number;comboUntil:number;revivesUsed:number;fields:SkillField[];ended:boolean;cause:EnemyKind|null;player:Player;enemies:Enemy[];pickups:Pickup[];seed:number;practice:boolean;weapon:WeaponState;meleeWaves:MeleeWave[];projectiles:Projectile[];enemyShots?:EnemyShot[];weaponDrops:WeaponDrop[];zones:Zone[];effects:SkillEffects;lastDamage:DamageSource|null;lastDamageAmount:number}
 export interface Settings {mode:'joystick'|'tilt';joystickSize:'small'|'medium'|'large';hand:'left'|'right';sensitivity:'low'|'medium'|'high';music:number;sfx:number;muted:boolean;reduceMotion:boolean;shake:boolean;quality:'standard'|'simple'}
 export const DEFAULT_SETTINGS:Settings={mode:'joystick',joystickSize:'medium',hand:'left',sensitivity:'medium',music:0.35,sfx:0.7,muted:false,reduceMotion:false,shake:true,quality:'standard'};
 export interface BestRecord {score:number;time:number;rulesVersion:string;date:string}

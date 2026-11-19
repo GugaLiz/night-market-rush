@@ -9,6 +9,8 @@ import {collectCoins,dropCoins} from './rewards';
 import {advanceWave,spawnMarketEnemies} from './waves';
 import {driftPickup,launchPickup,skillContact} from './pickup-motion';
 import {giantPulseContact,giantPulseLifetime} from './giant-bun';
+import {newMarket,openMarket,updateMarket} from './market-orders';
+import type {MarketDemo} from '../shared/types';
 import {ELEMENTAL_KINDS,ULTIMATE_KINDS,isUltimate,type ElementalKind,type UltimateKind} from '../shared/types';
 
 /** Resolve each crossed drop in travel order. A stationary rider gets the closest overlapping choice. */
@@ -39,25 +41,33 @@ export class Game {
     this.batch=0;this.openingPlaced=false;this.dropsSinceFan=0;this.waveDemo=false;
     this.nextUltimateAt=8;this.ultimateIndex=0;
     this.nextHealthAt=0;
-    this.state={ultimates:[],elementalFields:[],seed:stableSeed,time:0,score:0,kills:0,stage:1,wave:1,waveStartedAt:0,coins:[],collectedCoins:0,combo:0,comboUntil:0,revivesUsed:0,fields:[],ended:false,cause:null,practice,
+    this.state={market:newMarket(),ultimates:[],elementalFields:[],seed:stableSeed,time:0,score:0,kills:0,stage:1,wave:1,waveStartedAt:0,coins:[],collectedCoins:0,combo:0,comboUntil:0,revivesUsed:0,fields:[],ended:false,cause:null,practice,
       player:{...WORLD.start,px:WORLD.start.x,py:WORLD.start.y,vx:0,vy:0,facing:1,radius:CONFIG.player.radius,skateUntil:0,hp:100,maxHp:100,invulnerableUntil:0,hurtAt:-100,bubbleUntil:0,heatUntil:0,stampUntil:0,moveDirection:{x:1,y:0},sprintTime:0,sprintMultiplier:1,dashUntil:0,dashReadyAt:0,dashDirection:{x:1,y:0}},
       enemies:[],pickups:[],weapon:{kind:'tongs',readyAt:0,equippedAt:0,targetId:null,attack:null},meleeWaves:[],projectiles:[],enemyShots:[],weaponDrops:[],zones:[],
       effects:{dispatchUntil:0,dispatchStartedAt:0,dispatchCooldownUntil:0,pendingSupplyAt:0,pendingSupplyUntil:0,supplyGroupId:0},lastDamage:null,lastDamageAmount:0};
   }
   update(dt:number,input:Vec):void {
-    if(this.state.ended||!Number.isFinite(dt)||dt<=0)return;
+    if(this.state.ended||this.state.market.closing==='choice'||!Number.isFinite(dt)||dt<=0)return;
     const safeInput={x:Number.isFinite(input.x)?input.x:0,y:Number.isFinite(input.y)?input.y:0};
     // Hosts use fixed steps. Limit an accidental enormous elapsed value to bounded work.
     let remaining=Math.min(dt,1);
-    while(remaining>1e-10&&!this.state.ended){const step=Math.min(CONFIG.step,remaining);this.step(step,safeInput);remaining-=step;}
+    while(remaining>1e-10&&!this.state.ended){const step=Math.min(CONFIG.step,remaining);this.step(step,safeInput);remaining-=step;if(this.awaitingClosing())break;}
+  }
+  private awaitingClosing():boolean{return this.state.market.closing==='choice';}
+  resolveClosing(choice:'settle'|'night'):boolean {
+    const s=this.state;
+    if(!this.awaitingClosing()||s.ended)return false;
+    if(choice==='settle'){s.market.closing='settled';s.ended=true;}
+    else s.market.closing='night';
+    return true;
   }
   drainEvents():GameEvent[]{const result=this.events;this.events=[];return result;}
   setPractice(practice:boolean):void{this.state.practice=practice;}
-  setWeapon(kind:WeaponKind):void{if(WEAPON_KINDS.includes(kind)&&!this.state.ended)this.equip(kind,false);}
-  triggerSkill(kind:SkillKind):void{if(!this.state.ended)activateSkill(this.state,kind,this.state.player,this.ctx);}
+  setWeapon(kind:WeaponKind):void{if(WEAPON_KINDS.includes(kind)&&!this.state.ended&&!this.awaitingClosing())this.equip(kind,false);}
+  triggerSkill(kind:SkillKind):void{if(!this.state.ended&&!this.awaitingClosing())activateSkill(this.state,kind,this.state.player,this.ctx);}
   revive():boolean {
     const s=this.state;
-    if(!s.ended||s.practice||s.revivesUsed!==0)return false;
+    if(!s.ended||s.market.closing==='settled'||s.practice||s.revivesUsed!==0)return false;
     s.revivesUsed++;
     s.ended=false;s.cause=null;s.lastDamage=null;s.lastDamageAmount=0;
     s.player.hp=s.player.maxHp;s.player.hurtAt=-100;s.player.invulnerableUntil=s.time+CONFIG.reviveProtection;
@@ -117,8 +127,34 @@ export class Game {
       e.march={x:1,y:0,until:s.time+5};
     }
   }
+  setupMarketDemo(kind:MarketDemo):void {
+    this.reset(1,true);
+    const s=this.state,group=kind==='marketFood'?'food':kind==='marketUpgrade'?'upgrade':'final';
+    s.time=group==='final'?300:group==='food'?36:104;
+    s.wave=group==='final'?9:group==='food'?2:4;
+    s.waveStartedAt=CONFIG.waves.firstDuration+(s.wave-2)*CONFIG.waves.duration;
+    s.stage=difficultyAt(s.time).stage;
+    if(group==='food')s.player.hp=75;
+    openMarket(s,group,this.ctx,at=>this.spawnEnemy('giantBun',at));
+    const stalls=s.market.offer?.stalls;
+    if(!stalls || group==='final')return;
+    if(group==='food'){
+      for(const [x,y] of [[440,392],[412,420],[453,427]])this.spawnEnemy('bun',{x,y});
+      return;
+    }
+    // Crossing either sign points the immediate test cast toward living targets.
+    for(const stall of stalls){
+      const direction=Math.sign(stall.x-s.player.x);
+      const offsets=stall.kind==='frost'?[68,117,166,279,343]:[68,117,166];
+      offsets.forEach((distance,i)=>{
+        const target=this.spawnEnemy('bowl',{x:stall.x+direction*distance,y:stall.y+(i%3)*6});
+        // Give the rider time to read the sticker and dash before the automatic tongs clear the line.
+        if(stall.kind==='frost'){target.hp=540;target.maxHp=540;}
+      });
+    }
+  }
   dash(intent?:Vec):boolean {
-    const s=this.state,p=s.player;if(s.ended||s.time<(p.dashReadyAt??0))return false;
+    const s=this.state,p=s.player;if(s.ended||this.awaitingClosing()||s.time<(p.dashReadyAt??0))return false;
     const strength=intent?Math.hypot(intent.x,intent.y):0;
     p.dashFromMovement=Number.isFinite(strength)&&strength>=CONFIG.player.aimThreshold;
     const d=intent&&p.dashFromMovement
@@ -130,9 +166,9 @@ export class Game {
   }
   healPlayer():void {
     const s=this.state;
-    if(!s.ended)restorePlayerHealth(s,s.player.maxHp,s.player,this.ctx);
+    if(!s.ended&&!this.awaitingClosing())restorePlayerHealth(s,s.player.maxHp,s.player,this.ctx);
   }
-  clearArena():void{const s=this.state;s.giantPulses=[];s.ultimates=[];s.elementalFields=[];s.enemies=[];s.pickups=[];s.weaponDrops=[];s.projectiles=[];s.meleeWaves=[];s.enemyShots=[];s.zones=[];s.coins=[];s.fields=[];s.combo=0;s.comboUntil=0;this.waveDemo=false;s.player.dashUntil=0;s.player.dashReadyAt=0;s.player.sprintTime=0;s.player.sprintMultiplier=1;s.weapon.attack=null;s.weapon.targetId=null;}
+  clearArena():void{const s=this.state;s.market.offer=null;s.market.receipt=null;s.market.expired=null;s.giantPulses=[];s.ultimates=[];s.elementalFields=[];s.enemies=[];s.pickups=[];s.weaponDrops=[];s.projectiles=[];s.meleeWaves=[];s.enemyShots=[];s.zones=[];s.coins=[];s.fields=[];s.combo=0;s.comboUntil=0;this.waveDemo=false;s.player.dashUntil=0;s.player.dashReadyAt=0;s.player.sprintTime=0;s.player.sprintMultiplier=1;s.weapon.attack=null;s.weapon.targetId=null;}
   spawnEnemy(kind:EnemyKind,position?:Vec):Enemy {
     const cfg=CONFIG.enemies[kind],p=position??{x:this.state.player.x+140,y:this.state.player.y};
     const x=clamp(p.x,WORLD.bounds.left+cfg.radius,WORLD.bounds.right-cfg.radius),y=clamp(p.y,WORLD.bounds.top+cfg.radius,WORLD.bounds.bottom-cfg.radius);
@@ -154,7 +190,7 @@ export class Game {
       const batchSize=5+Math.min(s.wave,3),batchInterval=difficulty.interval*batchSize;
       if(this.dispatchWasActive&&!dispatch)this.nextEnemyAt=s.time+batchInterval;
       this.dispatchWasActive=dispatch;
-      if(!dispatch&&s.time>=this.nextEnemyAt){
+      if(!dispatch&&s.time>=this.nextEnemyAt&&s.time>=s.market.reprieveUntil){
         const spawn=(kind:EnemyKind,at:Vec)=>this.spawnEnemy(kind,at);
         const opening=this.batch===0&&s.time<1&&s.enemies.length===0;
         const count=opening?CONFIG.spawn.openingCount:batchSize*(this.batch%3===2?2:1);
@@ -188,6 +224,7 @@ export class Game {
         }
       }
     }
+    updateMarket(s,dt,this.ctx,at=>this.spawnEnemy('giantBun',at));
   }
   private movePlayer(dt:number,input:Vec):void {
     const p=this.state.player;p.px=p.x;p.py=p.y;
@@ -251,7 +288,7 @@ export class Game {
   private contactPlayer(dt:number){
     const s=this.state,p=s.player;
     const contacts:Array<{id:number;kind:EnemyKind;t:number;amount:number;source:DamageSource;shot:boolean}>=[];
-for(const e of s.enemies){if(e.kind==='giantBun'||!this.active(e)||e.contactSuppressedUntil>s.time)continue;const t=relativeSweep({x:p.px,y:p.py},p,{x:e.px,y:e.py},e,p.radius+e.radius);if(t!==null){const amount=this.contactDamage.get(e.id)??CONFIG.enemies[e.kind].damage;contacts.push({id:e.id,kind:e.kind,t,amount,source:e.kind==='box'&&amount===CONFIG.dash.damage?'dash':e.kind,shot:false});}}
+for(const e of s.enemies){if(e.kind==='giantBun'||!this.active(e)||e.contactSuppressedUntil>s.time||(e.frostUntil??0)>s.time)continue;const t=relativeSweep({x:p.px,y:p.py},p,{x:e.px,y:e.py},e,p.radius+e.radius);if(t!==null){const amount=this.contactDamage.get(e.id)??CONFIG.enemies[e.kind].damage;contacts.push({id:e.id,kind:e.kind,t,amount,source:e.kind==='box'&&amount===CONFIG.dash.damage?'dash':e.kind,shot:false});}}
     if(s.giantPulses?.length){
       s.giantPulses=s.giantPulses.filter(w=>s.time-dt<=w.bornAt+giantPulseLifetime(w));
       for(const w of s.giantPulses){
@@ -281,6 +318,7 @@ for(const e of s.enemies){if(e.kind==='giantBun'||!this.active(e)||e.contactSupp
     }
     if(enemy.hp<=0){
       const s=this.state;
+      if(enemy.kind==='giantBun'&&!s.practice&&s.wave>=4&&s.time<300&&s.market.reprieveUntil===0)s.market.reprieveUntil=s.time+6;
       s.kills++;s.score=s.kills;s.combo=s.time<s.comboUntil?s.combo+1:1;s.comboUntil=s.time+CONFIG.rewards.comboDuration;
       s.enemies=s.enemies.filter(e=>e.id!==enemy.id);
       const value=CONFIG.enemies[enemy.kind].coins+(s.player.stampUntil>s.time?1:0);
@@ -431,6 +469,7 @@ for(const e of s.enemies){if(e.kind==='giantBun'||!this.active(e)||e.contactSupp
     const b=WORLD.bounds;
     for(let i=0;i<32;i++){
       const top=Math.max(b.top+55,CONFIG.player.minY),x=b.left+65+this.random()*(b.right-b.left-130),y=top+this.random()*(b.bottom-top-55),position={x,y};
+      if(s.market.offer?.stalls.some(stall=>distanceSquared(stall,position)<(stall.radius+CONFIG.weapons.pickupReach+6)**2))continue;
       if(distanceSquared(position,s.player)<90**2||distanceSquared(position,s.player)>270**2||s.enemies.some(e=>distanceSquared(e,position)<75**2||(e.phase==='warn'||e.phase==='dash')&&segmentDistanceSquared(e,{x:e.x+e.dashX*200,y:e.y+e.dashY*200},position)<55**2)||s.pickups.some(p=>distanceSquared(p,position)<(pickupReach(p)+CONFIG.weapons.pickupReach)**2)||s.weaponDrops.some(p=>distanceSquared(p,position)<(2*CONFIG.weapons.pickupReach)**2))continue;
       if(!this.weaponBag.length){this.weaponBag=WEAPON_KINDS.filter(k=>k!==s.weapon.kind);for(let j=this.weaponBag.length-1;j>0;j--){const k=Math.floor(this.random()*(j+1));[this.weaponBag[j],this.weaponBag[k]]=[this.weaponBag[k],this.weaponBag[j]];}}
       let kind=this.weaponBag.pop()!;if(kind===s.weapon.kind)kind=this.weaponBag.pop()??WEAPON_KINDS.find(k=>k!==s.weapon.kind)!;

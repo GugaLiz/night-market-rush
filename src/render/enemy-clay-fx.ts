@@ -119,7 +119,7 @@ export function getEnemyAttackPose(e:Enemy,time:number,settings:Settings){
   }else if(e.kind==='bowl' && (e.shotWarnUntil??0)>time){
     const u=clamp(1-((e.shotWarnUntil??time)-time)/CONFIG.ranged.warning,0,1);
     pose.tilt=-e.facing*.13*u*amount;pose.scaleY+=.05*u*amount;
-  }else if(!settings.reduceMotion && e.kind!=='giantBun' && e.stunUntil<=time && (e.chilledUntil??0)<=time &&
+  }else if(!settings.reduceMotion && e.kind!=='giantBun' && e.stunUntil<=time && (e.chilledUntil??0)<=time && (e.frostUntil??0)<=time &&
     e.phase!=='recover' && (e.volleyRemaining??0)===0){
     const pace=e.alerted?1.42:1;
     const phase=(time-e.spawnAt)*(e.kind==='bun'?7.6:e.kind==='box'?8.9:5.6)*pace+e.id*2.4;
@@ -152,7 +152,7 @@ export function getEnemyAttackPose(e:Enemy,time:number,settings:Settings){
 }
 
 export function drawEnemyAttackDetail(c:Canvas,e:Enemy,time:number,settings:Settings,p:Player){
-  if(e.stunUntil>time||e.hp<=0)return;
+  if(e.stunUntil>time||(e.frostUntil??0)>time||e.hp<=0)return;
   if((e.kind==='bun'||e.kind==='giantBun')&&e.hp<=e.maxHp*.35&&time-e.hurtAt>=.16&&e.jump?.phase!=='flight'){
     const giant=e.kind==='giantBun',offset=giant?122:43;
     const u=settings.reduceMotion?.4:(time*.9+e.id*.13)%1;
@@ -187,12 +187,22 @@ export function drawEnemyAttackDetail(c:Canvas,e:Enemy,time:number,settings:Sett
   }
 }
 
-export function drawGiantPulses(c:Canvas,s:GameState,settings:Settings,assets:Assets){
+export function drawGiantPulses(c:Canvas,s:GameState,settings:Settings,assets:Assets,outlineOnly=false){
   for(const w of s.giantPulses??[]){
     const age=Math.max(0,s.time-w.bornAt);
     const u=clamp(age/giantPulseLifetime(w),0,1);
     const heavy=w.hop===3,r=heavy?giantPulseRadius(w,s.time):w.reach;
     if(u>=1||r<1)continue;
+    if(outlineOnly){
+      if(heavy||age<=CONFIG.giant.localDuration){
+        c.save();
+        const start=heavy?w.gapAngle+CONFIG.giant.gapHalfAngle:0;
+        arc(c,w.x,w.y,r,start,heavy?w.gapAngle+turn-CONFIG.giant.gapHalfAngle:turn,'#a86a45',3.8);
+        arc(c,w.x,w.y,r,start,heavy?w.gapAngle+turn-CONFIG.giant.gapHalfAngle:turn,'#ffe3b8',2.2);
+        c.restore();
+      }
+      continue;
+    }
     if(!heavy&&age>CONFIG.giant.localDuration){
       c.save();clipFloor(c);c.translate(w.x,w.y);c.globalAlpha=(1-u)*.45;
       c.strokeStyle='#eacda6';c.lineWidth=3;c.beginPath();c.ellipse(0,0,31,20,0,0,turn);c.stroke();
@@ -245,12 +255,20 @@ export function drawSoupShot(c:Canvas,q:EnemyShot){
   c.fillStyle='#fff5bf';c.beginPath();c.ellipse(3,-3,4,1.9,-.24,0,turn);c.fill();c.restore();
 }
 
-export function drawIceShell(c:Canvas,x:number,feet:number,height:number){
+export function drawIceShell(c:Canvas,x:number,feet:number,height:number,breakable=false){
   c.save();c.translate(x,feet);c.scale(height,height);
   c.fillStyle='#7de5ff40';c.strokeStyle='#c8f9ff';c.lineWidth=.026;
   c.beginPath();c.moveTo(-.37,-.02);c.lineTo(-.51,-.36);c.lineTo(-.34,-.84);
   c.lineTo(.04,-1.05);c.lineTo(.39,-.79);c.lineTo(.5,-.32);c.lineTo(.27,.01);c.closePath();c.fill();c.stroke();
   c.fillStyle='#d3faff77';c.beginPath();c.moveTo(-.51,-.36);c.lineTo(-.28,-.55);c.lineTo(-.34,-.84);c.closePath();c.fill();
   c.strokeStyle='#b0effb';c.lineWidth=.015;pathline(c,.39,-.79,.25,-.53);pathline(c,.25,-.53,.5,-.32);
+  if(breakable){
+    c.lineJoin='round';c.lineCap='round';
+    c.beginPath();c.moveTo(.12,-1.00);c.lineTo(-.09,-.72);c.lineTo(.035,-.65);
+    c.lineTo(-.18,-.43);c.lineTo(-.05,-.38);c.lineTo(-.23,-.12);
+    c.moveTo(.035,-.65);c.lineTo(.18,-.58);c.lineTo(.27,-.63);
+    c.strokeStyle='#52869b';c.lineWidth=.073;c.stroke();
+    c.strokeStyle='#fffef0';c.lineWidth=.044;c.stroke();
+  }
   c.restore();
 }

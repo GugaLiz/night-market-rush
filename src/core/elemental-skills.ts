@@ -1,13 +1,13 @@
 import type {ElementalField, ElementalKind, Enemy, GameState, Vec} from '../shared/types';
 import {WORLD} from './config';
 import type {CombatContext} from './contracts';
-import {stunEnemy} from './enemies';
-import {clamp, distanceSquared, segmentDistanceSquared} from './geometry';
+import {interruptAttack, stunEnemy} from './enemies';
+import {clamp, distanceSquared, relativeSweep, segmentDistanceSquared, sweepContact} from './geometry';
 
 export const ELEMENTAL = {
   vortex: {duration:3.2, fade:.55, blastRadius:150, damage:108, offset:165},
   poison: {duration:5.5, fade:.45, radius:230, growth:.55, interval:.5, linger:3, damage:12},
-  frost:  {duration:3, fade:.55, radius:370, growth:.8, damage:68},
+  frost:  {duration:3, fade:.55, radius:370, growth:.8, damage:68, shardReach:135, shardRadius:12, shardDamage:24},
 } as const;
 
 const bounds = WORLD.bounds;
@@ -50,18 +50,93 @@ function pullEnemy(enemy:Enemy, field:ElementalField, now:number, dt:number):voi
   enemy.y = clamp(field.y+Math.sin(angle)*radius, bounds.top+enemy.radius, bounds.bottom-enemy.radius);
 }
 
-function coatEnemy(enemy:Enemy, now:number):void {
+export function coatEnemy(enemy:Enemy, now:number):void {
   if(enemy.poisonNextAt===undefined || (enemy.poisonUntil??0)+epsilon < now){
     enemy.poisonNextAt = now+ELEMENTAL.poison.interval;
   }
-  enemy.poisonUntil = now+ELEMENTAL.poison.linger;
+  enemy.poisonUntil = Math.max(enemy.poisonUntil??0,now+ELEMENTAL.poison.linger);
 }
 
-function freezeEnemy(enemy:Enemy, releaseAt:number):void {
-  if((enemy.frostUntil??0) >= releaseAt) return;
-  enemy.frostUntil = releaseAt;
-  enemy.contactSuppressedUntil = Math.max(enemy.contactSuppressedUntil,releaseAt);
-  stunEnemy(enemy,releaseAt);
+function freezeEnemy(enemy:Enemy, field:ElementalField, now:number):void {
+  if(enemy.frostFieldId===field.id) return;
+  enemy.frostFieldId = field.id;
+  enemy.frostUntil = field.releaseAt;
+  interruptAttack(enemy,now);
+}
+
+function along(start:Vec,end:Vec,fraction:number):Vec {
+  return {x:start.x+(end.x-start.x)*fraction,y:start.y+(end.y-start.y)*fraction};
+}
+
+/** Return the first instant the tray overlaps live mist, as a fraction of this leg's movement. */
+export function trayBrineContact(field:ElementalField,start:Vec,end:Vec,radius:number,from:number,duration:number):number|null {
+  if(duration<=0 || from>=field.releaseAt || from+duration<field.bornAt) return null;
+  const low=clamp((field.bornAt-from)/duration,0,1), high=clamp((field.releaseAt-from)/duration,0,1);
+  const a=along(start,end,low), b=along(start,end,high);
+  const touch=sweepContact(a,b,field,radius+elementalRadius(field,from+duration*high));
+  if(touch===null) return null;
+  let left=low+(high-low)*touch, right=high;
+  const gap=(t:number)=>Math.hypot(start.x+(end.x-start.x)*t-field.x,start.y+(end.y-start.y)*t-field.y)
+    -radius-elementalRadius(field,from+duration*t);
+  if(gap(left)>epsilon){
+    if(gap(right)>epsilon){
+      // Both endpoints can miss a grazing crossing. Distance minus the expanding radius is convex.
+      let lo=left, hi=right;
+      for(let i=0;i<34;i++){
+        const third=(hi-lo)/3;
+        if(gap(lo+third)<=gap(hi-third)) hi-=third;
+        else lo+=third;
+      }
+      right=(lo+hi)/2;
+      if(gap(right)>epsilon) return null;
+    }
+    for(let i=0;i<30;i++){
+      const middle=(left+right)/2;
+      if(gap(middle)<=epsilon) right=middle;
+      else left=middle;
+    }
+    left=right;
+  }
+  return from+left*duration<field.releaseAt ? left : null;
+}
+
+function sendIceShards(s:GameState,source:Enemy,direction:Vec,fraction:number,ctx:CombatContext):void {
+  const {shardReach,shardRadius,shardDamage}=ELEMENTAL.frost;
+  const origin=along({x:source.px,y:source.py},source,fraction);
+  const end={x:origin.x+direction.x*shardReach,y:origin.y+direction.y*shardReach};
+  const angle=Math.atan2(direction.y,direction.x);
+  ctx.emit({type:'iceShards',...origin,angle,reach:shardReach});
+  for(const enemy of s.enemies){
+    if(enemy===source || !ctx.active(enemy)) continue;
+    const at=along({x:enemy.px,y:enemy.py},enemy,fraction);
+    if((at.x-origin.x)*direction.x+(at.y-origin.y)*direction.y<=0) continue;
+    if(segmentDistanceSquared(origin,end,at)<=(shardRadius+enemy.radius)**2) ctx.damage(enemy,shardDamage,'frost',angle);
+  }
+}
+
+export function shatterOnDash(s:GameState,dt:number,ctx:CombatContext):void {
+  const p=s.player, dashUntil=p.dashUntil??0, previous=s.time-dt;
+  if(s.market?.upgrade!=='frost' || dashUntil<=previous+epsilon || dt<=0) return;
+  const start={x:p.px,y:p.py}, dx=p.x-start.x, dy=p.y-start.y, distance=Math.hypot(dx,dy);
+  if(distance<=epsilon) return;
+  const live=clamp((dashUntil-previous)/dt,0,1);
+  const contacts:{enemy:Enemy;fraction:number}[]=[];
+  for(const enemy of s.enemies){
+    const thaw=enemy.frostUntil;
+    if(thaw===undefined || !ctx.active(enemy)) continue;
+    const t=relativeSweep(start,p,{x:enemy.px,y:enemy.py},enemy,p.radius+enemy.radius);
+    if(t!==null && t<=live && previous+t*dt<thaw-epsilon) contacts.push({enemy,fraction:t});
+  }
+  contacts.sort((a,b)=>a.fraction-b.fraction || a.enemy.id-b.enemy.id);
+  for(const {enemy,fraction} of contacts){
+    if(!ctx.active(enemy)) continue;
+    delete enemy.frostUntil;
+    ctx.emit({type:'frostShatter',...along({x:enemy.px,y:enemy.py},enemy,fraction)});
+    ctx.damage(enemy,ELEMENTAL.frost.damage,'frost',Math.atan2(dy,dx));
+    if(s.effects.frostShardDashUntil===dashUntil) continue;
+    s.effects.frostShardDashUntil=dashUntil;
+    sendIceShards(s,enemy,{x:dx/distance,y:dy/distance},fraction,ctx);
+  }
 }
 
 function updateField(s:GameState, field:ElementalField, dt:number, ctx:CombatContext):void {
@@ -97,7 +172,7 @@ function updateField(s:GameState, field:ElementalField, dt:number, ctx:CombatCon
     }else{
       // A target landing behind the advancing rim has already missed the wave.
       const far = Math.max(distanceSquared(previous,field),distanceSquared(enemy,field));
-      if(far >= Math.max(0,previousRadius-enemy.radius)**2) freezeEnemy(enemy,field.releaseAt);
+      if(far >= Math.max(0,previousRadius-enemy.radius)**2) freezeEnemy(enemy,field,s.time);
     }
   }
 }

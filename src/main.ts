@@ -49,7 +49,7 @@ const ui:UI=new UI(document.getElementById('app')!,{
   home:()=>{
     cancelPendingStart();
     gesture();
-    if(rotated&&live&&game.state.ended){ui.toast('请横屏选择复活或查看成绩');return;}
+    if(rotated&&live&&(game.state.ended||game.state.market.closing==='choice')){ui.toast('请横屏继续处理本局');return;}
     if(live){input.setEnabled(false);audio.setScene('paused');ui.show('confirm',{state:game.state});}
     else home();
   },
@@ -60,12 +60,19 @@ const ui:UI=new UI(document.getElementById('app')!,{
     gesture();countdown();
   },
   endRun:()=>{if(ui.currentView==='revive'){gesture();finish();}},
+  resolveClosing:choice=>{
+    if(ui.currentView!=='closing'||document.hidden||portrait()||!game.resolveClosing(choice))return;
+    gesture();
+    if(choice==='settle')finish();
+    else beginPlay(false);
+  },
   practice:()=>void startPractice(),lab:()=>openLab(),closeLab:()=>closeLab(),
   demo:kind=>{
     if(ui.currentView!=='lab'||!game.state.practice)return;
     practiceSpeed=1;
     if(kind==='pickup')game.setupPickupDemo();
     else if(kind==='wave')game.setupWaveDemo();
+    else if(kind==='marketFood'||kind==='marketUpgrade'||kind==='marketFinal')game.setupMarketDemo(kind);
     else game.setupCombatDemo(kind);
     renderer?.reset();beginPlay(false);deliverEvents();
     const hints:Partial<Record<typeof kind,string>>={
@@ -76,6 +83,9 @@ const ui:UI=new UI(document.getElementById('app')!,{
       vortex:'向右取锅，绕着锅心打聚过来的怪',
       poison:'向右开坛，再绕过雾区，让追兵沾上毒汁',
       frost:'向右取刨冰机，趁冰壳碎裂前穿过怪群',
+      marketFood:'走进摊前的签收圈，选热汤或涡锅',
+      marketUpgrade:'看摊牌选一种改装，签收后当场试用',
+      marketFinal:'巨包第三跳出现缺口时交餐，也可以先打倒它',
     };
     const hint=hints[kind]??'迎上大招的技能泡，然后用方向键或摇杆走位';
     ui.toast(hint,1600);
@@ -173,16 +183,28 @@ function deliverEvents(){
     input.setEnabled(false);accumulator=0;audio.setScene('paused');
     if(!game.state.practice&&game.state.revivesUsed===0)ui.show('revive',{state:game.state});
     else finish();
+  }else if(game.state.market.closing==='choice'&&live&&ui.currentView==='play'){
+    input.setEnabled(false);accumulator=0;canInterpolate=false;audio.setScene('paused');
+    ui.show('closing',{state:game.state});
   }
   for(const event of events){
+    if(event.type==='market')continue;
     audio.play(event);
     if(event.type==='ultimateBeat'&&event.kind==='berry'&&!settings.reduceMotion)impactHold=.03;
     if(event.type==='notice')ui.toast(event.message);
     else if(event.type==='weapon')ui.toast(`已换装 · ${WEAPON_NAMES[event.kind]}`);
   }
+  // Play the receipt after a skill, weapon swap, or switch to the closing dialog.
+  for(const event of events){
+    if(event.type!=='market')continue;
+    audio.play(event);
+    if(event.action==='sign'&&(event.kind==='frost'||event.kind==='brine'))ui.showUpgrade(event.kind);
+  }
 }
 async function resume(){
   if(portrait()){ui.toast('请将设备横过来，再继续');return;}
+  if(rotated){checkOrientation();return;}
+  if(game.state.market.closing==='choice'&&live)return;
   if(game.state.ended&&live)return;
   rotated=false;
   if(!live){home();return;}

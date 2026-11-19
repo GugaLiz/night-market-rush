@@ -1,5 +1,18 @@
 # 资产来源与重建说明
 
+## 2026-11-20 接单摊棚
+
+内置 ImageGen 为本项目绘制了一座略微俯视的软陶摊棚。橙白布篷、竹柱、左侧灯笼、右侧铜铃和青绿柜台构成固定轮廓。透明原图为 1561 × 1008 像素，用 Lanczos 等比缩至 464 × 300 并以质量 88 编码成 RGBA WebP（32,148 字节，SHA-256 `321360ce6bec9af8d243efd861835a63fc6be1974dcaa45df909bbfbded4a220`）。[摊棚贴图](../public/assets/clay-order-stall.webp)
+
+游戏在同一摊棚的布篷区域换色，纸招牌、麻绳、签收章与地面圈由 Canvas 绘制。招牌物件复用本项目汤包、元素厨具、餐盒和巨包的软陶图集；文字、守摊状态与报酬由本局实时生成。
+
+<details>
+<summary>摊棚生成提示词</summary>
+
+Use case: stylized-concept. Build ONE cut-out game sprite of a little unstaffed Chinese street night-market kiosk made by hand from oven-baked polymer clay. Square transparent canvas, tight framing with small transparent margin, nothing cut off. Kiosk itself is wider than tall, ratio approximately 1.55:1. Slightly elevated three-quarter FRONT view, just a little of the right side visible, bright lantern-lit environment implied only by warm key light from upper left, soft directional contact shading inside the model. A broad sienna ochre and warm ivory striped rounded scalloped clay awning, balanced on four cinnamon-colored bamboo posts. LOBED canopy edge; one small red-orange ribbed lantern fixed to the far LEFT post, a small brass bell at the far RIGHT front corner. Space between the top canopy and wooden counter is completely empty in the center, wide and dark, for a dynamic paper reward ticket to be overlaid in engine. Only a squat wooden counter with a jade teal front plank, a few chunky hand-built wood joins, broad curves, chunky edge highlights. Clear base with VERY short feet. Mobile game diorama; hyper-tactile matte clay with subtle fingerprints and handmade creases; round pillowy forms, no black outlines. Silhouette and broad forms must survive at 100 pixels wide. Not a cart. No wheels, no signs, no food, no text or characters, no symbols, no people, no extra objects around it, no ground plane.
+
+</details>
+
 ## 2026-11-20 涡锅、泡菜坛与刨冰机
 
 内置 ImageGen 绘制三件夜市软陶厨具。2172 × 724 的透明原图按三件道具分别裁切，去掉外围低透明度的散点，再等比缩放到边长 256 像素的格子里。玩法中的漂浮技能、手持动作、落地道具和图鉴都取自同一张 768 × 256 的 RGBA WebP。[游戏图集](../public/assets/clay-elemental-tools.webp)

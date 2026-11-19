@@ -7,12 +7,16 @@ import {updateGiant} from './giant-bun';
 /** Discard a locked attack when its owner is interrupted, before the next frame can draw or resume it. */
 export function stunEnemy(e:Enemy,until:number):void {
   e.stunUntil=Math.max(e.stunUntil,until);
+  interruptAttack(e,e.stunUntil);
+}
+
+export function interruptAttack(e:Enemy,until:number):void {
   if(e.kind==='box'){
-    e.phaseUntil=Math.max(e.phase==='recover'?e.phaseUntil:0,e.stunUntil+.4);
+    e.phaseUntil=Math.max(e.phase==='recover'?e.phaseUntil:0,until+.4);
     e.phase='recover';
   }else if(e.kind==='bowl'){
     e.shotWarnUntil=0;e.volleyRemaining=0;
-    e.shotReadyAt=Math.max(e.shotReadyAt??0,e.stunUntil+1);
+    e.shotReadyAt=Math.max(e.shotReadyAt??0,until+1);
   }else if(e.jump?.phase==='warn'){
     delete e.jump;
   }
@@ -74,6 +78,11 @@ export function updateEnemies(s:GameState,dt:number,speedScale:number,ctx:Combat
     }
     const lured=e.lureX!==undefined&&e.lureY!==undefined;
     const pursuing=e.alerted&&!lured;
+    if((e.frostUntil??0)>s.time){
+      // The shell can break early. Keep attack recovery relative to the last frozen step.
+      interruptAttack(e,s.time);
+      continue;
+    }
     if(e.kind==='bowl'&&(!pursuing||e.stunUntil>s.time)){
       if((e.shotWarnUntil??0)>0||(e.volleyRemaining??0)>0){
         shotReservations--;e.shotWarnUntil=0;e.volleyRemaining=0;

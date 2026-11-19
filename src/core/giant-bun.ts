@@ -22,6 +22,11 @@ function warn(s:GameState,e:Enemy,hop:GiantHop,ctx:CombatContext):void {
   // Turn the escape corridor into the arena even when a target is at the top or bottom.
   const exitY=target.y+Math.sin(gapAngle)*160;
   if(exitY<CONFIG.player.minY||exitY>WORLD.bounds.bottom-CONFIG.player.radius)gapAngle=inward-offset;
+  const offer=s.market?.offer;
+  if(hop===3 && offer?.group==='final' && !offer.ready && offer.guardianId===e.id){
+    const stall=offer.stalls[0];
+    gapAngle=Math.atan2(stall.y-target.y,stall.x-target.x);
+  }
   const windup=(hop===3?tuning.finalWarning:tuning.warning)*(e.slowUntil>s.time?1.3:1);
   e.jump={phase:'warn',hop,startedAt:s.time,until:s.time+windup,
     from:{x:e.x,y:e.y},target,gapAngle};
@@ -32,7 +37,7 @@ function warn(s:GameState,e:Enemy,hop:GiantHop,ctx:CombatContext):void {
 export function updateGiant(s:GameState,e:Enemy,ctx:CombatContext):void {
   if(s.time-e.spawnAt<CONFIG.spawn.warning-1e-9)return;
   const j=e.jump;
-  if(e.stunUntil>s.time && j?.phase!=='flight'){
+  if(Math.max(e.stunUntil,e.frostUntil??0)>s.time && j?.phase!=='flight'){
     if(j?.phase==='warn')delete e.jump;
     return;
   }

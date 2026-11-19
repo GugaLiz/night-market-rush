@@ -735,3 +735,53 @@
 - **实现/结果**：涡锅让地面怪在锅前分轨盘旋 3.2 秒后收紧引爆；坛雾持续 5.5 秒，怪物离开后仍每半秒扣血，最长 3 秒；冰浪在 0.8 秒内铺开，冻住的目标于施放后第 3 秒碎裂。不同技能可叠用，拾取动作、范围效果、怪物状态和专属声音随模拟时钟更新。三件软陶实物共用原生 ImageGen 透明图集，原始提示词记于美术来源文档。图鉴增加至 21 种技能，试验场有独立试打入口。
 - **验证**：通过 TypeScript、Vite、265 项 Vitest、18 项 Playwright。覆盖中毒离场、同拍碎冰与毒杀结算、叠用和重置、真实拾取、普通局随机掉落。正式版的 JS、CSS 和道具图集与 dist 逐字节一致，横屏 844×390 的简化特效及减少动态模式下逐项用摇杆拾取成功。960×540 实战视频长 15.34 秒，验证每段音轨与跳转。
 - **风险/后续**：手机触控为 Chrome 模拟。GitHub Pages 依赖远端接收 main，推送预检的 HTTPS 连接被重置。
+
+## 2026-11-20 03:05:20 +08:00 — docs
+
+- **摘要**：形成夜市双摊选单、配送箱改装与局内 UI 的 V5 评审稿。
+- **涉及文件**：
+  - `docs/V5_夜市接单与局内改装方案.md`
+  - `README.md`
+  - `agentchanges/CHANGELOG.md`
+- **原因/目标**：玩家连续游玩后感到疲乏，希望先评审能改变走位与重玩动机的新玩法，再决定开发。
+- **实现/结果**：以本地 005dc68 为基线，给出两次可跳过的场内选单、碎冰箱和泡菜箱的动作与结算、三处 UI 变更、三局试玩观察表，并将约五分钟的收摊与续接夜班列为第二阶段。README 增加评审入口。
+- **验证**：核对现有波次、生命恢复、冰冻、毒伤、回旋餐盘和复活规则；自动检查 README 入口、正文六个相对链接和第二、第四、第九波的时间。差异范围为 Markdown 文档，本次未运行游戏测试或构建。
+- **风险/后续**：投放时机、订单报酬、改装行为均为提案；待评审后再决定原型范围。
+
+## 2026-11-20 03:24:33 +08:00 — feature
+
+- **摘要**：在普通挑战与配送试验场上线 V5 夜市接单、两种配送箱改装和五分钟尾单。
+- **涉及文件**：
+  - `README.md`
+  - `agentchanges/CHANGELOG.md`
+  - `docs/ASSET_PROVENANCE.md`
+  - `docs/V5_夜市接单与局内改装方案.md`
+  - `docs/verification/v5/normal-wave-2.webp`
+  - `docs/verification/v5/receipt-mobile.webp`
+  - `public/assets/clay-order-stall.webp`
+  - `src/core/elemental-skills.ts`
+  - `src/core/enemies.ts`
+  - `src/core/game.ts`
+  - `src/core/giant-bun.ts`
+  - `src/core/market-orders.ts`
+  - `src/core/skills.ts`
+  - `src/core/weapons.ts`
+  - `src/main.ts`
+  - `src/platform/audio.ts`
+  - `src/render/assets.ts`
+  - `src/render/character.ts`
+  - `src/render/enemy-clay-fx.ts`
+  - `src/render/market-stalls.ts`
+  - `src/render/market-upgrades.ts`
+  - `src/render/renderer.ts`
+  - `src/shared/types.ts`
+  - `src/ui/clay.css`
+  - `src/ui/ui.ts`
+  - `tests/e2e/market.spec.ts`
+  - `tests/market-orders.test.ts`
+  - `tests/skills.test.ts`
+  - `tests/v5-upgrades.test.ts`
+- **原因/目标**：连续战斗容易重复，需要通过摊位选择、改装操作和营业收摊给玩家改道及重玩的理由。
+- **实现/结果**：第 2、4 波各开放一组可跳过的双摊，骑手走过或冲刺穿过签收圈即可领取一种报酬。碎冰箱可提前撞碎冰壳并向前射出冰片，泡菜箱让餐盘穿雾后携毒。新增软陶摊棚、纸牌签章、提示音和箱贴。五分钟尾单使用巨包守摊，交餐后可带着原装备继续夜班或领取营业小票。试验场设三种可重复样例，结果与正式最佳纪录独立。
+- **验证**：TypeScript 与 Vite 生产构建通过，290 项 Vitest 和 21 项 Playwright 全部通过。开发中的热更新曾中断浏览器回归，冻结源码后整套重跑通过。三组普通挑战在无额外生命和无复活的条件下签满三单并收摊，按输入逐帧回放得到相同结果。4173 静态服务返回的 JS、CSS 和摊棚素材与 dist 一致；实测桌面普通局、844×390 右手摇杆、静音、减少动态及两种尾单选择。补充双摊与收摊小票实拍。
+- **风险/后续**：触屏通过浏览器模拟验证。玩法的新鲜感与长期难度仍需真人连续试玩观察。

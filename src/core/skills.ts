@@ -5,7 +5,7 @@ import {clamp, distanceSquared, segmentDistanceSquared, sweepContact} from './ge
 import {igniteFan, spillSoda, updateSkillFields} from './skill-fields';
 import {castUltimate,updateUltimates} from './ultimates';
 import {stunEnemy} from './enemies';
-import {castElemental, updateElementalFields, updateElementalStatus} from './elemental-skills';
+import {castElemental, shatterOnDash, updateElementalFields, updateElementalStatus} from './elemental-skills';
 
 const bounds = WORLD.bounds;
 const inside = (p:Vec,r=16):boolean => p.x>=bounds.left+r&&p.x<=bounds.right-r&&p.y>=bounds.top+r&&p.y<=bounds.bottom-r;
@@ -208,6 +208,7 @@ function deliverSupply(s:GameState,origin:Vec,ctx:CombatContext):boolean {
 
 export function updateSkills(s:GameState,dt:number,ctx:CombatContext,input:Vec={x:0,y:0}):void {
   const now=s.time,previous=now-dt;
+  shatterOnDash(s,dt,ctx);
   updateUltimates(s,dt,ctx,input);
   updateElementalFields(s,dt,ctx);
   updateSkillFields(s,ctx);

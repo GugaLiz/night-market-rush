@@ -87,6 +87,24 @@ export class GameAudio {
     }
     if(event==='start'){[60,64,67,72].forEach((n,i)=>this.note(midi(n),now+i*.065,.19,.2,'triangle'));return;}
     if(event==='record'){[72,76,79,84,79,84].forEach((n,i)=>this.note(midi(n),now+i*.105,.24,.22,'triangle'));return;}
+    if(event.type==='market'){
+      if(event.action==='open'){
+        const pitches=event.group==='final'?[74,69,62]:[74,81];
+        pitches.forEach((pitch,i)=>this.note(midi(pitch),now+i*.15,.34,.16,'sine'));
+      }else if(event.action==='sign'){
+        this.friction(now,.06,.18,1500,420);
+        this.note(160,now,.09,.22,'triangle',75);
+        this.note(1175,now+.06,.31,.15,'sine');
+      }else if(event.action==='closing'){
+        [69,74,78,81].forEach((pitch,i)=>this.note(midi(pitch),now+.18+i*.11,.29,.14,'triangle'));
+      }
+      return;
+    }
+    if(event.type==='frostShatter'){
+      this.friction(now,.10,.19,4300,1700);
+      this.note(1430,now,.12,.11,'triangle',710);
+      return;
+    }
     if(event.type==='dash'){if(now-this.lastDash<.15)return;this.lastDash=now;this.noiseBurst(now,.18,.2,900,3800);this.note(180,now,.12,.16,'triangle',420);return;}
     if(event.type==='enemyShot'){if(now-this.lastEnemyShot<.08)return;this.lastEnemyShot=now;this.note(490,now,.095,.16,'sine',165);this.noiseBurst(now,.055,.075,1550,550);return;}
     if(event.type==='giantLand'){

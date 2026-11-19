@@ -1,6 +1,7 @@
 import type {Enemy,EnemyShot,GameState,Projectile,Vec,WeaponKind,WeaponAttack} from '../shared/types';
 import type {CombatContext} from './contracts';
 import {CONFIG,WORLD} from './config';
+import {coatEnemy,trayBrineContact} from './elemental-skills';
 import {relativeSweep} from './geometry';
 import {isMelee,MELEE_WEAPONS,updateMelee} from './melee';
 export {meleePose} from './melee';
@@ -98,7 +99,7 @@ function release(s:GameState,a:WeaponAttack,ctx:CombatContext):void {
 function umbrella(s:GameState,a:WeaponAttack,dt:number,ctx:CombatContext):void {
   if(a.kind!=='umbrella'||a.blocked||s.player.invulnerableUntil>s.time||(s.player.dashUntil??0)>s.time-dt+1e-9)return;
   const p=s.player,{outer,inner,halfAngle}=UMBRELLA_GUARD;
-  const threats:({enemy:Enemy;shot?:never}|{shot:EnemyShot;enemy?:never})[]=[...s.enemies.filter(e=>ctx.active(e)&&e.hp>0&&e.contactSuppressedUntil<=s.time).map(enemy=>({enemy})),...(s.enemyShots??[]).filter(q=>q.expiresAt>s.time).map(shot=>({shot}))];
+  const threats:({enemy:Enemy;shot?:never}|{shot:EnemyShot;enemy?:never})[]=[...s.enemies.filter(e=>ctx.active(e)&&e.hp>0&&Math.max(e.contactSuppressedUntil,e.frostUntil??0)<=s.time).map(enemy=>({enemy})),...(s.enemyShots??[]).filter(q=>q.expiresAt>s.time).map(shot=>({shot}))];
   const hits=threats.map(threat=>{
     const e=threat.enemy??threat.shot,start={x:e.px-p.px,y:e.py-p.py},end={x:e.x-p.x,y:e.y-p.y};
     const t=relativeSweep({x:0,y:0},{x:0,y:0},start,end,outer+e.radius);
@@ -164,13 +165,22 @@ function updateProjectiles(s:GameState,dt:number,ctx:CombatContext):void {
     q.x+=dx*travel;q.y+=dy*travel;q.travelled+=travel;
     const hitList=q.kind==='tray'&&q.phase==='return'?q.phaseHitIds:q.hitIds;
     const limit=q.kind==='tray'?RANGED_HITS.trayTargetsPerLeg:WEAPONS[q.kind].limit;
-    const hits=s.enemies.filter(e=>ctx.active(e)&&e.hp>0&&!hitList.includes(e.id)).map(e=>({e,t:relativeSweep({x:q.px,y:q.py},q,{x:e.px,y:e.py},e,q.radius+e.radius)})).filter(v=>v.t!==null).sort((a,b)=>a.t!-b.t!||a.e.id-b.e.id);
-    for(const {e} of hits){
+    const start={x:q.px,y:q.py};
+    const duration=q.kind==='tray'&&speed>0?travel/speed:dt;
+    const cloud=q.kind==='tray'&&!q.brined&&s.market?.upgrade==='brine'?s.elementalFields?.find(f=>f.kind==='poison'):undefined;
+    const brineAt=cloud?trayBrineContact(cloud,start,q,q.radius,s.time-dt,duration):null;
+    const hits=s.enemies.filter(e=>ctx.active(e)&&e.hp>0&&!hitList.includes(e.id)).map(e=>{
+      const previous={x:e.px,y:e.py};
+      const end=duration<dt?{x:e.px+(e.x-e.px)*duration/dt,y:e.py+(e.y-e.py)*duration/dt}:e;
+      return {e,t:relativeSweep(start,q,previous,end,q.radius+e.radius)};
+    }).filter((hit):hit is {e:Enemy;t:number}=>hit.t!==null).sort((a,b)=>a.t-b.t||a.e.id-b.e.id);
+    for(const {e,t} of hits){
       if(hitList.length>=limit)break;
       const damage=q.kind==='chopsticks'||q.kind==='spirit'?RANGED_HITS[q.kind][q.hits]
         :q.kind==='tray'&&q.phase==='return'?RANGED_HITS.trayReturn:WEAPONS[q.kind].damage;
       if(!damage)break;
       hitList.push(e.id);q.hits++;ctx.damage(e,damage,q.kind,Math.atan2(q.vy,q.vx));
+      if(e.hp>0&&(q.brined||(brineAt!==null&&t+1e-9>=brineAt)))coatEnemy(e,s.time-dt+duration*t);
       if(q.kind==='talisman'){q.phase='chain';q.x=e.x;q.y=e.y;q.nextHitAt=s.time+.1;break;}
       if(q.kind==='bag'||(q.kind==='chopsticks'||q.kind==='spirit')&&q.hits>=RANGED_HITS[q.kind].length){remove.add(q.id);break;}
       if(q.kind==='spirit'){
@@ -178,6 +188,7 @@ function updateProjectiles(s:GameState,dt:number,ctx:CombatContext):void {
         atEnd=false;break;
       }
     }
+    if(brineAt!==null)q.brined=true;
     if(atEnd&&q.phase!=='chain'){
       if(q.kind==='tray'&&q.phase==='out')q.phase='return';
       else remove.add(q.id);
