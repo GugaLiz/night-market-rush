@@ -1,5 +1,22 @@
 # 资产来源与重建说明
 
+## 2026-11-19 软陶盲盒战斗美术
+
+以已选的软陶外卖员、外卖武器、受伤和小怪攻击概念为依据，使用内置 imagegen 独立生成含透明通道的运行素材。旧分件图提供骨架连接点和正背面朝向。制作时逐件清理透明边缘，居中缩放到 256 像素的图格，再编码为带 alpha 的 WebP。[角色原稿](art-directions/chibi/clay-toy.png) · [武器原稿](art-directions/chibi/clay-weapons.png) · [受击原稿](art-directions/chibi/clay-hurt-states.png) · [小怪出招原稿](art-directions/chibi/combat-fx/enemy-attacks.png)
+
+| 文件 | 游戏中的用途 |
+|---|---|
+| [clay-courier-home.webp](../public/assets/clay-courier-home.webp) | 首页独立跑姿，保温箱、橙色头盔和送餐小票随角色一起显示 |
+| [clay-courier-rig.webp](../public/assets/clay-courier-rig.webp) | 四列五行，16 件头盔、制服、手脚和保温箱分件，加上挥击与受伤表情。站姿、转向、跑步着地和扶盔护箱按当前输入组成 |
+| [clay-actors.webp](../public/assets/clay-actors.webp) | 四列三行，包子普通、挤压、残血，盒怪、碗怪、三件外卖武器和四款大招拾取物 |
+| [clay-weapons.webp](../public/assets/clay-weapons.webp) | 四列四行，十件可换武器、五种关联飞行物或展开件及装备箱。猫爪夹、纸袋、葱花盘使用已选概念造型 |
+| [clay-supplies.webp](../public/assets/clay-supplies.webp) | 四列四行，原有十三件技能道具，以及路锥、诱饵餐箱和补给箱 |
+| [clay-ultimate-fx.webp](../public/assets/clay-ultimate-fx.webp) | 内置 imagegen 生成并整理为两列四行，依次为冰晶、蒸汽卷、签收票、汽水飞沫、冰浪扇面、中空蒸汽环、奶泡喷泉、杨梅。运行时随伤害波前和真实落点组合绘制 |
+| [clay-night-market.webp](../public/assets/clay-night-market.webp) | 1600 × 900 的灯笼夜市。以原夜市布局和软陶角色材质为参考生成，橙光摊位沿边、紫灰色石地铺满活动区 |
+| [clay-riverside-market.webp](../public/assets/clay-riverside-market.webp) | 1600 × 900 的河畔茶市。以原河畔布局和软陶材质为参考生成，青砖、竹子和河栏保留在同机位换波画面中 |
+
+各分件的有效像素矩形随源码保存，战斗、首页和图鉴读取项目本地资源。[分件坐标](../src/render/clay-frames.ts)
+
 ## 2026-11-19 配送员制服与技能
 
 使用内置 imagegen 参考项目已有的原创角色与夜市配色生成制服、首页立绘、蒸汽和汽水原图。战斗制服按原骨架重新分件，沿用可衔接的原四肢。蒸汽保留透明笔触，汽水保留能在战场上辨认的柠檬和冰块。四款近战气浪由 Canvas 随实际波前绘制。[角色对照](verification/courier/character.webp) · [技能分镜](verification/courier/skills.webp)

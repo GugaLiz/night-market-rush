@@ -7,6 +7,9 @@ import {activateSkill,updateSkills} from './skills';
 import {updateEnemies,updateEnemyShots} from './enemies';
 import {collectCoins,dropCoins} from './rewards';
 import {advanceWave,spawnMarketEnemies} from './waves';
+import {giantPulseContact,giantPulseLifetime} from './giant-bun';
+import {ULTIMATE_KINDS,isUltimate,type UltimateKind} from '../shared/types';
+import {expressCast,moveExpress} from './ultimates';
 
 /** Seeded simulation shared by the main game and the practice arena. */
 export class Game {
@@ -14,6 +17,7 @@ export class Game {
   private randomState=1;private nextId=1;private nextEnemyAt=.35;private nextPickupAt=1;private nextWeaponAt=4;
   private emptySince=0;private events:GameEvent[]=[];private weaponBag:WeaponKind[]=[];
   private batch=0;private openingPlaced=false;private dropsSinceFan=0;private waveDemo=false;
+  private nextUltimateAt=8;private ultimateIndex=0;
   private dispatchWasActive=false;private contactDamage=new Map<number,number>();
   private ctx:CombatContext={damage:(e,a,source,impactAngle)=>this.damage(e,a,source,impactAngle),emit:e=>this.emit(e),id:()=>this.nextId++,random:()=>this.random(),push:(e,o,d)=>this.push(e,o,d),active:e=>this.active(e),spawnPickup:(k,p,extra)=>this.addPickup(k,p,extra)};
   constructor(seed=Date.now()){this.reset(seed);}
@@ -22,7 +26,8 @@ export class Game {
     this.randomState=stableSeed||0x6d2b79f5;this.nextId=1;this.nextEnemyAt=.35;this.nextPickupAt=CONFIG.pickup.firstAt;this.nextWeaponAt=CONFIG.weapons.dropFirst;
     this.emptySince=0;this.events=[];this.weaponBag=[];this.dispatchWasActive=false;
     this.batch=0;this.openingPlaced=false;this.dropsSinceFan=0;this.waveDemo=false;
-    this.state={seed:stableSeed,time:0,score:0,kills:0,stage:1,wave:1,waveStartedAt:0,coins:[],collectedCoins:0,combo:0,comboUntil:0,revivesUsed:0,fields:[],ended:false,cause:null,practice,
+    this.nextUltimateAt=8;this.ultimateIndex=0;
+    this.state={ultimates:[],seed:stableSeed,time:0,score:0,kills:0,stage:1,wave:1,waveStartedAt:0,coins:[],collectedCoins:0,combo:0,comboUntil:0,revivesUsed:0,fields:[],ended:false,cause:null,practice,
       player:{...WORLD.start,px:WORLD.start.x,py:WORLD.start.y,vx:0,vy:0,facing:1,radius:CONFIG.player.radius,skateUntil:0,hp:100,maxHp:100,invulnerableUntil:0,hurtAt:-100,bubbleUntil:0,heatUntil:0,stampUntil:0,moveDirection:{x:1,y:0},sprintTime:0,sprintMultiplier:1,sprintDirection:{x:1,y:0},dashUntil:0,dashReadyAt:0,dashDirection:{x:1,y:0}},
       enemies:[],pickups:[],weapon:{kind:'tongs',readyAt:0,equippedAt:0,targetId:null,attack:null},meleeWaves:[],projectiles:[],enemyShots:[],weaponDrops:[],zones:[],
       effects:{dispatchUntil:0,dispatchStartedAt:0,dispatchCooldownUntil:0,pendingSupplyAt:0,pendingSupplyUntil:0,supplyGroupId:0},lastDamage:null,lastDamageAmount:0};
@@ -61,6 +66,20 @@ export class Game {
       }
     }
   }
+  setupCombatDemo(kind:UltimateKind|'giantBun'):void {
+    this.reset(51623,true);
+    const p=this.state.player;
+    if(kind==='giantBun'){
+      this.spawnEnemy('giantBun',{x:960,y:305});
+      return;
+    }
+    // Keep the same street and targets for all four pickup runs so their footprints can be compared.
+    const positions=[[160,274],[309,263],[496,222],[797,244],[914,248],[1120,236],
+      [236,406],[428,433],[822,383],[998,427],[1134,415],[172,544],[353,553],
+      [496,581],[717,535],[871,577],[1045,577],[1140,552]];
+    positions.forEach(([x,y],i)=>this.spawnEnemy(i%6===0?'bowl':i%4===0?'box':'bun',{x,y}));
+    this.addPickup(kind,{x:p.x+80,y:p.y});
+  }
   setupWaveDemo():void {
     this.reset(3912,true);
     const s=this.state;
@@ -77,6 +96,8 @@ export class Game {
   }
   dash(intent?:Vec):boolean {
     const s=this.state,p=s.player;if(s.ended||s.time<(p.dashReadyAt??0))return false;
+    const route=expressCast(s);
+    if(route&&route.landings.length<4)return false;
     const strength=intent?Math.hypot(intent.x,intent.y):0;
     const d=intent&&Number.isFinite(strength)&&strength>=CONFIG.player.aimThreshold
       ? {x:intent.x/strength,y:intent.y/strength} : p.moveDirection;
@@ -90,7 +111,7 @@ export class Game {
     if(this.state.ended)return;const p=this.state.player,amount=p.maxHp-p.hp;p.hp=p.maxHp;
     if(amount>0)this.emit({type:'heal',id:this.nextId++,amount,x:p.x,y:p.y});
   }
-  clearArena():void{const s=this.state;s.enemies=[];s.pickups=[];s.weaponDrops=[];s.projectiles=[];s.meleeWaves=[];s.enemyShots=[];s.zones=[];s.coins=[];s.fields=[];s.combo=0;s.comboUntil=0;this.waveDemo=false;s.player.dashUntil=0;s.player.dashReadyAt=0;s.player.sprintTime=0;s.player.sprintMultiplier=1;s.weapon.attack=null;s.weapon.targetId=null;}
+  clearArena():void{const s=this.state;if(expressCast(s)?.lastMovedAt===s.time){s.player.vx=0;s.player.vy=0;}s.giantPulses=[];s.ultimates=[];s.enemies=[];s.pickups=[];s.weaponDrops=[];s.projectiles=[];s.meleeWaves=[];s.enemyShots=[];s.zones=[];s.coins=[];s.fields=[];s.combo=0;s.comboUntil=0;this.waveDemo=false;s.player.dashUntil=0;s.player.dashReadyAt=0;s.player.sprintTime=0;s.player.sprintMultiplier=1;s.weapon.attack=null;s.weapon.targetId=null;}
   spawnEnemy(kind:EnemyKind,position?:Vec):Enemy {
     const cfg=CONFIG.enemies[kind],p=position??{x:this.state.player.x+140,y:this.state.player.y};
     const x=clamp(p.x,WORLD.bounds.left+cfg.radius,WORLD.bounds.right-cfg.radius),y=clamp(p.y,WORLD.bounds.top+cfg.radius,WORLD.bounds.bottom-cfg.radius);
@@ -100,13 +121,13 @@ export class Game {
   }
   private emit(event:GameEvent){if(this.events.length>=1024)this.events.splice(0,256);this.events.push(event);}
   private random(){let x=this.randomState;x^=x<<13;x^=x>>>17;x^=x<<5;this.randomState=x>>>0;return this.randomState/0x100000000;}
-  private active(e:Enemy){return e.hp>0&&this.state.time-e.spawnAt>=CONFIG.spawn.warning-1e-9;}
+  private active(e:Enemy){return e.hp>0&&e.jump?.phase!=='flight'&&this.state.time-e.spawnAt>=CONFIG.spawn.warning-1e-9;}
   private step(dt:number,input:Vec){
     const s=this.state,p=s.player;s.time+=dt;
     const difficulty=difficultyAt(s.time);
     s.stage=difficulty.stage;
     if(s.time>=s.comboUntil)s.combo=0;
-    this.movePlayer(dt,input);
+    const ridingExpress=this.movePlayer(dt,input);
     if(!s.practice){
       const dispatch=s.effects.dispatchUntil>s.time;
       const batchSize=5+Math.min(s.wave,3),batchInterval=difficulty.interval*batchSize;
@@ -128,7 +149,7 @@ export class Game {
     this.collectPickups();this.collectWeapons();
     updateWeapons(s,dt,this.ctx);
     collectCoins(s,dt,this.ctx);
-    this.contactPlayer(dt);
+    this.contactPlayer(dt,ridingExpress);
     if(!s.ended&&(!s.practice||this.waveDemo)){
       const previous=s.wave;
       advanceWave(s,this.ctx);
@@ -146,8 +167,9 @@ export class Game {
       }
     }
   }
-  private movePlayer(dt:number,input:Vec){
+  private movePlayer(dt:number,input:Vec):boolean {
     const p=this.state.player;p.px=p.x;p.py=p.y;
+    if(moveExpress(this.state,input,dt))return true;
     const length=Math.hypot(input.x,input.y);
     const direction=length>.001?{x:input.x/length,y:input.y/length}:p.moveDirection;
     const previous=p.sprintDirection??direction;
@@ -213,15 +235,25 @@ export class Game {
     if(p.x!==x)p.vx=0;
     if(p.y!==y)p.vy=0;
     if(length>.001&&Math.hypot(p.x-p.px,p.y-p.py)<CONFIG.player.speed*dt*.1){p.sprintTime=0;p.sprintMultiplier=1;}
+    return false;
   }
-  private contactPlayer(dt:number){
+  private contactPlayer(dt:number,ridingExpress:boolean){
     const s=this.state,p=s.player;
     const contacts:Array<{id:number;kind:EnemyKind;t:number;amount:number;source:DamageSource;shot:boolean}>=[];
-    for(const e of s.enemies){if(!this.active(e)||e.contactSuppressedUntil>s.time)continue;const t=relativeSweep({x:p.px,y:p.py},p,{x:e.px,y:e.py},e,p.radius+e.radius);if(t!==null){const amount=this.contactDamage.get(e.id)??CONFIG.enemies[e.kind].damage;contacts.push({id:e.id,kind:e.kind,t,amount,source:e.kind==='box'&&amount===20?'dash':e.kind,shot:false});}}
+    for(const e of s.enemies){if(e.kind==='giantBun'||!this.active(e)||e.contactSuppressedUntil>s.time)continue;const t=relativeSweep({x:p.px,y:p.py},p,{x:e.px,y:e.py},e,p.radius+e.radius);if(t!==null){const amount=this.contactDamage.get(e.id)??CONFIG.enemies[e.kind].damage;contacts.push({id:e.id,kind:e.kind,t,amount,source:e.kind==='box'&&amount===20?'dash':e.kind,shot:false});}}
+    if(s.giantPulses?.length){
+      s.giantPulses=s.giantPulses.filter(w=>s.time-dt<=w.bornAt+giantPulseLifetime(w));
+      for(const w of s.giantPulses){
+        const t=giantPulseContact(w,p,s.time,dt);
+        if(t===null)continue;
+        w.spent=true;
+        contacts.push({id:w.id,kind:'giantBun',t,amount:w.hop===3?CONFIG.giant.finalDamage:CONFIG.enemies.giantBun.damage,source:'giantBun',shot:false});
+      }
+    }
     const spent=new Set<number>();
     for(const q of s.enemyShots??[]){const t=relativeSweep({x:p.px,y:p.py},p,{x:q.px,y:q.py},q,p.radius+q.radius);if(t!==null){spent.add(q.id);contacts.push({id:q.id,kind:'bowl',t,amount:q.damage,source:'bowl',shot:true});}}
     s.enemyShots=(s.enemyShots??[]).filter(q=>!spent.has(q.id));
-    if(p.invulnerableUntil>s.time||(p.dashUntil??0)>s.time-dt+1e-9)return;
+    if(p.invulnerableUntil>s.time||(p.dashUntil??0)>s.time-dt+1e-9||ridingExpress)return;
     contacts.sort((a,b)=>a.t-b.t||b.amount-a.amount||a.id-b.id);const hit=contacts[0];if(!hit)return;
     if(p.bubbleUntil>s.time){p.bubbleUntil=0;p.invulnerableUntil=s.time+CONFIG.player.protection;for(const e of s.enemies)if(distanceSquared(e,p)<=48**2)this.push(e,p,24);this.emit({type:'defend',kind:'bubble',x:p.x,y:p.y,victimId:hit.id});return;}
     const amount=Math.min(p.hp,hit.amount);p.hp-=amount;p.hurtAt=s.time;p.invulnerableUntil=s.time+CONFIG.player.protection;s.lastDamage=hit.source;s.lastDamageAmount=amount;
@@ -242,7 +274,7 @@ export class Game {
       s.enemies=s.enemies.filter(e=>e.id!==enemy.id);
       const value=CONFIG.enemies[enemy.kind].coins+(s.player.stampUntil>s.time?1:0);
       dropCoins(s,enemy,value,this.ctx);
-      this.emit({type:'kill',kind:enemy.kind,victimId:enemy.id,x:enemy.x,y:enemy.y,points:1});
+      this.emit({type:'kill',kind:enemy.kind,victimId:enemy.id,x:enemy.x,y:enemy.y,points:1,source,impactAngle});
     }
     return total;
   }
@@ -284,6 +316,7 @@ export class Game {
       }
       const position={x,y};
       if(distanceSquared(position,s.player)<(s.player.radius+CONFIG.pickup.radius+38)**2||s.pickups.some(p=>distanceSquared(p,position)<76**2)||s.weaponDrops.some(p=>distanceSquared(p,position)<65**2))continue;
+      if(isUltimate(kind)&&distanceSquared(position,s.player)>325**2)continue;
       if(other){
         const dx=x-s.player.x,dy=y-s.player.y,ox=other.x-s.player.x,oy=other.y-s.player.y;
         if(distanceSquared(position,other)<145**2||dx*ox+dy*oy>.72*Math.hypot(dx,dy)*Math.hypot(ox,oy))continue;
@@ -319,9 +352,16 @@ export class Game {
       if(s.time>=30)kinds.push('route','cones','hook','supply');
       if(s.time>=90)kinds.push('heat','dispatch','stamp');
       const needsFan=this.dropsSinceFan>=2&&!s.pickups.some(p=>p.kind==='fan'&&!p.retiringUntil);
-      const kind=needsFan?'fan':kinds[Math.floor(this.random()*kinds.length)];
+      const ultimateDue=s.time>=this.nextUltimateAt&&!s.pickups.some(p=>!p.retiringUntil&&isUltimate(p.kind));
+      const kind=needsFan?'fan':ultimateDue?ULTIMATE_KINDS[this.ultimateIndex]:kinds[Math.floor(this.random()*kinds.length)];
       const position=this.pickupPosition(kind);
-      if(position&&this.addPickup(kind,position))this.dropsSinceFan=kind==='fan'?0:this.dropsSinceFan+1;
+      if(position&&this.addPickup(kind,position)){
+        this.dropsSinceFan=kind==='fan'?0:this.dropsSinceFan+1;
+        if(isUltimate(kind)){
+          this.ultimateIndex=(this.ultimateIndex+1)%ULTIMATE_KINDS.length;
+          this.nextUltimateAt=s.time+14;
+        }
+      }
     }
     this.nextPickupAt=s.time+(this.openingPlaced?CONFIG.pickup.interval:.5);this.emptySince=s.time;
   }

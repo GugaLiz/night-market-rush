@@ -2,6 +2,21 @@ import type {Enemy,GameState} from '../shared/types';
 import type {CombatContext} from './contracts';
 import {CONFIG,WORLD} from './config';
 import {clamp} from './geometry';
+import {updateGiant} from './giant-bun';
+
+/** Discard a locked attack when its owner is interrupted, before the next frame can draw or resume it. */
+export function stunEnemy(e:Enemy,until:number):void {
+  e.stunUntil=Math.max(e.stunUntil,until);
+  if(e.kind==='box'){
+    e.phaseUntil=Math.max(e.phase==='recover'?e.phaseUntil:0,e.stunUntil+.4);
+    e.phase='recover';
+  }else if(e.kind==='bowl'){
+    e.shotWarnUntil=0;e.volleyRemaining=0;
+    e.shotReadyAt=Math.max(e.shotReadyAt??0,e.stunUntil+1);
+  }else if(e.jump?.phase==='warn'){
+    delete e.jump;
+  }
+}
 
 function wander(e:Enemy,time:number,ctx:CombatContext):{x:number;y:number} {
   if(e.wanderAngle===undefined || time>=(e.wanderUntil??0)){
@@ -35,6 +50,7 @@ export function updateEnemies(s:GameState,dt:number,speedScale:number,ctx:Combat
   let shotReservations=s.enemies.filter(e=>e.kind==='bowl'&&((e.shotWarnUntil??0)>0||(e.volleyRemaining??0)>0)).length;
   for(const e of s.enemies){
     e.px=e.x;e.py=e.y;damage.set(e.id,CONFIG.enemies[e.kind].damage);
+    if(e.kind==='giantBun'){updateGiant(s,e,ctx);continue;}
     if(!ctx.active(e))continue;
     const playerDistance=Math.hypot(p.x-e.x,p.y-e.y),awareness=CONFIG.awareness[e.kind];
     const previousAlert=e.alerted;

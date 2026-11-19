@@ -319,3 +319,94 @@
 - **实现/结果**：三种材质与动作分别独立生成，各一名外卖员与一只包子怪，以1536×1024原图归档并附生成描述。
 - **验证**：逐张检查主体、构图与数量，核对PNG尺寸，保留生成的源图。
 - **风险/后续**：等待美术方向选择。GitHub对此仓库的写权限检查返回403。
+## 2026-11-19 10:54:40 +08:00 — docs
+
+- **摘要**：软陶盲盒武器概念图展示猫爪伸缩取餐夹、纸袋气炮与三只配套的回旋餐盘。
+- **涉及文件**：
+  - `docs/art-directions/chibi/clay-weapons.png`
+  - `agentchanges/CHANGELOG.md`
+- **原因/目标**：用户选定软陶盲盒方向，希望先看三件武器造型。
+- **实现/结果**：以内置 imagegen 参照已选 clay-toy.png 生成同系列三件武器合照，供评审造型。
+- **验证**：逐件目视核对造型与次序，PNG 1672×941，项目归档与源图的 SHA-256 一致。
+- **风险/后续**：None
+## 2026-11-19 11:02:34 +08:00 — docs
+
+- **摘要**：以软陶盲盒风格画出包子怪瞬间受击、残血和外卖员受伤三种状态。
+- **涉及文件**：
+  - `docs/art-directions/chibi/clay-hurt-states.png`
+  - `agentchanges/CHANGELOG.md`
+- **原因/目标**：用两个怪物掉血状态和一个角色掉血状态对照受力姿态与反馈，可在立绘评审中辨认打中或挨打。
+- **实现/结果**：以已选 clay-toy.png 参考由内置 imagegen 生成，三格依次呈现受压弹起、泄气落地、错步护箱。
+- **验证**：核对原图与归档哈希一致，逐格检查角色和数值。怪物承受滑板20点伤害从30降至10，玩家挨包子一次扣8点。
+- **风险/后续**：本轮交付美术概念图。
+## 2026-11-19 11:29:08 +08:00 — docs
+
+- **摘要**：软陶盲盒攻击特效概念覆盖三种小怪、巨包跨屏跳砸及四款外卖员大招。
+- **涉及文件**：
+  - `docs/art-directions/chibi/combat-fx/elite-bun.png`
+  - `docs/art-directions/chibi/combat-fx/enemy-attacks.png`
+  - `docs/art-directions/chibi/combat-fx/ice-and-steam.png`
+  - `docs/art-directions/chibi/combat-fx/README.md`
+  - `docs/art-directions/chibi/combat-fx/rush-and-soda.png`
+  - `agentchanges/CHANGELOG.md`
+- **原因/目标**：展示密集怪群中的出招提示，以及半屏、全屏、折返连跳和炸屏技能的打击感。
+- **实现/结果**：四张原画和设计说明给出角色起手、攻击路径、受击反馈、落点预警和操作时机。
+- **验证**：四张均已目视核对，普通怪时序与现有配置核对，PNG尺寸与复制哈希已验证，说明中的四个图链均可解析。
+- **风险/后续**：巨包与四款大招处于概念阶段，节奏待动态打样。
+## 2026-11-19 13:54:29 +08:00 — feature
+
+- **摘要**：软陶盲盒战斗版完成本地部署，实装四款大招、巨包三连坐、受击动作、武器与试打入口。
+- **涉及文件**：
+  - `agentchanges/CHANGELOG.md`
+  - `docs/art-directions/chibi/combat-fx/README.md`
+  - `docs/ASSET_PROVENANCE.md`
+  - `docs/V4_PLAYTEST.md`
+  - `docs/verification/clay/courier.webp`
+  - `docs/verification/clay/giant.webp`
+  - `docs/verification/clay/mobile.webp`
+  - `docs/verification/clay/ultimates.webp`
+  - `public/assets/clay-actors.webp`
+  - `public/assets/clay-courier-home.webp`
+  - `public/assets/clay-courier-rig.webp`
+  - `public/assets/clay-night-market.webp`
+  - `public/assets/clay-riverside-market.webp`
+  - `public/assets/clay-supplies.webp`
+  - `public/assets/clay-ultimate-fx.webp`
+  - `public/assets/clay-weapons.webp`
+  - `README.md`
+  - `scripts/verify-clay-actors.mjs`
+  - `scripts/verify-clay-mobile.mjs`
+  - `scripts/verify-clay-ultimates.mjs`
+  - `scripts/verify-delivery-skills.mjs`
+  - `scripts/verify-opening.mjs`
+  - `src/core/config.ts`
+  - `src/core/enemies.ts`
+  - `src/core/game.ts`
+  - `src/core/giant-bun.ts`
+  - `src/core/skills.ts`
+  - `src/core/ultimates.ts`
+  - `src/core/waves.ts`
+  - `src/main.ts`
+  - `src/platform/audio.ts`
+  - `src/render/assets.ts`
+  - `src/render/character.ts`
+  - `src/render/clay-frames.ts`
+  - `src/render/damage-labels.ts`
+  - `src/render/delivery-skills.ts`
+  - `src/render/enemy-clay-fx.ts`
+  - `src/render/held-weapon.ts`
+  - `src/render/renderer.ts`
+  - `src/render/ultimate-fx.ts`
+  - `src/shared/types.ts`
+  - `src/ui/catalog.ts`
+  - `src/ui/clay.css`
+  - `src/ui/style.css`
+  - `src/ui/ui.ts`
+  - `tests/e2e/giant-bun.spec.ts`
+  - `tests/e2e/v2-ui.spec.ts`
+  - `tests/giant-bun.test.ts`
+  - `tests/ultimates.test.ts`
+- **原因/目标**：用户选定软陶美术与战斗概念，要求角色操作、敌方预警和全屏打击节奏按设计实际生效，并交付本地UI。
+- **实现/结果**：角色骨架、十款武器、十七种道具、两张夜市场景接入软陶资源。四招沿真实波前和落点扣血，向前半屏冰封、全场蒸汽、可调整落点的三连送、汽水冲击均有同步音效。三种普通怪各有可读攻击线，巨包在偶数波次出现，第三跳保留可穿的缺口和落地反击窗。首页和配送试验场提供正式挑战、四招与巨包试打。
+- **验证**：237项Vitest、16项桌面Chrome端到端、7项服务测试、tsc和Vite通过。正式4173资源哈希与dist一致，操作走通且无控制台或HTTP错误。844×390 Chrome模拟触控拾齐四招，验证专属音效、暂停和转屏。另验跑动接盘、累计伤害、冰铃相互作用、空中精英免伤、重复拾单和十分钟百怪上限。截图位于docs/verification/clay。
+- **风险/后续**：移动端使用Chrome触控模拟；传感器与真机性能仍需在设备上体验。

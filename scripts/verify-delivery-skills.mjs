@@ -40,7 +40,7 @@ async function practice(quiet=false) {
           row:Math.round(args[1]*2/img.naturalHeight),col:Math.round(args[0]*2/img.naturalWidth),
           x:Math.round(m.e),y:Math.round(m.f),angle:+Math.atan2(m.b,m.a).toFixed(4)
         });
-        if(name==='skills-v2.png' && args[1]<img.naturalHeight/4){
+        if(name==='clay-supplies.webp' && args[1]<img.naturalHeight/4){
           const col=Math.floor(args[0]*4/img.naturalWidth);
           if(col===0 || col===2)p.props.push({kind:col===0?'fan':'soda',x:+m.e.toFixed(1),y:+m.f.toFixed(1)});
         }

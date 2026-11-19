@@ -5,7 +5,7 @@ type Blade = 'tongs' | 'knife' | 'sword';
 
 // Grip and tip landmarks of the trimmed paintings establish a fixed scale.
 const landmarks: Record<Blade, {grip: Vec; tip: Vec}> = {
-  tongs: {grip:{x:.10,y:.80}, tip:{x:.94,y:.36}},
+  tongs: {grip:{x:.16,y:.83}, tip:{x:.78,y:.15}},
   knife: {grip:{x:.11,y:.76}, tip:{x:.98,y:.11}},
   sword: {grip:{x:.13,y:.63}, tip:{x:.97,y:.09}},
 };

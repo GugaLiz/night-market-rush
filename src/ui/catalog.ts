@@ -18,6 +18,10 @@ export const WEAPON_GUIDE:Record<WeaponKind,CatalogEntry>={
   talisman:{short:'派单符册',role:'分单接力',description:'三张派单纸向不同方向飞出，碰到怪物才开始逐跳传递。各路共享已派名单，单轮最多打十只。',detail:weaponDetail('talisman',`首段射程 ${WEAPONS.talisman.range} · 张角 108° · 跳转距离 ${WEAPONS.talisman.width} · 后续 ${RANGED_HITS.talisman.slice(1).join(" / ")}`)},
 };
 export const SKILL_GUIDE:Record<SkillKind,CatalogEntry>={
+  icebox:{short:'保冷箱',role:'定向冰浪',description:'开箱前转身对准怪群，碎冰分三层向前涌出。浪头触到的敌人受伤并短暂冻结。',detail:'前方 180° · 蓄力 0.20 秒 · 命中 85 · 冻结 0.75 秒'},
+  steamer:{short:'蒸笼开席',role:'全场扩散',description:'揭盖后热汽从脚边向场外推开。近处的怪先被掀起，可以跟着浪头往外跑。',detail:'波前用时 0.65 秒 · 每只最多 100 伤害'},
+  express:{short:'加急三连送',role:'跨场折返',description:'连续三跳穿过街面。折返时推方向键或摇杆改变下一站，最后落地盖章。',detail:'每跳 0.24 秒 · 沿途 58 · 末次落点半径 110、伤害 92'},
+  berry:{short:'杨梅汽水',role:'开瓶炸屏',description:'气泡收紧，瓶盖弹起。莓红汽水从瓶口向全场溅开，近处的敌人先受击。',detail:'开瓶 0.18 秒 · 扩散 0.33 秒 · 每只最多 144 伤害'},
   fan:{short:'旋风电扇',role:'热餐风卷',description:'电扇卷起餐盒的热气，小票随风飘向外围，带出五处风卷。可以继续跑，把追来的怪引进热风。',detail:`主圈半径 ${CONFIG.skills.fan.fullRadius} · 留地 2.8 秒 · 每只最多 ${CONFIG.skills.fan.damage} 伤害`},
   skate:{short:'滑板环绕',role:'持续环带',description:'滑板绕身攻击；内圈空隙没有伤害保护，仍需移动躲避。',detail:`环带 ${CONFIG.skills.skate.inner}–${CONFIG.skills.skate.outer} · 持续 4 秒 · 每只每 0.5 秒 ${CONFIG.skills.skate.damage} 伤害`},
   soda:{short:'汽水缓速',role:'地面减速',description:'汽水溅湿附近敌人，并在地上留下三片蓝色水洼。后来走进水洼的怪也会减速。',detail:`溅射半径 ${CONFIG.skills.soda.radius} · 水洼持续 3 秒 · 速度降至 35%`},

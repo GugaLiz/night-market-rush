@@ -1,5 +1,6 @@
 import {CONFIG, WORLD} from '../core/config';
-import {DEFAULT_SETTINGS, WEAPON_NAMES} from '../shared/types';
+import {DEFAULT_SETTINGS, ULTIMATE_KINDS, WEAPON_NAMES} from '../shared/types';
+import {expressLift,TOSS_DURATION} from '../core/ultimates';
 import type {Enemy, GameEvent, GameState, Settings, Vec, WeaponKind} from '../shared/types';
 import type {Assets, SpriteName} from './assets';
 import {drawSprite} from './sprite';
@@ -10,6 +11,8 @@ import {drawDeliveryPickup, drawDeliveryUse, drawUseRipple, useLifetime} from '.
 import {WEAPONS} from '../core/weapons';
 import {drawChainLink, drawFlightWake, drawWeaponContact, type WeaponContact} from './weapon-effects';
 import {drawMeleeWaves} from './melee-waves';
+import {drawUltimateGround,drawUltimateAir} from './ultimate-fx';
+import {drawEnemyAttackGround,drawEnemyAttackDetail,drawGiantPulses,drawSoupShot,getEnemyAttackPose,drawEnemyVitals,drawIceShell} from './enemy-clay-fx';
 import {drawGroundCoins, drawMarketBackground, drawSkillFields} from './market-floor';
 
 type Effect = {kind: string; x: number; y: number; age: number; duration: number; label?: string; angle?:number; sprite?:string; power?:number; from?:Vec};
@@ -80,13 +83,18 @@ export class Renderer {
         if(this.skillUses.length>16)this.skillUses.shift();
       } else if (event.type === 'coin') {
         this.burst(event.x, event.y - 8, '#ffe49a', 5);
+      } else if(event.type==='ultimateBeat') {
+        const force=event.kind==='berry'?.22:event.kind==='steamer'?.11:event.kind==='express'&&event.beat===3?.16:.065;
+        this.shake=Math.max(this.shake,force);
       } else if (event.type === 'kill') {
         const seed=event.victimId??Math.round(event.x);
-        const launched=crowd&&Math.hypot(originX-event.x,originY-event.y)<260;
+        const ultimate=ULTIMATE_KINDS.some(kind=>kind===event.source);
+        const launched=ultimate||crowd&&Math.hypot(originX-event.x,originY-event.y)<260;
         const strike=this.contacts.find(hit=>hit.seed===event.victimId&&hit.age===0);
-        const angle=strike?.angle??(launched?Math.atan2(event.y-originY,event.x-originX)+Math.sin(seed)*.24:seed*2.40);
+        const angle=event.impactAngle??strike?.angle??(launched?Math.atan2(event.y-originY,event.x-originX)+Math.sin(seed)*.24:seed*2.40);
+        const power=ultimate?(event.source==='berry'?65:48)+seed%23:launched?42+seed%29:strike?22:12;
         this.burst(event.x,event.y-16,launched?'#ffdb86':'#ffe6a0',launched?5:4);
-        this.effects.push({kind:'defeat',x:event.x,y:event.y,age:0,duration:launched?.41:.25,sprite:event.kind,angle,power:launched?42+seed%29:strike?22:12});
+        this.effects.push({kind:'defeat',x:event.x,y:event.y,age:0,duration:ultimate?.46:launched?.41:.25,sprite:event.kind,angle,power});
       } else if(event.type==='damage') {
         if((event.burstIndex??1)!==1)continue;
         if(event.victimId===0){
@@ -128,7 +136,7 @@ export class Renderer {
     dt = Math.min(.05, Math.max(0, dt));
     if(mode==='pause')dt=0;
     this.frameDt=dt;
-    if(state)this.labels.update(dt,state);
+    if(state)this.labels.update(dt,state,this.settings.reduceMotion);
     this.clock += dt; this.shake = Math.max(0, this.shake - dt);
     if(this.impact){this.impact.age+=dt;if(this.impact.age>.38)this.impact=null;}
     this.effects.forEach(effect => { effect.age += dt; });
@@ -176,19 +184,17 @@ export class Renderer {
     const glow = c.createRadialGradient(940, 390, 10, 940, 390, 320);
     glow.addColorStop(0, '#ffdc9e45'); glow.addColorStop(1, '#ffdc9e00');
     c.fillStyle = glow; c.fillRect(620, 100, 660, 550);
-    this.shadow(945, 570, 105, .24);
-    this.sprite('courierA', 950, 570 + Math.sin(t * 2) * 4, 300, 1, Math.sin(t * 1.5) * .025);
-    this.shadow(770, 590, 37, .2); this.sprite('bun', 770, 583 + Math.sin(t * 3) * 5, 95, 1, -.1);
-    this.shadow(1135, 585, 43, .2); this.sprite('box', 1135, 580 + Math.sin(t * 3 + 2) * 5, 110, -1, .08);
-    this.sprite('fan', 785, 360 + Math.sin(t * 2 + 1) * 7, 70, 1, -.12);
-    this.sprite('soda', 1135, 330 + Math.sin(t * 2) * 7, 78, 1, .18);
-    this.sprite('skate', 1080, 640 + Math.sin(t * 2) * 4, 50, 1, -.1);
+    this.shadow(861, 581, 92, .25);
+    this.sprite('courierA',861,583+Math.sin(t*1.9)*1.6,373,1,Math.sin(t*1.35)*.007);
+    this.shadow(1090,588,47,.22);
+    this.sprite('bun',1090,587-Math.abs(Math.sin(t*2.1))*3,123,-1,-.045);
   }
 
   private battle(s: GameState): void {
     const c = this.ctx, t = this.settings.reduceMotion ? 0 : s.time;
     this.trackFootwork(s);
     drawSkillFields(c, s.fields, s.time, this.settings.quality === 'simple', this.settings.reduceMotion, this.assets);
+    drawUltimateGround(c,s,this.settings,this.assets);
     this.skillUses=this.skillUses.filter(use=>s.time-use.time<useLifetime);
     for(const use of this.skillUses)if(use.kind==='soda'||use.kind==='bell'){
       drawUseRipple(c,use,s.time-use.time,CONFIG.skills[use.kind].radius,this.settings.reduceMotion);
@@ -200,11 +206,12 @@ export class Renderer {
       const age = s.time - e.spawnAt;
       if (age < CONFIG.spawn.warning) {
         c.save(); c.strokeStyle = '#ffbd79'; c.fillStyle = '#38242d55'; c.lineWidth = 3;
-        c.setLineDash([5, 5]); c.beginPath(); c.ellipse(e.x, e.y, 25, 12, 0, 0, Math.PI * 2); c.fill(); c.stroke(); c.restore();
+        const radius=e.kind==='giantBun'?56:25;
+        c.setLineDash([5, 5]); c.beginPath(); c.ellipse(e.x, e.y, radius, radius*.48, 0, 0, Math.PI * 2); c.fill(); c.stroke(); c.restore();
       }
-      if (e.phase === 'warn' || e.phase === 'dash') this.dashWarning(e, s.time);
-      if((e.shotWarnUntil??0)>s.time)this.shotWarning(e,s.time);
+      if(age>=CONFIG.spawn.warning)drawEnemyAttackGround(c,e,s.time,this.settings);
     }
+    drawGiantPulses(c,s,this.settings,this.assets);
     for(const drop of s.weaponDrops){
       this.shadow(drop.x,drop.y,27,.25);
       c.save();c.strokeStyle=drop.returnDrop?'#a6d4c1':'#ffe39d';c.fillStyle='#ffd88718';c.lineWidth=3;c.beginPath();c.ellipse(drop.x,drop.y,31,13,0,0,Math.PI*2);c.fill();c.stroke();
@@ -217,7 +224,7 @@ export class Renderer {
     this.drawEffects(false);
     if (s.player.skateUntil > s.time) this.skateRing(s, false);
     const enemies=[...s.enemies].sort((a,b)=>a.y-b.y);
-    for(const e of enemies)this.enemy(e,s.time,e.id===s.weapon.targetId);
+    for(const e of enemies)this.enemy(e,s,e.id===s.weapon.targetId);
     this.drawEffects(true);
     for(const hit of this.contacts)drawWeaponContact(c,hit,this.settings,this.assets.strikes);
     for (const p of this.particles) {
@@ -225,6 +232,7 @@ export class Renderer {
       c.beginPath(); c.arc(p.x, p.y, p.size * (1 - .4 * p.age / p.duration), 0, Math.PI * 2); c.fill();
     }
     c.globalAlpha = 1;
+    drawUltimateAir(c,s,this.settings,this.assets);
     // Route choices and the courier stay legible even when a full row erupts at once.
     for(const pickup of s.pickups)drawDeliveryPickup(c,this.assets,pickup,s.player,s.time,this.settings.reduceMotion);
     this.drawCourier(s);
@@ -235,7 +243,7 @@ export class Renderer {
     this.playerStatus(s);
     if (s.player.skateUntil > s.time) this.skateRing(s, true);
     this.labels.draw(c,this.assets,s,this.settings.reduceMotion);
-    this.enemyProjectiles(s);
+    for(const shot of s.enemyShots??[])drawSoupShot(c,shot);
   }
 
   private drawGroundImpact():void {
@@ -273,7 +281,8 @@ export class Renderer {
     const useAge=use?Math.max(0,s.time-use.time):Infinity;
     const trayInFlight=s.weapon.kind==='tray'&&s.projectiles.some(q=>q.kind==='tray');
     const movingGhosts=!this.settings.reduceMotion&&this.settings.quality==='standard';
-    this.shadow(p.x,p.y,24,.28);
+    const lift=expressLift(s)*(this.settings.reduceMotion?.32:1);
+    this.shadow(p.x,p.y,24-lift*.12,.28-lift*.002);
     // Keep the ground marker below the planted shoes so the soles read against the floor.
     c.save();c.globalAlpha*=.55;c.strokeStyle='#fff1bc';c.lineWidth=1.45;
     c.beginPath();c.ellipse(p.x,p.y,p.radius+2,4,0,0,TAU);c.stroke();c.restore();
@@ -300,71 +309,61 @@ export class Renderer {
       this.rig.draw(stamp,p,s.weapon,s.time,this.frameDt,this.settings,1.35,s.ended,trayInFlight,useAge);
       stamp.restore();c.drawImage(image,x,y);
       this.ghosts.push({image,x,y,time:s.time});
-    }else this.rig.draw(c,p,s.weapon,s.time,this.frameDt,this.settings,1.35,s.ended,trayInFlight,useAge);
-  }
-
-  private enemy(e: Enemy, time: number, target=false): void {
-    const c = this.ctx, t = this.settings.reduceMotion ? 0 : time;
-    const age = time - e.spawnAt, spawning = age < CONFIG.spawn.warning;
-    const height = e.kind === 'bowl' ? 75 : e.kind === 'box' ? 65 : 55;
-    const bounce = e.phase === 'warn' || e.phase === 'recover' ? 0 : Math.abs(Math.sin(t * (e.phase === 'dash' ? 24 : 9) + e.id)) * 3;
-    c.save();
-    if (spawning) c.globalAlpha = .2 + .6 * age / CONFIG.spawn.warning;
-    this.shadow(e.x, e.y, e.kind === 'bowl' ? 26 : 18, .24);
-    const strike=time-e.hurtAt<.21?this.contacts.find(hit=>hit.seed===e.id&&hit.age<=.21):undefined;
-    const recoil=strike&&!this.settings.reduceMotion?Math.sin(Math.PI*strike.age/.21)*(1-strike.age/.21):0;
-    const dir=strike?.angle??0;
-    c.save();c.translate(e.x+Math.cos(dir)*recoil*13,e.y+Math.sin(dir)*recoil*9-bounce);
-    c.scale(1+.08*recoil,1-.08*recoil);
-    this.sprite(e.kind,0,0,height,e.facing,(e.phase==='warn'?Math.sin(t*35)*.04:Math.sin(t*7+e.id)*.035)+Math.cos(dir)*recoil*.18);
-    c.restore();
-    if(!strike&&time-e.hurtAt<.13){c.strokeStyle='#fff2bb';c.lineWidth=2;c.beginPath();c.ellipse(e.x,e.y-height*.45,height*.42,height*.48,0,0,Math.PI*2);c.stroke();}
-    if(e.hp<e.maxHp&&(target||time-e.hurtAt<2)){const w=e.kind==='bowl'?54:42,y=e.y-height-10;c.fillStyle='#35292c';c.fillRect(e.x-w/2-1,y-1,w+2,7);c.fillStyle='#e16a58';c.fillRect(e.x-w/2,y,w*e.hp/e.maxHp,5);}
-    if(e.stunUntil>time){for(let i=0;i<3;i++){const a=t*4+i*2.1;this.caption('✦',e.x+Math.cos(a)*18,e.y-height-16+Math.sin(a)*3,14,'#fff2a1');}}
-    if (e.slowUntil > time) {
-      c.strokeStyle = '#9af8e3'; c.fillStyle = '#8af2d825'; c.lineWidth = 2;
-      c.beginPath(); c.ellipse(e.x, e.y - height * .45, height * .43, height * .54, 0, 0, Math.PI * 2); c.fill(); c.stroke();
-      for (let i = 0; i < 3; i++) {
-        c.beginPath(); c.arc(e.x + Math.sin(i * 2.5 + t) * height * .4, e.y - (i * 17 + t * 14) % height, 3 + i, 0, Math.PI * 2); c.stroke();
+    }else{
+      const previousLaunch=this.rig.launch?.id;
+      c.save();c.translate(0,-lift);
+      this.rig.draw(c,p,s.weapon,s.time,this.frameDt,this.settings,1.35,s.ended,trayInFlight,useAge,lift/49);
+      c.restore();
+      if(lift){
+        if(this.rig.supplyHand)this.rig.supplyHand.y-=lift;
+        if(this.rig.bagPoint)this.rig.bagPoint.y-=lift;
+        if(this.rig.trayCatch)this.rig.trayCatch.y-=lift;
+        if(this.rig.launch&&this.rig.launch.id!==previousLaunch)this.rig.launch.point.y-=lift;
       }
     }
-    if (e.phase === 'warn') {
-      c.font = 'bold 26px sans-serif'; c.textAlign = 'center'; c.lineWidth = 4; c.strokeStyle = '#573523'; c.strokeText('!', e.x, e.y - height - 8); c.fillStyle = '#fff3b6'; c.fillText('!', e.x, e.y - height - 8);
+  }
+
+  private enemy(e:Enemy,s:GameState,target:boolean):void {
+    const c=this.ctx,time=s.time,reduced=this.settings.reduceMotion;
+    const t=reduced?0:time,age=time-e.spawnAt,giant=e.kind==='giantBun';
+    const bun=giant||e.kind==='bun',low=e.hp<=e.maxHp*.35;
+    const hurt=bun&&time-e.hurtAt<.16,frozen=(e.chilledUntil??0)>time;
+    const sprite=hurt?'bunHurt':bun&&low?'bunLow':e.kind;
+    const baseHeight=giant?152:e.kind==='bowl'?75:e.kind==='box'?65:55;
+    const height=baseHeight*(bun&&low&&!hurt?.84:1);
+    const posed=getEnemyAttackPose(e,time,this.settings);
+    const stride=reduced||giant||frozen||e.stunUntil>time||e.phase==='warn'||e.phase==='recover'?0:
+      Math.abs(Math.sin(t*(e.phase==='dash'?24:9)+e.id))*3;
+    const strike=time-e.hurtAt<.21?this.contacts.find(hit=>hit.seed===e.id&&hit.age<=.21):undefined;
+    const recoil=strike&&!reduced?Math.sin(Math.PI*strike.age/.21)*(1-strike.age/.21):0;
+    const launchAge=time-(e.tossAt??-Infinity);
+    const toss=launchAge>=0&&launchAge<TOSS_DURATION&&!reduced?Math.sin(Math.PI*launchAge/TOSS_DURATION)*(e.tossHeight??0):0;
+    const dir=strike?.angle??0,foot=e.y-stride-posed.lift-toss;
+    c.save();
+    if(age<CONFIG.spawn.warning)c.globalAlpha=.2+.6*Math.max(0,age)/CONFIG.spawn.warning;
+    const shade=giant?38:e.kind==='bowl'?26:18;
+    this.shadow(e.x,e.y,shade*(1-.003*(posed.lift+toss)),.24-.0014*(posed.lift+toss));
+    c.save();c.translate(e.x+Math.cos(dir)*recoil*13,foot+Math.sin(dir)*recoil*9);
+    c.scale((1+.08*recoil)*posed.scaleX,(1-.08*recoil)*posed.scaleY);
+    const tilt=posed.tilt+Math.cos(dir)*recoil*.18+(stride?Math.sin(t*7+e.id)*.035:0);
+    this.sprite(sprite,0,0,height,e.facing,tilt);
+    c.restore();
+    if(age>=CONFIG.spawn.warning)drawEnemyAttackDetail(c,e,time,this.settings,s.player);
+    if(!hurt&&!strike&&time-e.hurtAt<.13){c.strokeStyle='#fff2bb';c.lineWidth=2;c.beginPath();c.ellipse(e.x,foot-height*.45,height*.42,height*.48,0,0,Math.PI*2);c.stroke();}
+    const headY=foot-height*posed.scaleY;
+    if(frozen){
+      drawIceShell(c,e.x,foot,height);
+    }else{
+      if(e.stunUntil>time)for(let i=0;i<3;i++){const angle=t*4+i*2.1;this.caption('✦',e.x+Math.cos(angle)*18,headY-12+Math.sin(angle)*3,14,'#fff2a1');}
+      if(e.slowUntil>time){
+        c.strokeStyle='#9af8e3';c.fillStyle='#8af2d825';c.lineWidth=2;
+        c.beginPath();c.ellipse(e.x,foot-height*.45,height*.43,height*.54,0,0,Math.PI*2);c.fill();c.stroke();
+      }
+    }
+    if(e.hp<e.maxHp&&(giant||target||time-e.hurtAt<(this.denseScene?.6:2)||(low&&s.enemies.length<8))){
+      drawEnemyVitals(c,e,headY-12,giant||target||s.enemies.length<8);
     }
     c.restore();
-  }
-
-  private dashWarning(e: Enemy, time: number): void {
-    const c = this.ctx;
-    // The simulation locks the unit direction on entering warn; never point at a moving player.
-    const distance = CONFIG.dash.speed * CONFIG.dash.duration;
-    const targetX = e.x + e.dashX * distance, targetY = e.y + e.dashY * distance;
-    c.save(); c.beginPath(); c.rect(WORLD.bounds.left, WORLD.bounds.top, WORLD.bounds.right - WORLD.bounds.left, WORLD.bounds.bottom - WORLD.bounds.top); c.clip();
-    c.lineCap = 'round'; c.strokeStyle = '#f66a4738'; c.lineWidth = e.radius * 2;
-    c.beginPath(); c.moveTo(e.x, e.y); c.lineTo(targetX, targetY); c.stroke();
-    c.strokeStyle = e.phase === 'dash' ? '#ffe2a6' : '#ffbb76'; c.lineWidth = 2;
-    c.setLineDash([9, 9]); c.lineDashOffset = this.settings.reduceMotion ? 0 : -time * 24;
-    c.beginPath(); c.moveTo(e.x, e.y); c.lineTo(targetX, targetY); c.stroke(); c.setLineDash([]);
-    const angle = Math.atan2(e.dashY, e.dashX);
-    c.translate(targetX, targetY); c.rotate(angle); c.beginPath(); c.moveTo(-12, -7); c.lineTo(0, 0); c.lineTo(-12, 7); c.stroke(); c.restore();
-  }
-
-  private shotWarning(e:Enemy,time:number):void {
-    const c=this.ctx,a=e.shotAngle??0,progress=1-((e.shotWarnUntil??time)-time)/CONFIG.ranged.warning;
-    c.save();c.beginPath();c.rect(WORLD.bounds.left,WORLD.bounds.top,WORLD.bounds.right-WORLD.bounds.left,WORLD.bounds.bottom-WORLD.bounds.top);c.clip();
-    const travel = CONFIG.ranged.speed * CONFIG.ranged.lifetime;
-    c.translate(e.x,e.y);c.rotate(a);c.strokeStyle='#ed805ba0';c.lineWidth=2;c.setLineDash([7,8]);c.beginPath();c.moveTo(0,0);c.lineTo(travel,0);c.stroke();c.setLineDash([]);
-    c.fillStyle='#ffb789';c.beginPath();c.moveTo(55,-6);c.lineTo(66,0);c.lineTo(55,6);c.fill();c.restore();
-    c.save();c.strokeStyle='#ffe1a5';c.lineWidth=3;c.beginPath();c.arc(e.x,e.y-42,19,-Math.PI/2,-Math.PI/2+Math.PI*2*Math.max(0,progress));c.stroke();c.restore();
-  }
-
-  private enemyProjectiles(s:GameState):void {
-    const c=this.ctx;
-    for(const q of s.enemyShots??[]){
-      const angle=Math.atan2(q.vy,q.vx);this.shadow(q.x,q.y,9,.14);
-      c.save();c.translate(q.x,q.y);c.rotate(angle);c.strokeStyle='#fff0c180';c.lineWidth=4;c.beginPath();c.moveTo(-22,0);c.lineTo(-7,0);c.stroke();
-      c.fillStyle='#ed8857';c.strokeStyle='#643b2d';c.lineWidth=2;c.beginPath();c.moveTo(-13,0);c.bezierCurveTo(-4,-12,10,-10,10,0);c.bezierCurveTo(10,10,-4,12,-13,0);c.fill();c.stroke();c.fillStyle='#fff1ba';c.beginPath();c.ellipse(2,-3,4,2,0,0,Math.PI*2);c.fill();c.restore();
-    }
   }
 
   private skateRing(s: GameState, front: boolean): void {
@@ -417,7 +416,7 @@ export class Renderer {
       if(front&&e.kind==='defeat'&&e.sprite){
         const motion=this.settings.reduceMotion?0:progress;
         const distance=e.power??12, angle=e.angle??0, push=1-(1-motion)**2;
-        const height=e.sprite==='bowl'?75:e.sprite==='box'?65:55;
+        const height=e.sprite==='giantBun'?152:e.sprite==='bowl'?75:e.sprite==='box'?65:55;
         const hop=Math.sin(motion*Math.PI)*distance*.82;
         const x=e.x+Math.cos(angle)*distance*push, groundY=e.y+Math.sin(angle)*distance*push*.6;
         const spin=Math.cos(angle)*motion*(distance>35?1.25:.45);
@@ -507,7 +506,16 @@ export class Renderer {
         if(q.phase==='out')fromHand=Math.max(0,1-q.travelled/Math.max(1,Math.hypot(offsetX,offsetY)*1.7));
         if(q.phase==='flight')fromHand=Math.max(0,1-(s.time-q.bornAt)/.65);
       }
-      const x=q.x+offsetX*fromHand, y=q.y-baseHeight+offsetY*fromHand;
+      let x=q.x+offsetX*fromHand, y=q.y-baseHeight+offsetY*fromHand;
+      if(q.kind==='tray'&&q.phase==='return'){
+        // The simulation homes on the player's ground position. Raise the approaching disc to the live glove.
+        const hand=this.rig.trayCatch??this.rig.supplyHand;
+        if(hand){
+          const near=1-Math.min(1,Math.hypot(q.x-s.player.x,q.y-s.player.y)/95);
+          const catchMix=near*near*(3-2*near);
+          x+=(hand.x-s.player.x)*catchMix;y+=(hand.y-s.player.y+baseHeight)*catchMix;
+        }
+      }
       const trailLimit=this.settings.reduceMotion?18:this.settings.quality==='simple'?43:65;
       if(q.phase==='out'||q.phase==='return')drawFlightWake(c,q.kind,x,y,a,Math.min(trailLimit,q.travelled),q.phase==='return');
       if(q.kind==='bag'){

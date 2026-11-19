@@ -51,7 +51,7 @@ function observeOpening() {
       // Remove the exact scale and shake transform used for the painted floor.
       if (!cameraInverse && args.length === 4 && args[2] === 1280 && args[3] === 720)
         cameraInverse = this.getTransform().inverse();
-      if (args.length === 8 && pickupShadow && source.src.endsWith('/skills-v2.png')) {
+      if (args.length === 8 && pickupShadow && source.src.endsWith('/clay-supplies.webp')) {
         const column = Math.floor(args[0]*4/source.naturalWidth), row = Math.floor(args[1]*4/source.naturalHeight);
         frame.pickups.push({...pickupShadow, isFan:row === 0 && column === 0});
         pickupShadow = undefined;

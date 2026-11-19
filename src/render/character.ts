@@ -14,7 +14,9 @@ const smooth=(v:number)=>{const t=clamp(v);return t*t*(3-2*t);};
 const angleBlend=(a:number,b:number,t:number)=>a+Math.atan2(Math.sin(b-a),Math.cos(b-a))*t;
 const widths:Record<WeaponKind,number>={tongs:34,bag:26,chopsticks:31,spirit:23,knife:29,tray:27,umbrella:35,sword:43,lunchbox:26,talisman:24};
 const hipWidth=6;
+const hipHeight=26;
 const legReach=31;
+const bagTilt=1.33;
 
 export class CourierRig {
   private gait=new CourierGait();
@@ -30,17 +32,18 @@ export class CourierRig {
   launch:{id:number;point:Point}|null=null;
   bagPoint:Vec|null=null;
   supplyHand:Vec|null=null;
+  trayCatch:Vec|null=null;
 
   constructor(private assets:Assets){this.blades=new HeldBlades(assets);}
   reset():void {
     this.gait.reset();this.flip=1;this.back=false;this.previousFacing={flip:1,back:false};
-    this.look={x:1,y:0};this.turnMix=1;this.effort=0;this.crouch=0;this.packSwing=0;this.launch=null;this.bagPoint=null;this.supplyHand=null;
+    this.look={x:1,y:0};this.turnMix=1;this.effort=0;this.crouch=0;this.packSwing=0;this.launch=null;this.bagPoint=null;this.supplyHand=null;this.trayCatch=null;
   }
 
-  draw(ctx:CanvasRenderingContext2D,p:Player,weapon:WeaponState,time:number,dt:number,settings:Settings,scale=1,dead=false,trayInFlight=false,skillUseAge=Infinity):void {
+  draw(ctx:CanvasRenderingContext2D,p:Player,weapon:WeaponState,time:number,dt:number,settings:Settings,scale=1,dead=false,trayInFlight=false,skillUseAge=Infinity,jump=0):void {
     const step=clamp(dt,0,.1),speed=Math.hypot(p.vx,p.vy);
     const dash=!dead&&(p.dashUntil??0)>time;
-    this.gait.update(p,dead?0:step,scale,dash);
+    this.gait.update(p,dead?0:step,scale,dash||jump>0);
     const attack=dead?null:weapon.attack,kind=weapon.kind;
     const melee=attack?meleePose(attack,time):null;
     const cfg=WEAPONS[kind];
@@ -71,6 +74,10 @@ export class CourierRig {
     });
     const footR=lifted(flip===1?this.gait.right:this.gait.left);
     const footL=lifted(flip===1?this.gait.left:this.gait.right);
+    if(jump>0){
+      footR.x=lerp(footR.x,17,jump);footR.y=lerp(footR.y,-9,jump);footR.pitch-=.32*jump;
+      footL.x=lerp(footL.x,-17,jump);footL.y=lerp(footL.y,-13,jump);footL.pitch+=.38*jump;
+    }
     const delayedX=this.gait.velocity.x/CONFIG.player.speed*flip,delayedY=this.gait.velocity.y/CONFIG.player.speed;
     const turnLean=clamp(p.vx/CONFIG.player.speed*flip-delayedX,-1,1);
     const shift=this.gait.weight*flip*accent;
@@ -85,23 +92,24 @@ export class CourierRig {
     // Load one leg while standing and shift onto the striking side through release.
     // The shoes stay on their planted world positions during a standing attack.
     const hipX=shift*2.5+(1-running)*(.85+hx*flip*effort*.96);
-    const upperX=hipX*.55+clamp(delayedX*(dash?7:5.6)+turnLean*4,-10,10)*accent+hx*flip*lean;
-    const hurt=!dead&&time-p.hurtAt<.1?1-clamp((time-p.hurtAt)/.1):0;
-    const bounce=dead?17:lerp(-4.5,-1,running)+(dash?3:0)+this.gait.rise*accent+hurt*.6+
+    const hurtAge=time-p.hurtAt;
+    const hurt=dead||hurtAge<0?0:smooth(hurtAge/.035)*(1-smooth((hurtAge-.055)/.28));
+    const upperX=hipX*.55+clamp(delayedX*(dash?7:5.6)+turnLean*4,-10,10)*accent+hx*flip*lean-hurt*3*accent;
+    const bounce=dead?17:lerp(.5,3.5,running)+(dash?3:0)+this.gait.rise*accent+hurt*.6+
       hy*lean*lerp(.19,.45,running)+(windup&&heavy?1.2*phase:0);
     // In this top-down projection a planted foot can trail toward the camera on a
     // sharp turn. Lower the pelvis over the extended leg while the other foot lands.
     const minHipY=(foot:typeof footR,side:1|-1)=>{
       const dx=foot.x-(side===1?1:0)-(side*hipWidth+hipX);
       const verticalReach=Math.sqrt(Math.max(0,legReach*legReach-dx*dx));
-      return foot.y-5+28-side*hipRoll*hipWidth-verticalReach;
+      return foot.y-5+hipHeight-side*hipRoll*hipWidth-verticalReach;
     };
     const neededDrop=clamp(Math.max(minHipY(footR,1),minHipY(footL,-1))-bounce,0,6);
     this.crouch=lerp(this.crouch,neededDrop,1-Math.exp(-step/(neededDrop>this.crouch?.032:.065)));
     const bodyY=dead?bounce:bounce+this.crouch;
     // The quiet breath lifts the jacket and shoulders without bouncing both knees.
     const breath=dead||settings.reduceMotion?0:Math.sin(time*2.45)*.44*(1-running);
-    const chest:Point={x:upperX,y:-44+bodyY+breath+delayedY*running*1.3*accent};
+    const chest:Point={x:upperX,y:-42+bodyY+breath+delayedY*running*1.3*accent};
     const sweepTurn=melee?Math.sin(melee.angle-heading)*(windup?smooth(phase):settle):0;
     const shoulderRoll=-hipRoll*.8+(stepSwing*.045+sweepTurn*(heavy?.17:.11))*accent;
     const shoulderR={x:upperX+8,y:chest.y-6+shoulderRoll*8},shoulderL={x:upperX-8,y:chest.y-6-shoulderRoll*8};
@@ -159,13 +167,13 @@ export class CourierRig {
       if(!active)toolAngle=angleBlend(idleAngle,toolAngle,windup?smooth(phase):settle);
     }
     // The loaded box swings from its strap and settles after a turn.
-    const packTarget=(stepSwing*.115+turnLean*.18+(dash?-.19:0))*accent;
+    const packTarget=(stepSwing*.115+turnLean*.18+(dash?-.19:0)+hurt*.22)*accent;
     this.packSwing=lerp(this.packSwing,packTarget,1-Math.exp(-step/.074));
     const backWeight=lerp(Number(this.previousFacing.back),Number(back),smooth(this.turnMix));
-    const packX=upperX*.54+lerp(-13,-4,backWeight)+this.packSwing*7;
-    const packY=-26.5+bodyY*.83-Math.abs(this.packSwing)*5;
+    const packX=upperX*.54+lerp(-13,-4,backWeight)+this.packSwing*7+hurt*1.8;
+    const packY=-26.5+bodyY*.83-Math.abs(this.packSwing)*5-hurt*2.4;
     const tilt=shoulderRoll*.48+this.packSwing;
-    const packHeight=lerp(22,24,backWeight),packWidth=lerp(24,27,backWeight);
+    const packHeight=lerp(23,25,backWeight),packWidth=lerp(27,30,backWeight);
     const handleY=-packHeight*.91;
     const handle={x:packX-Math.sin(tilt)*handleY,y:packY+Math.cos(tilt)*handleY};
     this.bagPoint={x:p.x+flip*scale*handle.x,y:p.y+scale*handle.y};
@@ -179,29 +187,36 @@ export class CourierRig {
       const held={x:shoulderL.x-14,y:shoulderL.y-7+3*smooth((skillUseAge-.30)/.18)};
       left=blend(left,blend(handle,held,lift),take);
     }
+    // Catch the tilted helmet with the free hand while the feet keep following input.
+    const guard=hurt*(1-take);
+    if(guard>0){
+      left=blend(left,{x:shoulderL.x-11,y:shoulderL.y-17},guard);
+      if(!attack){
+        right=blend(right,handle,guard*.82);
+        toolAngle=angleBlend(toolAngle,.76,guard);
+      }
+    }
     if(dead){right={x:20,y:-17};left={x:-20,y:-17};toolAngle=1.1;footR.x=17;footL.x=-16;footR.y=0;footL.y=0;}
     ctx.save();
     // Small atlas details such as shoelaces should stay steady as a foot moves between pixels.
     ctx.imageSmoothingQuality='medium';
     ctx.translate(p.x,p.y);ctx.scale(scale*flip,scale);
     if(!dead&&p.invulnerableUntil>time)ctx.globalAlpha*=settings.reduceMotion?.84:.81+Math.sin(time*12)*.05;
-    const hipR={x:hipWidth+hipX,y:-28+bodyY+hipRoll*hipWidth},hipL={x:-hipWidth+hipX,y:-28+bodyY-hipRoll*hipWidth};
+    const hipR={x:hipWidth+hipX,y:-hipHeight+bodyY+hipRoll*hipWidth},hipL={x:-hipWidth+hipX,y:-hipHeight+bodyY-hipRoll*hipWidth};
     const rightInFront=(footR.y+footR.lift)>(footL.y+footL.lift);
     const kneeFacing=.65+Math.abs(this.look.x)*.35;
     this.leg(ctx,rightInFront?hipL:hipR,rightInFront?footL:footR,rightInFront?'L':'R',dead,kneeFacing);
     this.leg(ctx,rightInFront?hipR:hipL,rightInFront?footR:footL,rightInFront?'R':'L',dead,kneeFacing);
-    this.bodyPart(ctx,'rigHipFront','rigHipBack',hipX,-24+bodyY,12,hipRoll,21);
-    if(take===0)this.arm(ctx,shoulderL,left,'L',-1);
+    this.bodyPart(ctx,'rigHipFront','rigHipBack',hipX,-22+bodyY,14,hipRoll,28);
+    if(take===0&&guard===0)this.arm(ctx,shoulderL,left,'L',-1);
     const drawPack=()=>{
       this.bodyPart(ctx,'rigBagSide','rigBag',packX,packY,packHeight,tilt,packWidth);
       if(lid>.01)this.openLid(ctx,packX,packY,tilt,packWidth,packHeight,lid);
     };
     if(!back)drawPack();
-    this.bodyPart(ctx,'rigTorsoFront','rigTorsoBack',upperX*.70,-30+bodyY+breath,25-hurt*.8,dead?-.08:upperX*.023+shoulderRoll,23);
+    this.bodyPart(ctx,'rigTorsoFront','rigTorsoBack',upperX*.70,-28+bodyY+breath,25-hurt*.8,dead?-.08:upperX*.023+shoulderRoll,31);
     if(back)drawPack();
-    if(take>0)this.arm(ctx,shoulderL,left,'L',-1);
-    // arm() clamps its target to the actual wrist through two-bone IK.
-    this.supplyHand={x:p.x+flip*scale*left.x,y:p.y+scale*left.y};
+    if(take>0&&guard===0)this.arm(ctx,shoulderL,left,'L',-1);
     this.arm(ctx,shoulderR,right,'R',1);
     if(active&&releasePoint){
       const wristAngle=Math.atan2(releasePoint.y-right.y,releasePoint.x-right.x);
@@ -221,16 +236,37 @@ export class CourierRig {
         ctx.globalAlpha=alpha*umbrellaSpread;
         this.tool(ctx,'umbrellaOpen',right,toolAngle+1.78,lerp(40,51,umbrellaSpread),lerp(.50,1,umbrellaSpread));
         ctx.globalAlpha=alpha;
-      }else if(kind!=='tray'||!trayInFlight){
+      }else if(kind!=='tray'||!trayInFlight||windup){
         this.tool(ctx,kind,right,toolAngle,widths[kind],stretch);
       }
     };
     const toolBehindHead=melee?Math.sin(toolAngle)<-.12:back;
     if(toolBehindHead)drawTool();
-    this.bodyPart(ctx,'rigHeadFront','rigHeadBack',upperX-2,-52+bodyY*.84+breath*.65,35,dead?-.19:shoulderRoll*.38+upperX*.009,43);
+    const headX=upperX-2-hurt*1.8,headY=-47+bodyY*.84+breath*.65;
+    const headTilt=dead?-.19:shoulderRoll*.38+upperX*.009-hurt*.15*accent;
+    const face=hurt>.16?'rigHeadHurt':attack&&Math.abs(effort)>.42?'rigHeadStrike':'rigHeadFront';
+    this.bodyPart(ctx,face,'rigHeadBack',headX,headY,49,headTilt,59);
+    if(guard>0)this.arm(ctx,shoulderL,left,'L',-1);
+    // Use the physical wrist even while the courier is reaching for a supply and flinching together.
+    this.supplyHand={x:p.x+flip*scale*left.x,y:p.y+scale*left.y};
     if(!toolBehindHead)drawTool();
+    const equipmentPoint=(x:number,y:number):Point=>({
+      x:p.x+flip*scale*(right.x+x*Math.cos(toolAngle)-y*Math.sin(toolAngle)),
+      y:p.y+scale*(right.y+x*Math.sin(toolAngle)+y*Math.cos(toolAngle)),
+    });
+    if(kind==='tray'){
+      const tray=this.assets.sprites.tray;
+      // The glove grips the near rim. The centre of the flying plate lands beyond it.
+      this.trayCatch=equipmentPoint(widths.tray*.30,-widths.tray*tray.height/tray.width*.20);
+    }else this.trayCatch=null;
     if(attack&&active&&!melee&&this.launch?.id!==attack.id){
-      this.launch={id:attack.id,point:{x:p.x+flip*right.x*scale+hx*10,y:p.y+right.y*scale+hy*10}};
+      let point=this.trayCatch??{x:p.x+flip*right.x*scale+hx*10,y:p.y+right.y*scale+hy*10};
+      if(kind==='bag'){
+        // Mouth centre (74%, 15%) measured on the trimmed bag sprite; its bellows is held at (50%, 80%).
+        const bag=this.assets.sprites.bag,dx=widths.bag*.24,dy=-widths.bag*bag.height/bag.width*.65;
+        point=equipmentPoint(stretch*(dx*Math.cos(bagTilt)-dy*Math.sin(bagTilt)),dx*Math.sin(bagTilt)+dy*Math.cos(bagTilt));
+      }
+      this.launch={id:attack.id,point:{...point}};
     }
     ctx.restore();
   }
@@ -261,8 +297,8 @@ export class CourierRig {
     const upper=11.5,fore=12.5,dx=desired.x-shoulder.x,dy=desired.y-shoulder.y,d=Math.max(.1,Math.min(upper+fore-.1,Math.hypot(dx,dy))),angle=Math.atan2(dy,dx);
     const elbowAngle=angle+bend*Math.acos(clamp((upper*upper+d*d-fore*fore)/(2*upper*d),-1,1));
     const elbow={x:shoulder.x+Math.cos(elbowAngle)*upper,y:shoulder.y+Math.sin(elbowAngle)*upper},wrist={x:shoulder.x+Math.cos(angle)*d,y:shoulder.y+Math.sin(angle)*d};
-    this.part(ctx,side==='R'?'rigUpperR':'rigUpperL',shoulder.x,shoulder.y,upper+2,elbowAngle-Math.PI/2,.06,7.8);
-    this.part(ctx,side==='R'?'rigForeR':'rigForeL',elbow.x,elbow.y,fore+2,Math.atan2(wrist.y-elbow.y,wrist.x-elbow.x)-Math.PI/2,.1,7.8);
+    this.part(ctx,side==='R'?'rigUpperR':'rigUpperL',shoulder.x,shoulder.y,upper+2,elbowAngle-Math.PI/2,.06,9);
+    this.part(ctx,side==='R'?'rigForeR':'rigForeL',elbow.x,elbow.y,fore+2,Math.atan2(wrist.y-elbow.y,wrist.x-elbow.x)-Math.PI/2,.1,8.6);
     desired.x=wrist.x;desired.y=wrist.y;
   }
   private leg(ctx:CanvasRenderingContext2D,hip:Point,foot:Point&{pitch:number;lift:number},side:'L'|'R',dead:boolean,kneeFacing:number):void {
@@ -279,15 +315,17 @@ export class CourierRig {
     const bone=Math.max(14,d*.501),fold=Math.sqrt(Math.max(0,bone*bone-d*d*.25));
     const bend=Math.min(dead?10:lerp(side==='R'?1:2.5,10,stride),fold)*kneeFacing;
     const knee={x:(hip.x+ankle.x)*.5+dy/d*bend,y:(hip.y+ankle.y)*.5-dx/d*bend};
-    this.part(ctx,'rigThigh',hip.x,hip.y,Math.hypot(knee.x-hip.x,knee.y-hip.y)+3,Math.atan2(knee.y-hip.y,knee.x-hip.x)-Math.PI/2,.07,7.5);
-    this.part(ctx,'rigShin',knee.x,knee.y,Math.hypot(ankle.x-knee.x,ankle.y-knee.y)+2,Math.atan2(ankle.y-knee.y,ankle.x-knee.x)-Math.PI/2,.09,6.2);
-    this.part(ctx,side==='R'?'rigShoeR':'rigShoeL',ankle.x+heelOffset,ankle.y+5,8,dead?(side==='R'?.15:-.15):foot.pitch,1,12);
+    this.part(ctx,'rigThigh',hip.x,hip.y,Math.hypot(knee.x-hip.x,knee.y-hip.y)+3,Math.atan2(knee.y-hip.y,knee.x-hip.x)-Math.PI/2,.07,11.7);
+    this.part(ctx,'rigShin',knee.x,knee.y,Math.hypot(ankle.x-knee.x,ankle.y-knee.y)+2,Math.atan2(ankle.y-knee.y,knee.x-knee.x)-Math.PI/2,.09,9.4);
+    this.part(ctx,side==='R'?'rigShoeR':'rigShoeL',ankle.x+heelOffset,ankle.y+5,11.5,dead?(side==='R'?.15:-.15):foot.pitch,1,18.5);
   }
   private tool(ctx:CanvasRenderingContext2D,name:string,hand:Point,angle:number,width:number,stretch:number):void {
     const sprite=this.assets.sprites[name];if(!sprite)return;
     const upright=['spirit','lunchbox','talisman','bag','umbrellaOpen'].includes(name),height=width*sprite.height/sprite.width;
     const gripX=upright?.5:.2,gripY=upright?.8:.7;
     ctx.save();ctx.translate(hand.x,hand.y);ctx.rotate(angle);ctx.scale(stretch,1);
+    // The clay bag stands on its bellows in the inventory; aim its mouth from the wrist.
+    if(name==='bag')ctx.rotate(bagTilt);
     drawSprite(ctx,this.assets,name,width*(.5-gripX),height*(1-gripY),height,0,1,1,width);ctx.restore();
   }
 }

@@ -3,6 +3,8 @@ import type {CombatContext} from './contracts';
 import {CONFIG, WORLD} from './config';
 import {clamp, distanceSquared, segmentDistanceSquared, sweepContact} from './geometry';
 import {igniteFan, spillSoda, updateSkillFields} from './skill-fields';
+import {castUltimate,updateUltimates} from './ultimates';
+import {stunEnemy} from './enemies';
 
 const bounds = WORLD.bounds;
 const inside = (p:Vec,r=16):boolean => p.x>=bounds.left+r&&p.x<=bounds.right-r&&p.y>=bounds.top+r&&p.y<=bounds.bottom-r;
@@ -29,6 +31,9 @@ export function activateSkill(s:GameState,kind:SkillKind,origin:Vec,ctx:CombatCo
   if(kind==='dispatch'&&s.effects.dispatchCooldownUntil>now)return;
   ctx.emit({type:'skill',kind,...origin,time:now,facing:facing(s),...(pickupFrom && {pickupFrom:{x:pickupFrom.x,y:pickupFrom.y}})});
   switch(kind){
+    case 'icebox':case 'steamer':case 'express':case 'berry':
+      castUltimate(s,kind,origin);
+      break;
     case 'fan':
       igniteFan(s,origin,facing(s),ctx);
       break;
@@ -135,10 +140,9 @@ function ring(s:GameState,ctx:CombatContext):void {
 
 function ringBell(s:GameState,origin:Vec,ctx:CombatContext):void {
   for(const e of nearest(s,origin,CONFIG.skills.bell.radius,ctx).filter(e=>e.bellResistUntil<=s.time).slice(0,CONFIG.skills.bell.targets)){
-    if(e.stunUntil<=s.time)e.stunStartedAt=s.time;
-    e.stunUntil=Math.min(s.time+.65,e.stunStartedAt+1.2);
-    // Recovery replaces the previous charge instead of postponing its locked dash.
-    if(e.kind==='box'){e.phase='recover';e.phaseUntil=e.stunUntil+.4;}
+    if((e.bellStunUntil??0)<=s.time)e.stunStartedAt=s.time;
+    e.bellStunUntil=Math.min(s.time+.65,e.stunStartedAt+1.2);
+    stunEnemy(e,e.bellStunUntil);
   }
 }
 
@@ -189,13 +193,18 @@ function deliverSupply(s:GameState,origin:Vec,ctx:CombatContext):boolean {
 
 export function updateSkills(s:GameState,dt:number,ctx:CombatContext):void {
   const now=s.time,previous=now-dt;
+  updateUltimates(s,dt,ctx);
   updateSkillFields(s,ctx);
   for(const [kind,until] of [['skate',s.player.skateUntil],['bubble',s.player.bubbleUntil],['heat',s.player.heatUntil],['stamp',s.player.stampUntil]] as const){
     if(until>previous&&until<=now)ctx.emit({type:'skillEnd',kind});
   }
   s.zones=s.zones.filter(z=>z.expiresAt>now&&z.hp>0);
-  for(const e of s.enemies)if(e.stunUntil>0&&e.stunUntil<=now){
-    e.bellResistUntil=Math.max(e.bellResistUntil,e.stunUntil+1);e.stunUntil=0;
+  for(const e of s.enemies){
+    if(e.bellStunUntil&&e.bellStunUntil<=now){
+      e.bellResistUntil=Math.max(e.bellResistUntil,e.bellStunUntil+1);
+      delete e.bellStunUntil;
+    }
+    if(e.stunUntil>0&&e.stunUntil<=now)e.stunUntil=0;
   }
   for(const key of Object.keys(s.effects))if(key.startsWith('bellAt_')&&s.effects[key]<=now+1e-9){
     const suffix=key.slice(7);ringBell(s,{x:s.effects[`bellX_${suffix}`],y:s.effects[`bellY_${suffix}`]},ctx);

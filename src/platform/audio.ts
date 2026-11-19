@@ -80,7 +80,33 @@ export class GameAudio {
     if(event==='start'){[60,64,67,72].forEach((n,i)=>this.note(midi(n),now+i*.065,.19,.2,'triangle'));return;}
     if(event==='record'){[72,76,79,84,79,84].forEach((n,i)=>this.note(midi(n),now+i*.105,.24,.22,'triangle'));return;}
     if(event.type==='dash'){if(now-this.lastDash<.15)return;this.lastDash=now;this.noiseBurst(now,.18,.2,900,3800);this.note(180,now,.12,.16,'triangle',420);return;}
-    if(event.type==='enemyShot'){if(now-this.lastEnemyShot<.08)return;this.lastEnemyShot=now;this.note(310,now,.13,.15,'square',155);this.noiseBurst(now,.075,.1,1700,450);return;}
+    if(event.type==='enemyShot'){if(now-this.lastEnemyShot<.08)return;this.lastEnemyShot=now;this.note(490,now,.095,.16,'sine',165);this.noiseBurst(now,.055,.075,1550,550);return;}
+    if(event.type==='giantLand'){
+      const heavy=event.hop===3;
+      this.note(heavy?118:143,now,heavy?.29:.15,heavy?.29:.19,'sine',49);
+      this.noiseBurst(now+.012,heavy?.32:.15,.16,1450,300);
+      return;
+    }
+    if(event.type==='ultimateBeat'){
+      switch(event.kind){
+        case 'icebox':
+          [1260,1640,2210].forEach((pitch,i)=>this.note(pitch,now+i*.045,.11,.11,'triangle',pitch*.64));
+          this.noiseBurst(now,.28,.19,3200,1100);break;
+        case 'steamer':
+          this.note(470,now,.10,.17,'triangle',190);this.note(107,now,.28,.22,'sine',52);
+          this.noiseBurst(now+.024,.42,.22,800,2200);break;
+        case 'express':{
+          const last=event.beat===3;
+          this.note(last?130:260+event.beat*45,now,last?.23:.085,last?.25:.16,'triangle',last?55:155);
+          this.noiseBurst(now,last?.14:.055,.14,2300,610);break;
+        }
+        case 'berry':
+          this.note(970,now,.065,.23,'triangle',278);this.note(142,now+.022,.25,.28,'sine',45);
+          this.noiseBurst(now+.034,.28,.21,2400,760);
+          [520,790,630].forEach((f,i)=>this.note(f,now+.08+i*.052,.08,.08,'sine',f*1.4));break;
+      }
+      return;
+    }
     if(event.type==='kill'){
       this.recentKills=this.recentKills.filter(t=>t>=this.damageTime-.15);
       this.recentKills.push(this.damageTime);
@@ -188,6 +214,10 @@ export class GameAudio {
   }
   private skillSound(kind:SkillKind,at:number):void{
     switch(kind){
+      case 'icebox':this.note(640,at,.045,.12,'triangle',340);break;
+      case 'steamer':this.note(250,at,.07,.11,'triangle',165);break;
+      case 'express':this.noiseBurst(at,.08,.13,850,2750);break;
+      case 'berry':this.noiseBurst(at,.16,.11,1000,3100);break;
       case 'fan':
         // A switch clicks, the little motor spins up, then hot air rattles the order slip.
         this.note(610,at+.018,.033,.11,'triangle',310);

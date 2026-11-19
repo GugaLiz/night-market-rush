@@ -18,9 +18,10 @@ export function advanceWave(s: GameState, ctx: CombatContext): void {
 export function spawnMarketEnemies(s:GameState,difficulty:Difficulty,count:number,spawn:Spawn,ctx:Pick<CombatContext,'random'|'emit'>):void {
   const {bounds}=WORLD,settings=CONFIG.spawn;
   const available=Math.min(count,difficulty.cap-s.enemies.length);
+  const eliteDue=s.wave%2===0 && s.lastGiantWave!==s.wave && !s.enemies.some(e=>e.kind==='giantBun');
   for(let i=0;i<available;i++){
     const roll=ctx.random(),[bun,box]=difficulty.weights;
-    const kind=roll<bun?'bun':roll<bun+box?'box':'bowl';
+    const kind:EnemyKind=i===0&&eliteDue?'giantBun':roll<bun?'bun':roll<bun+box?'box':'bowl';
     const radius=CONFIG.enemies[kind].radius;
     const minY=Math.max(CONFIG.player.minY,bounds.top+radius);
     for(let attempt=0;attempt<settings.attempts;attempt++){
@@ -30,6 +31,7 @@ export function spawnMarketEnemies(s:GameState,difficulty:Difficulty,count:numbe
       if(distanceSquared(point,s.player)<(settings.safeDistance+s.player.radius+radius)**2)continue;
       if(s.enemies.some(other=>distanceSquared(point,other)<(other.radius+radius+settings.gap)**2))continue;
       spawn(kind,point);
+      if(kind==='giantBun')s.lastGiantWave=s.wave;
       ctx.emit({type:'spawn',x,y});
       break;
     }

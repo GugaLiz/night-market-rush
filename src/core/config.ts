@@ -23,13 +23,20 @@ export const CONFIG = {
     bun: {speed: .075 * S, radius: .020 * S, coins:1, hp:30, damage:8},
     box: {speed: .065 * S, radius: .022 * S, coins:2, hp:60, damage:12},
     bowl: {speed: .045 * S, radius: .040 * S, coins:3, hp:120, damage:18},
+    giantBun: {speed:0, radius:34, coins:12, hp:520, damage:20},
   } satisfies Record<EnemyKind, {speed: number; radius: number; coins:number; hp:number; damage:number}>,
   awareness: {
     bun: {notice:190, release:270},
     box: {notice:235, release:330},
     bowl: {notice:soupRange, release:920},
+    giantBun: {notice:1400, release:1500},
   },
   dash: {warning: 1.1, duration: .5, recovery: 1.5, speed: .38 * S, approach: 4, concurrent: 1},
+  giant: {
+    warning:.65, finalWarning:1, flight:.45, between:.32, recovery:2.35,
+    stompRadius:65, localDuration:.20, printLifetime:3.15, pulseSpeed:690, pulseHalfWidth:14,
+    gapHalfAngle:Math.PI*.22, finalDamage:24,
+  },
   ranged: {warning:.9,interval:5,speed:145,damage:8,radius:6,cap:12,lifetime:6.5,range:soupRange,concurrent:2},
   skills: {
     fan: {radius:130, fullRadius:250, damage:90},

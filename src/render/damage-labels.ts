@@ -1,4 +1,5 @@
 import {WORLD} from '../core/config';
+import {giantJumpHeight} from '../core/giant-bun';
 import {clamp} from '../core/geometry';
 import type {DamageSource, EnemyKind, GameEvent, GameState} from '../shared/types';
 import type {Assets} from './assets';
@@ -9,7 +10,7 @@ export const DAMAGE_LABEL_LAYOUT = {
   maxRecent: 5, width: 104, rowHeight: 30, detailHeight: 16, budget: 30,
 } as const;
 const {width: WIDTH, rowHeight: HEIGHT, detailHeight: DETAILS} = DAMAGE_LABEL_LAYOUT;
-const enemyHeight = (kind: EnemyKind) => kind === 'bowl' ? 92 : kind === 'box' ? 78 : 67;
+const enemyHeight = (kind: EnemyKind) => kind === 'giantBun' ? 174 : kind === 'bowl' ? 92 : kind === 'box' ? 78 : 67;
 type Hit = {id: number; amount: number; source: DamageSource | null; time: number; bornAt: number};
 type Group = {
   id: number; total: number; count: number; anchorX: number; anchorY: number;
@@ -82,7 +83,7 @@ export class DamageLabels {
     if (group.recent.length > DAMAGE_LABEL_LAYOUT.maxRecent) group.recent.shift();
   }
 
-  update(dt: number, state: GameState): void {
+  update(dt: number, state: GameState, reduceMotion=false): void {
     this.clock += Math.max(0, Number.isFinite(dt) ? dt : 0);
     const enemies = new Map(state.enemies.map(e => [e.id, e]));
     for (const [id, group] of this.groups) {
@@ -90,8 +91,9 @@ export class DamageLabels {
         const enemy = enemies.get(id);
         if (!enemy) { this.groups.delete(id); continue; }
         group.anchorX = enemy.x;
-        group.anchorY = enemy.y - enemyHeight(enemy.kind);
-        group.bodyY = enemy.y-28;
+        const lift=giantJumpHeight(enemy,state.time)*(reduceMotion?.38:1);
+        group.anchorY = enemy.y-lift-enemyHeight(enemy.kind);
+        group.bodyY = enemy.y-lift-28;
       } else if (this.clock-group.deathAt >= DAMAGE_LABEL_LAYOUT.deathTtl) {
         this.groups.delete(id);
       }

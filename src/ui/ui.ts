@@ -1,4 +1,4 @@
-import {DEFAULT_SETTINGS, ENEMY_NAMES, WEAPON_NAMES, WEAPON_KINDS, SKILL_NAMES, SKILL_KINDS, type WeaponKind, type SkillKind, type EnemyKind, type BestRecord, type GameState, type Settings} from '../shared/types';
+import {DEFAULT_SETTINGS, ENEMY_NAMES, WEAPON_NAMES, WEAPON_KINDS, SKILL_NAMES, SKILL_KINDS, ULTIMATE_KINDS, type UltimateKind, type WeaponKind, type SkillKind, type EnemyKind, type BestRecord, type GameState, type Settings} from '../shared/types';
 import {WEAPON_GUIDE, SKILL_GUIDE} from './catalog';
 import {WEAPONS} from '../core/weapons';
 import {CONFIG} from '../core/config';
@@ -8,7 +8,7 @@ export interface UIActions {
   start:()=>void; resume:()=>void; pause:()=>void; settings:()=>void; dash:()=>void;
   applySettings:(settings:Settings)=>void; previewSettings:(settings:Settings)=>void;
   cancelSettings:()=>void; home:()=>void; abandon:()=>void; retry:()=>void;
-  revive:()=>void; endRun:()=>void; demo:(kind:'pickup'|'wave')=>void;
+  revive:()=>void; endRun:()=>void; demo:(kind:'pickup'|'wave'|'giantBun'|UltimateKind)=>void;
   practice:()=>void; lab:()=>void; closeLab:()=>void; catalog:()=>void; closeCatalog:()=>void;
   selectWeapon:(kind:WeaponKind)=>void; triggerSkill:(kind:SkillKind)=>void; spawnEnemy:(kind:EnemyKind,group:boolean)=>void;
   heal:()=>void; clear:()=>void; resetLab:()=>void; setSpeed:(speed:number)=>void;
@@ -22,9 +22,11 @@ export const formatTime=(seconds:number)=>`${Math.floor(Math.max(0,seconds)/60).
 const score=(value:number)=>Math.floor(Math.max(0,value)).toString();
 const bag=`<svg class="bag-art" viewBox="0 0 120 110" aria-hidden="true"><path d="M36 35V24c0-21 48-21 48 0v11" fill="none" stroke="#583b29" stroke-width="9"/><path d="M25 32h70l14 61q-47 18-98 0z" fill="#397e77" stroke="#523929" stroke-width="4"/><path d="M23 31h76l-3 26H22z" fill="#65a69a" stroke="#523929" stroke-width="4"/><path d="M35 53v14m50-14v14" stroke="#f2cf8e" stroke-width="8"/><path d="M47 80h27m-34 9h35m-15-19 8 15" stroke="#fff1d6" stroke-width="5" stroke-linecap="round"/></svg>`;
 const icon=(name:string)=>{
+  const ultimateIndex=ULTIMATE_KINDS.indexOf(name as UltimateKind);
+  if(ultimateIndex>=0)return `<span class="atlas-icon" aria-hidden="true" style="background-image:url('${import.meta.env.BASE_URL}assets/clay-actors.webp');background-size:400% 300%;background-position:${ultimateIndex*100/3}% 100%"></span>`;
   const weaponIndex=WEAPON_KINDS.indexOf(name as WeaponKind),skillIndex=SKILL_KINDS.indexOf(name as SkillKind);
   const index=weaponIndex>=0?weaponIndex:skillIndex;
-  if(index>=0)return `<span class="atlas-icon" aria-hidden="true" style="background-image:url('${import.meta.env.BASE_URL}assets/${weaponIndex>=0?'weapons-v2.png':'skills-v2.png'}');background-position:${(index%4)*100/3}% ${Math.floor(index/4)*100/3}%"></span>`;
+  if(index>=0)return `<span class="atlas-icon" aria-hidden="true" style="background-image:url('${import.meta.env.BASE_URL}assets/${weaponIndex>=0?'clay-weapons.webp':'clay-supplies.webp'}');background-position:${(index%4)*100/3}% ${Math.floor(index/4)*100/3}%"></span>`;
   const content:Record<string,string>={pause:'<path d="M8 5v14M16 5v14"/>',play:'<path d="m8 5 11 7-11 7z"/>',fullscreen:'<path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/>',arrow:'<path d="M4 12h15m-6-6 6 6-6 6"/>',gear:'<circle cx="12" cy="12" r="4"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3M5 5l2 2m10 10 2 2M5 19l2-2M17 7l2-2"/>',fan:'<circle cx="12" cy="10" r="8"/><path d="M12 18v4m-5 0h10M12 10c-8-6 2-9 0 0m0 0c9-2 6 8 0 0m0 0c-2 9-10 1 0 0"/>',skate:'<path d="M3 9q9 5 18-2l-2 8H6z"/><circle cx="8" cy="19" r="1.5"/><circle cx="17" cy="18" r="1.5"/>',soda:'<path d="M9 2h6v5l3 5v9H6v-9l3-5zM6 14h12"/><path d="M10 17h4"/>',phone:'<rect x="6" y="2" width="12" height="20" rx="2"/><path d="M10 18h4"/>'};
   Object.assign(content,{
     coin:'<ellipse cx="12" cy="12" rx="8" ry="9"/><ellipse cx="12" cy="12" rx="5" ry="6"/><path d="M12 9v6"/>',
@@ -96,7 +98,7 @@ export class UI {
         <div class="hud-top">
           <div class="battle-ledger">
             <div class="kill-tally" title="本局击败">
-              <span class="tally-monster" aria-hidden="true" style="background-image:url('${import.meta.env.BASE_URL}assets/atlas.png')"></span>
+              <span class="tally-monster" aria-hidden="true" style="background-image:url('${import.meta.env.BASE_URL}assets/clay-actors.webp')"></span>
               <div><span class="tally-caption">击败</span><strong id="score-value">0</strong></div>
             </div>
             <div class="battle-vitals">
@@ -310,7 +312,14 @@ export class UI {
     switch(this.view){
       case 'home':{
         const best=this.data.best;
-        this.overlay.innerHTML=`<div class="home-vignette"></div><div class="home-layout"><section class="home-card"><div class="eyebrow"><span class="eyebrow-line"></span>今晚夜市 · 准时开跑</div><h1 class="game-title">夜市<span>急送</span><i class="title-streak"></i></h1><p class="home-tagline">送得快，也要躲得漂亮。</p><p class="home-description">食物小妖出动！穿过包围，抢到道具，<br>让下一次反击来得刚刚好。</p><div class="best-card"><span>本地最佳击败</span><strong>${best?score(best.score)+' 只':'等待你的第一单'}</strong>${best?`<small>存活 ${formatTime(best.time)}</small>`:''}</div>${this.button(`开始挑战 ${icon('arrow')}`,'start','primary start-button','data-primary')}<div class="home-secondary">${this.button(`${icon('gear')}操作设置`,'settings','secondary')}${this.button('玩法说明','tutorial','secondary')}</div><div class="home-secondary home-tools">${this.button('配送试验场','practice','secondary')}${this.button('武器与道具图鉴','catalog','secondary')}</div><div class="home-footer"><span>拾取清场 · 收集金币 · 连续换波</span><button class="text-button" data-action="fullscreen" aria-label="全屏游玩">${icon('fullscreen')}全屏</button></div></section><div class="home-scene-label" aria-hidden="true"><span class="label-dot"></span>欢迎来到这条热闹的街</div></div>`;break;
+        this.overlay.innerHTML=`<div class="home-vignette"></div><div class="home-layout"><section class="home-card">
+          <h1 class="game-title">夜市<span>急送</span></h1>
+          <p class="home-description">穿过食物小妖，抢到外卖道具，给自己清出一条路。</p>
+          <div class="best-card"><span>本地最佳击败</span><strong>${best?score(best.score)+' 只':'等待你的第一单'}</strong>${best?`<small>存活 ${formatTime(best.time)}</small>`:''}</div>
+          ${this.button(`开始挑战 ${icon('arrow')}`,'start','primary start-button','data-primary')}
+          <div class="home-secondary home-tools">${this.button('配送试验场','practice','secondary')}${this.button('武器与道具图鉴','catalog','secondary')}</div>
+          <div class="home-footer"><button class="text-button" data-action="tutorial">玩法说明</button><button class="text-button" data-action="settings">操作设置</button><button class="text-button" data-action="fullscreen" aria-label="全屏游玩">${icon('fullscreen')}全屏</button></div>
+        </section></div>`;break;
       }
       case 'loading':{
         const raw=this.data.progress??0;const progress=Math.max(0,Math.min(100,raw<=1?raw*100:raw));
@@ -364,12 +373,13 @@ export class UI {
 
   private renderLab():void{
     const weapon=WEAPON_GUIDE[this.selectedWeapon],skill=SKILL_GUIDE[this.selectedSkill];
-    this.overlay.innerHTML=this.paper(`<div class="lab-title"><div><div class="paper-kicker">自由体验 · 不记入正式纪录</div><h2 id="dialog-title">配送试验场</h2></div>${this.button('继续试验','close-lab','primary compact','data-primary')}</div><div class="lab-grid"><section><h3>更换武器</h3><label class="sr-only" for="lab-weapon">试验武器</label><select id="lab-weapon" data-lab="weapon">${WEAPON_KINDS.map(k=>`<option value="${k}" ${k===this.selectedWeapon?'selected':''}>${WEAPON_NAMES[k]}</option>`).join('')}</select><p>${weapon.description}</p><small>${weapon.detail}</small>${this.button('装备并体验','choose-weapon','primary wide')}</section><section><h3>立即触发技能</h3><label class="sr-only" for="lab-skill">试验技能</label><select id="lab-skill" data-lab="skill">${SKILL_KINDS.map(k=>`<option value="${k}" ${k===this.selectedSkill?'selected':''}>${SKILL_NAMES[k]}</option>`).join('')}</select><p>${skill.description}</p><small>${skill.detail}</small>${this.button('触发并体验','trigger-skill','primary wide')}</section><section><h3>布置敌人</h3><label class="sr-only" for="lab-enemy">敌人类型</label><select id="lab-enemy" data-lab="enemy">${(Object.keys(ENEMY_NAMES) as EnemyKind[]).map(k=>`<option value="${k}" ${k===this.selectedEnemy?'selected':''}>${ENEMY_NAMES[k]}</option>`).join('')}</select><p>单只观察攻击判定，敌群体验贯穿、范围与防护。敌人会正常攻击。</p><div class="lab-spawns">${this.button('生成单只','spawn-single','secondary')}${this.button('生成敌群','spawn-group','secondary')}</div></section></div><div class="lab-demos"><h3>录像场景</h3>${this.button('取卡清场','demo-pickup','secondary compact')}${this.button('连续换波','demo-wave','secondary compact')}</div><div class="lab-footer"><div class="lab-speed" role="group" aria-label="试验速度">${[.5,1].map(speed=>`<button class="segment ${speed===(this.data.speed??1)?'selected':''}" data-speed="${speed}" aria-pressed="${speed===(this.data.speed??1)}">${speed}× 速度</button>`).join('')}</div><div>${this.button('补满生命','heal','secondary compact')}${this.button('清空场地','clear','secondary compact')}${this.button('重置试验','reset-lab','secondary compact')}${this.button('查看图鉴','catalog','secondary compact')}</div></div><p class="lab-hint">操作面板打开时模拟暂停。按 Esc 或“继续试验”回到场地；顶部“试验工具”可再次打开。</p>`,'lab-card');
+    const showcases=ULTIMATE_KINDS.map(kind=>`<button class="clay-sample" data-preview="${kind}"><span>${icon(kind)}</span>${SKILL_NAMES[kind]}</button>`).join('');
+    this.overlay.innerHTML=this.paper(`<div class="lab-title"><div><div class="paper-kicker">自由体验 · 不记入正式纪录</div><h2 id="dialog-title">配送试验场</h2></div>${this.button('继续试验','close-lab','primary compact','data-primary')}</div><div class="lab-grid"><section><h3>更换武器</h3><label class="sr-only" for="lab-weapon">试验武器</label><select id="lab-weapon" data-lab="weapon">${WEAPON_KINDS.map(k=>`<option value="${k}" ${k===this.selectedWeapon?'selected':''}>${WEAPON_NAMES[k]}</option>`).join('')}</select><p>${weapon.description}</p><small>${weapon.detail}</small>${this.button('装备并体验','choose-weapon','primary wide')}</section><section><h3>立即触发技能</h3><label class="sr-only" for="lab-skill">试验技能</label><select id="lab-skill" data-lab="skill">${SKILL_KINDS.map(k=>`<option value="${k}" ${k===this.selectedSkill?'selected':''}>${SKILL_NAMES[k]}</option>`).join('')}</select><p>${skill.description}</p><small>${skill.detail}</small>${this.button('触发并体验','trigger-skill','primary wide')}</section><section><h3>布置敌人</h3><label class="sr-only" for="lab-enemy">敌人类型</label><select id="lab-enemy" data-lab="enemy">${(Object.keys(ENEMY_NAMES) as EnemyKind[]).map(k=>`<option value="${k}" ${k===this.selectedEnemy?'selected':''}>${ENEMY_NAMES[k]}</option>`).join('')}</select><p>单只观察攻击判定，敌群体验贯穿、范围与防护。敌人会正常攻击。</p><div class="lab-spawns">${this.button('生成单只','spawn-single','secondary')}${this.button('生成敌群','spawn-group','secondary')}</div></section></div><section class="clay-samples" aria-label="大招与精英试打"><h3>实战试打</h3><div>${showcases}${this.button('巨包三连坐','demo-giant','clay-sample giant-sample')}</div></section><div class="lab-demos"><h3>基础练习</h3>${this.button('取卡清场','demo-pickup','secondary compact')}${this.button('连续换波','demo-wave','secondary compact')}</div><div class="lab-footer"><div class="lab-speed" role="group" aria-label="试验速度">${[.5,1].map(speed=>`<button class="segment ${speed===(this.data.speed??1)?'selected':''}" data-speed="${speed}" aria-pressed="${speed===(this.data.speed??1)}">${speed}× 速度</button>`).join('')}</div><div>${this.button('补满生命','heal','secondary compact')}${this.button('清空场地','clear','secondary compact')}${this.button('重置试验','reset-lab','secondary compact')}${this.button('查看图鉴','catalog','secondary compact')}</div></div><p class="lab-hint">操作面板打开时模拟暂停。按 Esc 或“继续试验”回到场地；顶部“试验工具”可再次打开。</p>`,'lab-card');
   }
   private renderCatalog():void{
     const weapons=this.catalogTab==='weapons';
     const cards=weapons?WEAPON_KINDS.map((kind,i)=>({kind,title:WEAPON_NAMES[kind],id:`W${String(i+1).padStart(2,'0')}`,...WEAPON_GUIDE[kind]})):SKILL_KINDS.map((kind,i)=>({kind,title:SKILL_NAMES[kind],id:`S${String(i+1).padStart(2,'0')}`,...SKILL_GUIDE[kind]}));
-    this.overlay.innerHTML=this.paper(`<div class="catalog-title"><h2 id="dialog-title">武器与道具图鉴</h2>${this.button('返回','close-catalog','secondary compact','data-primary')}</div><div class="settings-tabs" role="tablist" aria-label="图鉴分类"><button class="tab ${weapons?'selected':''}" data-catalog="weapons" role="tab" aria-selected="${weapons}">10 款武器</button><button class="tab ${weapons?'':'selected'}" data-catalog="skills" role="tab" aria-selected="${!weapons}">13 种技能</button></div><p class="catalog-note">${weapons?'武器持续朝行进方向攻击，没有目标也照常出手。转向改变下一次攻击方向；拾取武器箱换装。':'触碰小道具即生效。控制与减速不会清除敌人，生命归零才结束。'}</p><div class="catalog-grid">${cards.map(card=>`<article><div class="catalog-icon">${icon(card.kind)}</div><div><span class="catalog-id">${card.id} · ${card.role}</span><h3>${card.title}</h3><p>${card.description}</p><small>${card.detail}</small></div></article>`).join('')}</div>`,'catalog-card');
+    this.overlay.innerHTML=this.paper(`<div class="catalog-title"><h2 id="dialog-title">武器与道具图鉴</h2>${this.button('返回','close-catalog','secondary compact','data-primary')}</div><div class="settings-tabs" role="tablist" aria-label="图鉴分类"><button class="tab ${weapons?'selected':''}" data-catalog="weapons" role="tab" aria-selected="${weapons}">${WEAPON_KINDS.length} 款武器</button><button class="tab ${weapons?'':'selected'}" data-catalog="skills" role="tab" aria-selected="${!weapons}">${SKILL_KINDS.length} 种技能</button></div><p class="catalog-note">${weapons?'武器持续朝行进方向攻击，没有目标也照常出手。转向改变下一次攻击方向；拾取武器箱换装。':'触碰道具即生效。在配送试验场可以反复体验四款大招，试转向和落点。'}</p><div class="catalog-grid">${cards.map(card=>`<article><div class="catalog-icon">${icon(card.kind)}</div><div><span class="catalog-id">${card.role}</span><h3>${card.title}</h3><p>${card.description}</p><small>${card.detail}</small></div></article>`).join('')}</div>`,'catalog-card');
   }
 
   private segments<T extends string>(field:string,values:Array<[T,string]>,selected:T){return `<div class="segments" role="group" aria-label="${field==='mode'?'操作方式':field==='hand'?'操作手位':field==='quality'?'特效质量':field==='sensitivity'?'灵敏度':'摇杆大小'}">${values.map(([value,label])=>`<button class="segment ${selected===value?'selected':''}" data-setting="${field}" data-value="${value}" aria-pressed="${selected===value}">${selected===value?'<span aria-hidden="true">✓</span> ':''}${label}</button>`).join('')}</div>`;}
@@ -398,6 +408,8 @@ export class UI {
   private cancelSettings(){if(this.changed()){this.cancelConfirm=true;this.renderSettings();}else this.actions.cancelSettings();}
   private handleClick=(event:MouseEvent)=>{
     const button=(event.target as Element).closest<HTMLButtonElement>('button');if(!button||button.disabled)return;
+    const preview=ULTIMATE_KINDS.find(kind=>kind===button.dataset.preview);
+    if(preview){this.actions.demo(preview);return;}
     if(button.dataset.catalog){this.catalogTab=button.dataset.catalog as 'weapons'|'skills';this.renderCatalog();return;}
     if(button.dataset.speed){this.data.speed=Number(button.dataset.speed);this.actions.setSpeed(this.data.speed);this.renderLab();return;}
     if(button.dataset.tab){this.tab=button.dataset.tab as typeof this.tab;this.renderSettings();this.overlay.querySelector<HTMLElement>(`[data-tab="${this.tab}"]`)?.focus();return;}
@@ -415,6 +427,7 @@ export class UI {
       case 'end-run':this.actions.endRun();break;
       case 'demo-pickup':this.actions.demo('pickup');break;
       case 'demo-wave':this.actions.demo('wave');break;
+      case 'demo-giant':this.actions.demo('giantBun');break;
       case 'retry':this.actions.retry();break;case 'tutorial':this.actions.tutorial();break;case 'fullscreen':this.actions.fullscreen();break;
       case 'apply-settings':this.settings=clone(this.draft);this.actions.applySettings(clone(this.draft));break;
       case 'cancel-settings':this.cancelSettings();break;

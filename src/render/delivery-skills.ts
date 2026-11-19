@@ -1,5 +1,5 @@
 import {clamp} from '../core/geometry';
-import {SKILL_NAMES, type GameEvent, type Pickup, type SkillKind, type Vec} from '../shared/types';
+import {isUltimate, SKILL_NAMES, type GameEvent, type Pickup, type SkillKind, type Vec} from '../shared/types';
 import {drawSprite} from './sprite';
 import type {Assets} from './assets';
 
@@ -10,6 +10,7 @@ const trim: Record<SkillKind,string> = {
   fan:'#df8841', soda:'#479b87', skate:'#bd5b46', lure:'#a76536', bubble:'#5993a1',
   cones:'#bc6239', bell:'#b38a38', route:'#438479', hook:'#487986', heat:'#b35d39',
   dispatch:'#566d81', stamp:'#b44b42', supply:'#798650',
+  icebox:'#428eb3',steamer:'#c58a41',express:'#319080',berry:'#b63565',
 };
 const unit = (x:number) => clamp(x,0,1);
 const ease = (x:number) => {const t=unit(x);return t*t*(3-2*t);};
@@ -78,7 +79,7 @@ export function drawDeliveryUse(c:CanvasRenderingContext2D, assets:Assets, use:U
   const y=ground?lerp(heldY,end.y,useTool)-(quiet?0:Math.sin(useTool*Math.PI)*12):heldY;
   const fan=use.kind==='fan', soda=use.kind==='soda';
   const fade=unit((useLifetime-age)/.24);
-  const propAlpha=fan?unit((.46-age)/.11):fade;
+  const propAlpha=isUltimate(use.kind)?unit((.15-age)/.06):fan?unit((.46-age)/.11):fade;
   let turn=0;
   if(!quiet){
     if(soda)turn=-side*(.12+1.58*useTool*(1-ease((age-.62)/.17)));

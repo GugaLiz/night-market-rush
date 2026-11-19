@@ -1,4 +1,5 @@
 import './ui/style.css';
+import './ui/clay.css';
 import {Game} from './core/game';
 import {CONFIG} from './core/config';
 import {WEAPONS} from './core/weapons';
@@ -20,6 +21,7 @@ let renderer:Renderer|undefined;
 let ready=false,live=false,starting=false,rotated=false;
 let settingsOrigin:'home'|'pause'='home';
 let remaining=0,accumulator=0,lastFrame=performance.now();
+let impactHold=0;
 let canInterpolate=false;
 let tutorialSeen=saved.tutorialSeen;
 let recordSoundAt=0;
@@ -62,15 +64,19 @@ const ui:UI=new UI(document.getElementById('app')!,{
   demo:kind=>{
     if(ui.currentView!=='lab'||!game.state.practice)return;
     practiceSpeed=1;
-    if(kind==='pickup')game.setupPickupDemo();else game.setupWaveDemo();
+    if(kind==='pickup')game.setupPickupDemo();
+    else if(kind==='wave')game.setupWaveDemo();
+    else game.setupCombatDemo(kind);
     renderer?.reset();beginPlay(false);deliverEvents();
-    ui.toast(kind==='pickup'?'向右取电扇，沿热风清出的路线收金币':'换波后，地面物品仍可拾取',1600);
+    const hint=kind==='pickup'?'向右取电扇，沿热风清出的路线收金币':kind==='wave'?'换波后，地面物品仍可拾取':
+      kind==='giantBun'?'看落点粉印，第三跳从缺口穿过':'向右取大招，然后用方向键或摇杆走位';
+    ui.toast(hint,1600);
   },
   catalog:()=>{cancelPendingStart();gesture();catalogOrigin=ui.currentView;input.setEnabled(false);if(live)audio.setScene('paused');ui.show('catalog',{settings,state:game.state});},
   closeCatalog:()=>{gesture();if(catalogOrigin==='home')home();else ui.show(catalogOrigin,{settings,state:game.state,speed:practiceSpeed});},
   selectWeapon:kind=>{if(!game.state.practice)return;game.setWeapon(kind);closeLab();deliverEvents();},
   triggerSkill:kind=>{if(!game.state.practice)return;game.triggerSkill(kind);closeLab();deliverEvents();},
-  spawnEnemy:(kind,group)=>{if(!game.state.practice)return;const count=group?6:1;const p=game.state.player;const spawnDistance=!group&&game.state.weapon.kind==='lunchbox'?WEAPONS.lunchbox.range:150;for(let i=0;i<count;i++){const angle=group?-Math.PI/3+i*Math.PI/3:Math.atan2(p.moveDirection.y,p.moveDirection.x);game.spawnEnemy(kind,{x:Math.max(110,Math.min(1170,p.x+Math.cos(angle)*spawnDistance)),y:Math.max(135,Math.min(610,p.y+Math.sin(angle)*spawnDistance))});}closeLab();deliverEvents();},
+  spawnEnemy:(kind,group)=>{if(!game.state.practice)return;const count=group&&kind!=='giantBun'?6:1;const p=game.state.player;const spawnDistance=!group&&game.state.weapon.kind==='lunchbox'?WEAPONS.lunchbox.range:150;for(let i=0;i<count;i++){const angle=group?-Math.PI/3+i*Math.PI/3:Math.atan2(p.moveDirection.y,p.moveDirection.x);game.spawnEnemy(kind,{x:Math.max(110,Math.min(1170,p.x+Math.cos(angle)*spawnDistance)),y:Math.max(135,Math.min(610,p.y+Math.sin(angle)*spawnDistance))});}closeLab();deliverEvents();},
   heal:()=>{if(!game.state.practice)return;game.healPlayer();deliverEvents();ui.updateHUD(game.state);ui.toast('生命已补满');},
   clear:()=>{if(!game.state.practice)return;game.clearArena();renderer?.reset();deliverEvents();ui.updateHUD(game.state);ui.toast('场地已清空');},
   resetLab:()=>{if(!game.state.practice)return;const weapon=game.state.weapon.kind;game.reset(Date.now(),true);game.setWeapon(weapon);renderer?.reset();deliverEvents();ui.updateHUD(game.state);ui.toast('已重置试验，保留当前武器');},
@@ -162,6 +168,7 @@ function deliverEvents(){
   }
   for(const event of events){
     audio.play(event);
+    if(event.type==='ultimateBeat'&&event.kind==='berry'&&!settings.reduceMotion)impactHold=.03;
     if(event.type==='notice')ui.toast(event.message);
     else if(event.type==='weapon')ui.toast(`已换装 · ${WEAPON_NAMES[event.kind]}`);
   }
@@ -182,7 +189,7 @@ function countdown(){
   checkOrientation();
 }
 function beginPlay(playStart=true){
-  remaining=0;accumulator=0;canInterpolate=false;lastFrame=performance.now();
+  remaining=0;accumulator=0;impactHold=0;canInterpolate=false;lastFrame=performance.now();
   ui.show('play',{settings,state:game.state,speed:practiceSpeed});
   ui.canvas.focus({preventScroll:true});input.setEnabled(true);audio.setScene('play');if(playStart)audio.play('start');
 }
@@ -228,7 +235,11 @@ function frame(now:number){
   const elapsed=Math.max(0,(now-lastFrame)/1000);lastFrame=now;
   // A stalled foreground frame has no usable input history. Resume from the last
   // simulated position; blur, visibility and orientation events handle leaving play.
-  const dt=elapsed>.25?0:Math.min(.1,elapsed);
+  let dt=elapsed>.25?0:Math.min(.1,elapsed);
+  if(ui.currentView==='play'&&impactHold>0){
+    const held=Math.min(impactHold,dt);
+    impactHold-=held;dt-=held;
+  }
   if(ui.currentView==='countdown'){
     remaining-=dt;
     if(remaining<=0)beginPlay();

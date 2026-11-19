@@ -10,7 +10,7 @@ test.afterEach(async({page})=>{expect(errors.get(page),'uncaught browser excepti
 test('complete catalog and safe laboratory lifecycle with all weapons and skills',async({page},info)=>{
   await page.getByRole('button',{name:'武器与道具图鉴',exact:true}).click();
   await expect(page.locator('.catalog-grid article')).toHaveCount(10);
-  await page.getByRole('tab',{name:'13 种技能'}).click();await expect(page.locator('.catalog-grid article')).toHaveCount(13);
+  await page.getByRole('tab',{name:`${SKILL_KINDS.length} 种技能`}).click();await expect(page.locator('.catalog-grid article')).toHaveCount(SKILL_KINDS.length);
   await page.screenshot({animations:'disabled',path:info.outputPath('v2-catalog.png')});
   await page.getByRole('button',{name:'返回',exact:true}).click();
   await page.getByRole('button',{name:'配送试验场',exact:true}).click();await view(page,'lab');
