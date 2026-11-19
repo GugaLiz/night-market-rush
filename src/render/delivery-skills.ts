@@ -1,6 +1,6 @@
 import {clamp} from '../core/geometry';
 import {pickupReach} from '../core/config';
-import {isUltimate, SKILL_NAMES, type GameEvent, type Pickup, type SkillKind, type Vec} from '../shared/types';
+import {isUltimate, SKILL_NAMES, type ElementalField, type GameEvent, type Pickup, type SkillKind, type Vec} from '../shared/types';
 import {SKILL_GUIDE} from '../ui/catalog';
 import {drawSprite} from './sprite';
 import type {Assets} from './assets';
@@ -13,6 +13,7 @@ const trim: Record<SkillKind,string> = {
   cones:'#bc6239', bell:'#b38a38', route:'#438479', hook:'#487986', heat:'#b35d39',
   dispatch:'#566d81', stamp:'#b44b42', supply:'#798650', health:'#b74c51',
   icebox:'#428eb3',steamer:'#c58a41',express:'#319080',berry:'#b63565',
+  vortex:'#9b5ee1',poison:'#6b9d34',frost:'#3985b7',
 };
 const unit = (x:number) => clamp(x,0,1);
 const ease = (x:number) => {const t=unit(x);return t*t*(3-2*t);};
@@ -143,7 +144,7 @@ export function drawUseRipple(c:CanvasRenderingContext2D,use:Use,age:number,rang
 }
 
 /** The picked-up prop travels to the satchel, then is used or put down. Gameplay keeps running. */
-export function drawDeliveryUse(c:CanvasRenderingContext2D, assets:Assets, use:Use, time:number, bag:Vec, hand:Vec, quiet:boolean):void {
+export function drawDeliveryUse(c:CanvasRenderingContext2D, assets:Assets, use:Use, time:number, bag:Vec, hand:Vec, quiet:boolean, field?:ElementalField):void {
   const age=Math.max(0,time-use.time);
   if(age>=useLifetime)return;
   const side=use.facing.x<0?-1:1;
@@ -164,11 +165,16 @@ export function drawDeliveryUse(c:CanvasRenderingContext2D, assets:Assets, use:U
   const collect=ease(age/.10), grip=ease((age-.08)/.09), useTool=ease((age-.17)/.21);
   const heldX=lerp(lerp(start.x,bag.x,collect),hand.x,grip);
   const heldY=lerp(lerp(start.y,bag.y,collect),hand.y-4,grip);
-  const x=ground?lerp(heldX,end.x,useTool):heldX;
-  const y=ground?lerp(heldY,end.y,useTool)-(quiet?0:Math.sin(useTool*Math.PI)*12):heldY;
+  let x=ground?lerp(heldX,end.x,useTool):heldX;
+  let y=ground?lerp(heldY,end.y,useTool)-(quiet?0:Math.sin(useTool*Math.PI)*12):heldY;
+  if(field&&!quiet){
+    const toss=ease((age-.16)/.13);
+    x=lerp(heldX,field.x,toss);
+    y=lerp(heldY,field.y-12,toss)-Math.sin(toss*Math.PI)*24;
+  }
   const fan=use.kind==='fan', soda=use.kind==='soda';
   const fade=unit((useLifetime-age)/.24);
-  const propAlpha=isUltimate(use.kind)?unit((.15-age)/.06):fan?unit((.46-age)/.11):fade;
+  const propAlpha=field?unit((.29-age)/.11):isUltimate(use.kind)?unit((.15-age)/.06):fan?unit((.46-age)/.11):fade;
   let turn=0;
   if(!quiet){
     if(soda)turn=-side*(.12+1.58*useTool*(1-ease((age-.62)/.17)));

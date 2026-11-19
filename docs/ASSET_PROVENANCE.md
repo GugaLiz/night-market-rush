@@ -1,5 +1,16 @@
 # 资产来源与重建说明
 
+## 2026-11-20 涡锅、泡菜坛与刨冰机
+
+内置 ImageGen 绘制三件夜市软陶厨具。2172 × 724 的透明原图按三件道具分别裁切，去掉外围低透明度的散点，再等比缩放到边长 256 像素的格子里。玩法中的漂浮技能、手持动作、落地道具和图鉴都取自同一张 768 × 256 的 RGBA WebP。[游戏图集](../public/assets/clay-elemental-tools.webp)
+
+<details>
+<summary>三件厨具图集生成提示词</summary>
+
+Create one production sprite atlas, transparent PNG, WIDE HORIZONTAL format, exactly THREE different Chinese night-market kitchen toy power-up models arranged in three evenly spaced columns with generous fully transparent separation for automatic slicing. No background, caption, text, tile, floor, cast shadow, halo or effects behind them. Objects presented individually fully in frame with floating transparent padding. All three are chunky hand-sculpted SOFT POLYMER CLAY blind-box miniature toys, like stop-motion kitchen props with a fine matte speckle, warm cream rim light from top left, subtle clay creases, softened beveled edges, same 3/4 orthographic facing camera tilted toward the front so both top and front visible. Strong silhouettes for 48px game icons. The LEFT object is a shallow black cast-iron Chinese wok with two tiny bronze lug handles, little wooden handle to left only, inside its oval bowl a large spectacular purple luminous hand-sculpted vortex spiral of lilac clay around a deep black center, a few gold grains, bold black-purple-gold silhouette. The MIDDLE is a round squat translucent jade green Chinese ceramic pickle fermentation crock, with partial tomato-red tilted terracotta lid, puffy chartreuse poison ferment bubbles escaping upward, big dark-green cabbage leaf relief on front, huge broad belly, no skull, legs or face. The RIGHT is an old-fashioned standing pale turquoise hand-cranked shaved ice machine; chunky U-shaped blue peppermint frame, a white cap on top, distinct dark-blue crank on its side, a single small orange bowl with tall white shaved ice under the blade at center. Primary identity warm blue-white. One of each. Object count three total, arranged in one wide row, same apparent area/scale. Well-lit readable against a warm night-market game floor, stylized tactile objects rather than illustrations, no black outlines. Do not show weapons, characters, lettering or environment.
+
+</details>
+
 ## 2026-11-20 暖心汤包
 
 用内置 ImageGen 绘制一枚奶白汤包，装在带珊瑚红心的青绿色软陶杯里。将 1254 × 1254 透明原图按有效轮廓裁切，等比缩入 192 × 192 RGBA WebP。战场上的漂浮道具、拾取时的手持动作和图鉴共用这张图。[游戏贴图](../public/assets/clay-soup-dumpling.webp)

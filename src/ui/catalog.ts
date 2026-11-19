@@ -1,6 +1,7 @@
 import {ENEMY_NAMES, SKILL_KINDS, SKILL_NAMES, WEAPON_KINDS, WEAPON_NAMES, type EnemyKind, type SkillKind, type WeaponKind} from '../shared/types';
 import {CONFIG} from '../core/config';
 import {EXPRESS} from '../core/ultimates';
+import {ELEMENTAL} from '../core/elemental-skills';
 import {MELEE_WEAPONS} from '../core/melee';
 import {RANGED_HITS, WEAPONS} from '../core/weapons';
 
@@ -19,6 +20,9 @@ export const WEAPON_GUIDE:Record<WeaponKind,CatalogEntry>={
   talisman:{short:'派单符册',role:'分单接力',description:'三张派单纸向不同方向飞出，碰到怪物才开始逐跳传递。各路共享已派名单，单轮最多打十只。',detail:weaponDetail('talisman',`首段射程 ${WEAPONS.talisman.range} · 张角 108° · 跳转距离 ${WEAPONS.talisman.width} · 后续 ${RANGED_HITS.talisman.slice(1).join(" / ")}`)},
 };
 export const SKILL_GUIDE:Record<SkillKind,CatalogEntry>={
+  vortex:{short:'乌金涡锅',role:'黑洞聚怪',description:'把涡锅甩到前方，整条街上的地面怪都会被卷向锅心。沿锅沿绕到侧面，可以边聚怪边打。',detail:`牵引 ${ELEMENTAL.vortex.duration} 秒 · 收锅半径 ${ELEMENTAL.vortex.blastRadius} · 爆发伤害 ${ELEMENTAL.vortex.damage}`},
+  poison:{short:'毒雾泡菜坛',role:'毒雾蚀血',description:'开坛后，青绿色酸雾在脚下铺开。把追兵引进雾里，再绕到另一边，沾上的毒汁会继续扣血。',detail:`雾区半径 ${ELEMENTAL.poison.radius} · 留场 ${ELEMENTAL.poison.duration} 秒 · 每 ${ELEMENTAL.poison.interval} 秒扣 ${ELEMENTAL.poison.damage} 血 · 离开后持续 ${ELEMENTAL.poison.linger} 秒`},
+  frost:{short:'冰封刨冰机',role:'冰封碎裂',description:'碎冰沿地面向四周扩散，冻住它扫过的怪。趁怪群停住穿过包围，冰壳碎裂时再补一击。',detail:`扩散半径 ${ELEMENTAL.frost.radius} · ${ELEMENTAL.frost.growth} 秒铺开 · 第 ${ELEMENTAL.frost.duration} 秒碎冰，造成 ${ELEMENTAL.frost.damage} 伤害`},
   health:{short:'暖心汤包',role:'恢复生命',description:'受伤后，附近的空地会飘来带红心的汤包。迎上它就能回血，满血经过会留在街上。',detail:`每个最多恢复 ${CONFIG.skills.health.amount} 点生命 · 拾取 ${CONFIG.skills.health.cooldown} 秒后可再次投递`},
   icebox:{short:'保冷箱',role:'定向冰浪',description:'开箱前转身对准怪群，碎冰分三层向前涌出。浪头触到的敌人受伤并短暂冻结。',detail:'前方 180° · 蓄力 0.20 秒 · 命中 85 · 冻结 0.75 秒'},
   steamer:{short:'蒸笼开席',role:'全场扩散',description:'揭盖后热汽从脚边向场外推开。近处的怪先被掀起，可以跟着浪头往外跑。',detail:'波前用时 0.65 秒 · 每只最多 100 伤害'},
@@ -84,7 +88,7 @@ export const CATALOG={
   },
   skills:{
     label:`${SKILL_KINDS.length} 种技能`,
-    note:'迎上漂浮的青色技能泡即可发动技能。在配送试验场可以反复体验四款大招，试转向和落点。',
+    note:'迎上青色技能泡即可发动。试验场的「实战试打」可以单独练习聚怪、放毒、冰封和四款大招。',
     cards:SKILL_KINDS.map(kind=>({kind,title:SKILL_NAMES[kind],...SKILL_GUIDE[kind]})),
   },
   enemies:{

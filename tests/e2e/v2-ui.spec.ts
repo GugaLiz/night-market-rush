@@ -1,5 +1,5 @@
 import {test,expect,type Page} from '@playwright/test';
-import {ENEMY_NAMES,WEAPON_KINDS,SKILL_KINDS,type GameState} from '../../src/shared/types';
+import {ELEMENTAL_KINDS,ENEMY_NAMES,WEAPON_KINDS,SKILL_KINDS,SKILL_NAMES,type GameState} from '../../src/shared/types';
 import {CONFIG} from '../../src/core/config';
 import {SAVE_KEY} from '../../src/platform/storage';
 import {clayFrames} from '../../src/render/clay-frames';
@@ -29,7 +29,7 @@ test('complete catalog and safe laboratory lifecycle with all weapons, skills an
   await expect(page.locator('.catalog-grid article')).toHaveCount(10);
   await expectCatalogArt(page,WEAPON_KINDS,clayFrames.weapons);
   await page.getByRole('tab',{name:`${SKILL_KINDS.length} 种技能`}).click();await expect(page.locator('.catalog-grid article')).toHaveCount(SKILL_KINDS.length);
-  await expectCatalogArt(page,SKILL_KINDS,{...clayFrames.supplies,...clayFrames.ultimates});
+  await expectCatalogArt(page,SKILL_KINDS,{...clayFrames.supplies,...clayFrames.ultimates,...clayFrames.elementals});
   await page.screenshot({animations:'disabled',path:info.outputPath('v2-catalog.png')});
   const enemyTab=page.getByRole('tab',{name:'7 种怪物'});
   await enemyTab.click();
@@ -66,6 +66,38 @@ test('complete catalog and safe laboratory lifecycle with all weapons, skills an
   await page.keyboard.press('Escape');await view(page,'pause');await page.getByRole('button',{name:'返回首页',exact:true}).click();await view(page,'confirm');
   await page.getByRole('button',{name:'结束本局',exact:true}).click();await view(page,'home');
   const best=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)??'null')?.best??null,SAVE_KEY);expect(best).toBeNull();
+});
+
+test('the three elemental trials start from a drifting pickup and play through their release',async({page},info)=>{
+  await page.clock.install();
+  await page.getByRole('button',{name:'配送试验场',exact:true}).click();
+  for(const kind of ELEMENTAL_KINDS){
+    await page.getByRole('button',{name:SKILL_NAMES[kind],exact:true}).click();
+    const start=await state(page);
+    expect(start.pickups.map(p=>p.kind)).toEqual([kind]);
+    expect(start.elementalFields).toHaveLength(0);
+    await page.keyboard.down('ArrowRight');
+    await page.clock.runFor(320);
+    await page.keyboard.up('ArrowRight');
+    await expect(page.locator(`[data-status="${kind}"]`)).toBeVisible();
+    await page.clock.runFor(620);
+    const active=await state(page);
+    const field=active.elementalFields!.find(f=>f.kind===kind)!;
+    expect(field.released).toBe(false);
+    if(kind==='vortex'){
+      const spread=(s:GameState)=>Math.max(...s.enemies.map(e=>Math.hypot(e.x-field.x,e.y-field.y)));
+      expect(spread(active)).toBeLessThan(spread(start)*.75);
+    }else if(kind==='poison'){
+      expect(active.enemies.some(e=>(e.poisonUntil??0)>active.time)).toBe(true);
+    }else{
+      expect(active.enemies.filter(e=>(e.frostUntil??0)>active.time).length).toBeGreaterThan(2);
+    }
+    await page.screenshot({path:info.outputPath(kind+'.png')});
+    await page.clock.runFor(Math.ceil((field.expiresAt-active.time+.15)*1000));
+    expect((await state(page)).elementalFields).toHaveLength(0);
+    await expect(page.locator(`[data-status="${kind}"]`)).toHaveCount(0);
+    await page.getByRole('button',{name:'试验工具',exact:true}).click();
+  }
 });
 
 test('HP feedback, healing, safety state priority, and portrait recovery in practice',async({page},info)=>{

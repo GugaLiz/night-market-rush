@@ -1,4 +1,4 @@
-import {DEFAULT_SETTINGS, ENEMY_NAMES, WEAPON_NAMES, WEAPON_KINDS, SKILL_NAMES, SKILL_KINDS, ULTIMATE_KINDS, type UltimateKind, type WeaponKind, type SkillKind, type EnemyKind, type BestRecord, type GameState, type Settings} from '../shared/types';
+import {DEFAULT_SETTINGS, ELEMENTAL_KINDS, ENEMY_NAMES, WEAPON_NAMES, WEAPON_KINDS, SKILL_NAMES, SKILL_KINDS, ULTIMATE_KINDS, type WeaponKind, type SkillKind, type EnemyKind, type BestRecord, type GameState, type Settings} from '../shared/types';
 import {CATALOG, WEAPON_GUIDE, SKILL_GUIDE} from './catalog';
 import {icon} from './game-icons';
 import {WEAPONS} from '../core/weapons';
@@ -6,12 +6,14 @@ import {CONFIG} from '../core/config';
 import {isOnPaperRoute} from '../core/geometry';
 import {EXPRESS,expressCast} from '../core/ultimates';
 
+const previewSkills=[...ELEMENTAL_KINDS,...ULTIMATE_KINDS] as const;
+
 export type View = 'home'|'loading'|'tutorial'|'countdown'|'play'|'pause'|'settings'|'confirm'|'revive'|'result'|'rotate'|'lab'|'catalog';
 export interface UIActions {
   start:()=>void; resume:()=>void; pause:()=>void; settings:()=>void; dash:()=>void;
   applySettings:(settings:Settings)=>void; previewSettings:(settings:Settings)=>void;
   cancelSettings:()=>void; home:()=>void; abandon:()=>void; retry:()=>void;
-  revive:()=>void; endRun:()=>void; demo:(kind:'pickup'|'wave'|'giantBun'|UltimateKind)=>void;
+  revive:()=>void; endRun:()=>void; demo:(kind:'pickup'|'wave'|'giantBun'|typeof previewSkills[number])=>void;
   practice:()=>void; lab:()=>void; closeLab:()=>void; catalog:()=>void; closeCatalog:()=>void;
   selectWeapon:(kind:WeaponKind)=>void; triggerSkill:(kind:SkillKind)=>void; spawnEnemy:(kind:EnemyKind,group:boolean)=>void;
   heal:()=>void; clear:()=>void; resetLab:()=>void; setSpeed:(speed:number)=>void;
@@ -223,6 +225,9 @@ export class UI {
       add('express',`急送第 ${order} 单`,parcel.expiresAt-EXPRESS.fade-state.time);
     }
     add('bubble','防撞×1',state.player.bubbleUntil-state.time);add('skate','滑板环绕',state.player.skateUntil-state.time);
+    for(const field of state.elementalFields??[]){
+      add(field.kind,SKILL_GUIDE[field.kind].role,field.releaseAt-state.time);
+    }
     add('route',inRoute?`移速 +${Math.round((CONFIG.skills.route.speedMultiplier-1)*100)}%`:'踏上路线加速',duration('route'),inRoute);
     add('dispatch','增援暂缓',state.effects.dispatchUntil-state.time);add('stamp','额外掉币 +1',state.player.stampUntil-state.time);add('cones',`路锥×${activeZones.filter(z=>z.kind==='cone').length}`,duration('cone'));add('lure','诱饵',duration('lure'));
     add('heat','武器急速',heat);
@@ -367,8 +372,8 @@ export class UI {
 
   private renderLab():void{
     const weapon=WEAPON_GUIDE[this.selectedWeapon],skill=SKILL_GUIDE[this.selectedSkill];
-    const showcases=ULTIMATE_KINDS.map(kind=>`<button class="clay-sample" data-preview="${kind}"><span>${icon(kind)}</span>${SKILL_NAMES[kind]}</button>`).join('');
-    this.overlay.innerHTML=this.paper(`<div class="lab-title"><div><div class="paper-kicker">自由体验 · 不记入正式纪录</div><h2 id="dialog-title">配送试验场</h2></div>${this.button('继续试验','close-lab','primary compact','data-primary')}</div><div class="lab-grid"><section><h3>更换武器</h3><label class="sr-only" for="lab-weapon">试验武器</label><select id="lab-weapon" data-lab="weapon">${WEAPON_KINDS.map(k=>`<option value="${k}" ${k===this.selectedWeapon?'selected':''}>${WEAPON_NAMES[k]}</option>`).join('')}</select><p>${weapon.description}</p><small>${weapon.detail}</small>${this.button('装备并体验','choose-weapon','primary wide')}</section><section><h3>立即触发技能</h3><label class="sr-only" for="lab-skill">试验技能</label><select id="lab-skill" data-lab="skill">${SKILL_KINDS.map(k=>`<option value="${k}" ${k===this.selectedSkill?'selected':''}>${SKILL_NAMES[k]}</option>`).join('')}</select><p>${skill.description}</p><small>${skill.detail}</small>${this.button('触发并体验','trigger-skill','primary wide')}</section><section><h3>布置敌人</h3><label class="sr-only" for="lab-enemy">敌人类型</label><select id="lab-enemy" data-lab="enemy">${(Object.keys(ENEMY_NAMES) as EnemyKind[]).map(k=>`<option value="${k}" ${k===this.selectedEnemy?'selected':''}>${ENEMY_NAMES[k]}</option>`).join('')}</select><p>单只观察攻击判定，敌群体验贯穿、范围与防护。敌人会正常攻击。</p><div class="lab-spawns">${this.button('生成单只','spawn-single','secondary')}${this.button('生成敌群','spawn-group','secondary')}</div></section></div><section class="clay-samples" aria-label="大招与精英试打"><h3>实战试打</h3><div>${showcases}${this.button(`<span>${icon('giantBun')}</span>巨包三连坐`,'demo-giant','clay-sample giant-sample')}</div></section><div class="lab-demos"><h3>基础练习</h3>${this.button('取卡清场','demo-pickup','secondary compact')}${this.button('连续换波','demo-wave','secondary compact')}</div><div class="lab-footer"><div class="lab-speed" role="group" aria-label="试验速度">${[.5,1].map(speed=>`<button class="segment ${speed===(this.data.speed??1)?'selected':''}" data-speed="${speed}" aria-pressed="${speed===(this.data.speed??1)}">${speed}× 速度</button>`).join('')}</div><div>${this.button('补满生命','heal','secondary compact')}${this.button('清空场地','clear','secondary compact')}${this.button('重置试验','reset-lab','secondary compact')}${this.button('查看图鉴','catalog','secondary compact')}</div></div><p class="lab-hint">操作面板打开时模拟暂停。按 Esc 或“继续试验”回到场地；顶部“试验工具”可再次打开。</p>`,'lab-card');
+    const showcases=previewSkills.map(kind=>`<button class="clay-sample" data-preview="${kind}"><span>${icon(kind)}</span>${SKILL_NAMES[kind]}</button>`).join('');
+    this.overlay.innerHTML=this.paper(`<div class="lab-title"><div><div class="paper-kicker">自由体验 · 不记入正式纪录</div><h2 id="dialog-title">配送试验场</h2></div>${this.button('继续试验','close-lab','primary compact','data-primary')}</div><div class="lab-grid"><section><h3>更换武器</h3><label class="sr-only" for="lab-weapon">试验武器</label><select id="lab-weapon" data-lab="weapon">${WEAPON_KINDS.map(k=>`<option value="${k}" ${k===this.selectedWeapon?'selected':''}>${WEAPON_NAMES[k]}</option>`).join('')}</select><p>${weapon.description}</p><small>${weapon.detail}</small>${this.button('装备并体验','choose-weapon','primary wide')}</section><section><h3>立即触发技能</h3><label class="sr-only" for="lab-skill">试验技能</label><select id="lab-skill" data-lab="skill">${SKILL_KINDS.map(k=>`<option value="${k}" ${k===this.selectedSkill?'selected':''}>${SKILL_NAMES[k]}</option>`).join('')}</select><p>${skill.description}</p><small>${skill.detail}</small>${this.button('触发并体验','trigger-skill','primary wide')}</section><section><h3>布置敌人</h3><label class="sr-only" for="lab-enemy">敌人类型</label><select id="lab-enemy" data-lab="enemy">${(Object.keys(ENEMY_NAMES) as EnemyKind[]).map(k=>`<option value="${k}" ${k===this.selectedEnemy?'selected':''}>${ENEMY_NAMES[k]}</option>`).join('')}</select><p>单只观察攻击判定，敌群体验贯穿、范围与防护。敌人会正常攻击。</p><div class="lab-spawns">${this.button('生成单只','spawn-single','secondary')}${this.button('生成敌群','spawn-group','secondary')}</div></section></div><section class="clay-samples" aria-label="技能与精英试打"><h3>实战试打</h3><div>${showcases}${this.button(`<span>${icon('giantBun')}</span>巨包三连坐`,'demo-giant','clay-sample giant-sample')}</div></section><div class="lab-demos"><h3>基础练习</h3>${this.button('取卡清场','demo-pickup','secondary compact')}${this.button('连续换波','demo-wave','secondary compact')}</div><div class="lab-footer"><div class="lab-speed" role="group" aria-label="试验速度">${[.5,1].map(speed=>`<button class="segment ${speed===(this.data.speed??1)?'selected':''}" data-speed="${speed}" aria-pressed="${speed===(this.data.speed??1)}">${speed}× 速度</button>`).join('')}</div><div>${this.button('补满生命','heal','secondary compact')}${this.button('清空场地','clear','secondary compact')}${this.button('重置试验','reset-lab','secondary compact')}${this.button('查看图鉴','catalog','secondary compact')}</div></div><p class="lab-hint">操作面板打开时模拟暂停。按 Esc 或“继续试验”回到场地；顶部“试验工具”可再次打开。</p>`,'lab-card');
   }
   private renderCatalog():void{
     const {cards,note}=CATALOG[this.catalogTab];
@@ -409,7 +414,7 @@ export class UI {
   private cancelSettings(){if(this.changed()){this.cancelConfirm=true;this.renderSettings();}else this.actions.cancelSettings();}
   private handleClick=(event:MouseEvent)=>{
     const button=(event.target as Element).closest<HTMLButtonElement>('button');if(!button||button.disabled)return;
-    const preview=ULTIMATE_KINDS.find(kind=>kind===button.dataset.preview);
+    const preview=previewSkills.find(kind=>kind===button.dataset.preview);
     if(preview){this.actions.demo(preview);return;}
     if(button.dataset.catalog&&Object.hasOwn(CATALOG,button.dataset.catalog)){
       this.catalogTab=button.dataset.catalog as keyof typeof CATALOG;

@@ -17,6 +17,7 @@ function registerAtlas(file:string, frames:Record<string,Frame>):void {
 
 registerAtlas('clay-weapons.webp',clayFrames.weapons);
 registerAtlas('clay-supplies.webp',clayFrames.supplies);
+registerAtlas('clay-elemental-tools.webp',clayFrames.elementals);
 registerAtlas('clay-actors.webp',clayFrames.ultimates);
 registerAtlas('clay-market-mascots.webp',clayFrames.mascots);
 registerAtlas('clay-street-snacks.webp',clayFrames.streetSnacks);

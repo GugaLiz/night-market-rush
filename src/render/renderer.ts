@@ -2,7 +2,7 @@ import {CONFIG, WORLD} from '../core/config';
 import {DEFAULT_SETTINGS, SKILL_NAMES, ULTIMATE_KINDS, WEAPON_NAMES} from '../shared/types';
 import {isOnPaperRoute} from '../core/geometry';
 import {EXPRESS,TOSS_DURATION} from '../core/ultimates';
-import type {Enemy, GameEvent, GameState, Settings, Vec, WeaponKind} from '../shared/types';
+import type {ElementalField, Enemy, GameEvent, GameState, Settings, Vec, WeaponKind} from '../shared/types';
 import type {Assets, SpriteName} from './assets';
 import {drawSprite} from './sprite';
 import {CourierRig} from './character';
@@ -14,6 +14,7 @@ import {drawChainLink, drawFlightWake, drawPaperPuff, drawWeaponContact, drawWea
 import {drawFlyingChopsticks} from './bamboo-volley';
 import {drawMeleeWaves} from './melee-waves';
 import {drawUltimateGround,drawUltimateAir} from './ultimate-fx';
+import {drawElementalGround,drawIceFragments,drawPoisonedEnemy,drawVortexMouth} from './elemental-fx';
 import {drawEnemyAttackGround,drawEnemyAttackDetail,drawGiantPulses,drawSoupShot,getEnemyAttackPose,enemyExpression,drawIceShell} from './enemy-clay-fx';
 import {enemyHeight} from './enemy-vitals';
 import {drawGroundCoins, drawMarketBackground, drawSkillFields} from './market-floor';
@@ -89,8 +90,15 @@ export class Renderer {
       } else if(event.type==='ultimateBeat') {
         const force=event.kind==='berry'?.22:event.kind==='steamer'?.11:event.kind==='express'&&event.beat===EXPRESS.legs?.16:.065;
         this.shake=Math.max(this.shake,force);
+      } else if(event.type==='elementalBurst'){
+        this.shake=Math.max(this.shake,event.kind==='vortex'?.16:.10);
       } else if (event.type === 'kill') {
         const seed=event.victimId??Math.round(event.x);
+        if(event.source==='vortex'){
+          this.effects.push({kind:'swallowed',x:event.x,y:event.y,sprite:event.kind,facing:event.facing,
+            angle:(seed%2===0?1:-1)*.45,age:0,duration:.27});
+          continue;
+        }
         const ultimate=ULTIMATE_KINDS.some(kind=>kind===event.source);
         const launched=ultimate||crowd&&Math.hypot(originX-event.x,originY-event.y)<260;
         const strike=this.contacts.find(hit=>hit.seed===event.victimId&&hit.age===0);
@@ -108,7 +116,11 @@ export class Renderer {
           this.contacts.push({kind:event.source as WeaponKind,x:event.x,y,angle:event.impactAngle??0,seed:event.victimId,
             age:0,duration:event.source==='sword'||event.source==='lunchbox'?.34:.27,featured});
           this.shake=Math.max(this.shake,.08);
-        }else{
+        }else if(event.source==='frost'){
+          this.effects.push({kind:'iceFragments',x:event.x,y:event.y-23,power:event.victimId,age:0,duration:.38});
+        }else if(event.source==='poison'){
+          this.burst(event.x,event.y-18,'#c9f17d',3);
+        }else if(event.source!=='vortex'){
           this.burst(event.x,event.y-25,'#fff1bd',4);
           this.effects.push({kind:'hit',x:event.x,y:event.y-28,age:0,duration:.18});
         }
@@ -198,6 +210,7 @@ export class Renderer {
     this.trackFootwork(s);
     drawSkillFields(c, s.fields, s.time, this.settings.quality === 'simple', this.settings.reduceMotion, this.assets);
     drawUltimateGround(c,s,this.settings,this.assets);
+    drawElementalGround(c,s,this.settings,this.assets);
     this.skillUses=this.skillUses.filter(use=>s.time-use.time<useLifetime);
     for(const use of this.skillUses)if(use.kind==='soda'||use.kind==='bell'){
       drawUseRipple(c,use,s.time-use.time,CONFIG.skills[use.kind].radius,this.settings.reduceMotion);
@@ -236,7 +249,9 @@ export class Renderer {
     this.drawEffects(false);
     if (s.player.skateUntil > s.time) this.skateRing(s, false);
     const enemies=[...s.enemies].sort((a,b)=>a.y-b.y);
-    for(const e of enemies)this.enemy(e,s);
+    const vortex=s.elementalFields?.find(field=>field.kind==='vortex'&&s.time>=field.bornAt&&s.time<field.releaseAt);
+    for(const e of enemies)this.enemy(e,s,vortex);
+    if(vortex)drawVortexMouth(c,vortex,s.time,this.settings.reduceMotion);
     this.drawEffects(true);
     for(const hit of this.contacts)drawWeaponContact(c,hit,this.settings,this.assets.strikes);
     for (const p of this.particles) {
@@ -256,7 +271,8 @@ export class Renderer {
     if(onRoute)drawRouteStride(c,s.player,s.time,this.settings.reduceMotion);
     this.drawCourier(s);
     if(this.rig.bagPoint && this.rig.supplyHand)for(const use of this.skillUses){
-      drawDeliveryUse(c,this.assets,use,s.time,this.rig.bagPoint,this.rig.supplyHand,this.settings.reduceMotion);
+      const field=s.elementalFields?.find(f=>f.kind===use.kind&&f.bornAt===use.time);
+      drawDeliveryUse(c,this.assets,use,s.time,this.rig.bagPoint,this.rig.supplyHand,this.settings.reduceMotion,field);
     }
     this.projectiles(s);
     this.playerStatus(s);
@@ -333,12 +349,14 @@ export class Renderer {
     }
   }
 
-  private enemy(e:Enemy,s:GameState):void {
+  private enemy(e:Enemy,s:GameState,vortex?:ElementalField):void {
     const c=this.ctx,time=s.time,reduced=this.settings.reduceMotion;
     const t=reduced?0:time,age=time-e.spawnAt,giant=e.kind==='giantBun';
     const bun=giant||e.kind==='bun',low=e.hp<=e.maxHp*.35;
     const sprite=enemyExpression(e,time);
-    const hurt=sprite.endsWith('Hurt'),frozen=(e.chilledUntil??0)>time;
+    const hurt=sprite.endsWith('Hurt'),frozen=(e.chilledUntil??0)>time||(e.frostUntil??0)>time;
+    const pulled=vortex&&age>=CONFIG.spawn.warning&&e.jump?.phase!=='flight'&&e.stunUntil>time;
+    const swallowed=pulled&&vortex?Math.max(0,1-Math.hypot(e.x-vortex.x,e.y-vortex.y)/90):0;
     const height=enemyHeight(e.kind)*(bun&&low&&!hurt?.84:1);
     const posed=getEnemyAttackPose(e,time,this.settings);
     const strike=time-e.hurtAt<.21?this.contacts.find(hit=>hit.seed===e.id&&hit.age<=.21):undefined;
@@ -351,6 +369,10 @@ export class Renderer {
     const shade=giant?38:e.kind==='bowl'?26:18;
     this.shadow(e.x,e.y,shade*(1-.003*(posed.lift+toss)),.24-.0014*(posed.lift+toss));
     c.save();c.translate(e.x+Math.cos(dir)*recoil*13,foot+Math.sin(dir)*recoil*9);
+    if(swallowed>0&&!reduced){
+      c.rotate(swallowed*(e.id%2===0?.37:-.37));
+      c.scale(1-.55*swallowed,1-.55*swallowed);
+    }
     c.scale((1+.08*recoil)*posed.scaleX,(1-.08*recoil)*posed.scaleY);
     const tilt=posed.tilt+Math.cos(dir)*recoil*.18;
     this.sprite(sprite,0,0,height,e.facing,tilt);
@@ -361,12 +383,13 @@ export class Renderer {
     if(frozen){
       drawIceShell(c,e.x,foot,height);
     }else{
-      if(e.stunUntil>time)for(let i=0;i<3;i++){const angle=t*4+i*2.1;this.caption('✦',e.x+Math.cos(angle)*18,headY-12+Math.sin(angle)*3,14,'#fff2a1');}
+      if(!pulled&&e.stunUntil>time)for(let i=0;i<3;i++){const angle=t*4+i*2.1;this.caption('✦',e.x+Math.cos(angle)*18,headY-12+Math.sin(angle)*3,14,'#fff2a1');}
       if(e.slowUntil>time){
         c.strokeStyle='#9af8e3';c.fillStyle='#8af2d825';c.lineWidth=2;
         c.beginPath();c.ellipse(e.x,foot-height*.45,height*.43,height*.54,0,0,Math.PI*2);c.fill();c.stroke();
       }
     }
+    drawPoisonedEnemy(c,e,foot,height,time,this.settings);
     c.restore();
   }
 
@@ -417,6 +440,11 @@ export class Renderer {
       }
       if(!front&&e.kind==='chainLink'&&e.from)drawChainLink(c,e.from,e,progress);
       if(front&&e.kind==='hit'){c.translate(e.x,e.y);c.strokeStyle='#fff7d8';c.lineWidth=3;for(let i=0;i<6;i++){const a=i*Math.PI/3+.2,r=8+progress*20;c.beginPath();c.moveTo(Math.cos(a)*r,Math.sin(a)*r);c.lineTo(Math.cos(a)*(r+10),Math.sin(a)*(r+10));c.stroke();}}
+      if(front&&e.kind==='iceFragments')drawIceFragments(c,e.x,e.y,progress,e.power??0,this.settings);
+      if(front&&e.kind==='swallowed'&&e.sprite){
+        const size=enemyHeight(e.sprite)*(this.settings.reduceMotion?1:.45*(1-progress));
+        this.sprite(e.sprite,e.x,e.y,size,e.facing,this.settings.reduceMotion?0:(e.angle??0)*(1+progress));
+      }
       if(front&&e.kind==='defeat'&&e.sprite){
         const motion=this.settings.reduceMotion?0:progress;
         const distance=e.power??12, angle=e.angle??0, push=1-(1-motion)**2;

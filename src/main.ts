@@ -68,8 +68,16 @@ const ui:UI=new UI(document.getElementById('app')!,{
     else if(kind==='wave')game.setupWaveDemo();
     else game.setupCombatDemo(kind);
     renderer?.reset();beginPlay(false);deliverEvents();
-    const hint=kind==='pickup'?'迎上电扇技能泡，再沿热风清出的路收金币':kind==='wave'?'换波后，技能泡继续飘动，金币仍可收取':
-      kind==='giantBun'?'看落点粉印，第三跳从缺口穿过':kind==='express'?'迎上技能泡，快递包会来回飞送 15 秒。折返时转向可以引导下一程。':'迎上大招的技能泡，然后用方向键或摇杆走位';
+    const hints:Partial<Record<typeof kind,string>>={
+      pickup:'迎上电扇技能泡，再沿热风清出的路收金币',
+      wave:'换波后，技能泡继续飘动，金币仍可收取',
+      giantBun:'看落点粉印，第三跳从缺口穿过',
+      express:'迎上技能泡，快递包会来回飞送 15 秒。折返时转向可以引导下一程。',
+      vortex:'向右取锅，绕着锅心打聚过来的怪',
+      poison:'向右开坛，再绕过雾区，让追兵沾上毒汁',
+      frost:'向右取刨冰机，趁冰壳碎裂前穿过怪群',
+    };
+    const hint=hints[kind]??'迎上大招的技能泡，然后用方向键或摇杆走位';
     ui.toast(hint,1600);
   },
   catalog:()=>{cancelPendingStart();gesture();catalogOrigin=ui.currentView;input.setEnabled(false);if(live)audio.setScene('paused');ui.show('catalog',{settings,state:game.state});},

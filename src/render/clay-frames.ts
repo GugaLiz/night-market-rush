@@ -1,5 +1,10 @@
 // Trimmed source rectangles of the packed soft-clay WebP atlases (x, y, width, height).
 export const clayFrames = {
+  elementals: {
+    vortex: [10, 59, 236, 137],
+    poison: [281, 10, 206, 236],
+    frost: [525, 10, 230, 236],
+  },
   // Source rectangles keep a shared bottom-centre foot pivot across each species' four poses.
   streetSnacks: {
     onigiri: [9, 25, 190, 173],

@@ -1,6 +1,7 @@
 import {describe, expect, it} from 'vitest';
 import {CONFIG, WORLD} from '../src/core/config';
 import {Game} from '../src/core/game';
+import {ELEMENTAL_KINDS} from '../src/shared/types';
 import {dropCoins} from '../src/core/rewards';
 import type {CombatContext} from '../src/core/contracts';
 
@@ -198,6 +199,7 @@ describe('V4 continuous play', () => {
     expect(firstSkills.has('fan')).toBe(true);
     expect(firstSkills.size).toBeGreaterThan(1);
     expect(supports.size).toBeGreaterThan(2);
+    for(const kind of ELEMENTAL_KINDS)expect(supports.has(kind)).toBe(true);
     expect(fireSides).toEqual(new Set([-1,1]));
   });
 

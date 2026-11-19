@@ -3,10 +3,15 @@ export type WeaponKind='tongs'|'bag'|'chopsticks'|'spirit'|'knife'|'tray'|'umbre
 export type MeleeKind=Extract<WeaponKind,'tongs'|'knife'|'umbrella'|'sword'>;
 export const ULTIMATE_KINDS = ['icebox','steamer','express','berry'] as const;
 export type UltimateKind = typeof ULTIMATE_KINDS[number];
-export type SkillKind='fan'|'skate'|'soda'|'lure'|'bubble'|'cones'|'bell'|'route'|'hook'|'heat'|'dispatch'|'stamp'|'supply'|'health'|UltimateKind;
+export const ELEMENTAL_KINDS = ['vortex','poison','frost'] as const;
+export type ElementalKind = typeof ELEMENTAL_KINDS[number];
+export type SkillKind='fan'|'skate'|'soda'|'lure'|'bubble'|'cones'|'bell'|'route'|'hook'|'heat'|'dispatch'|'stamp'|'supply'|'health'|UltimateKind|ElementalKind;
 export function isUltimate(kind:SkillKind):kind is UltimateKind {return ULTIMATE_KINDS.some(k=>k===kind);}
 export type DamageSource=WeaponKind|SkillKind|EnemyKind|'dash';
 export interface Vec {x:number;y:number}
+export interface ElementalField extends Vec {
+  id:number;kind:ElementalKind;radius:number;bornAt:number;releaseAt:number;expiresAt:number;released:boolean;
+}
 export type GiantHop=1|2|3;
 export interface GiantJump {
   phase:'warn'|'flight'|'rest'; hop:GiantHop; startedAt:number; until:number;
@@ -35,6 +40,7 @@ export interface Enemy extends Vec {
   march?:{x:number;y:number;until:number};
   volleyRemaining?:number;nextVolleyAt?:number;
   bellStunUntil?:number;chilledUntil?:number;tossAt?:number;tossHeight?:number;
+  poisonUntil?:number;poisonNextAt?:number;frostUntil?:number;
 }
 export interface GroundCoin extends Vec {id:number;bornAt:number;value:number;dropOrigin?:Vec;attracted?:boolean}
 export interface SkillField extends Vec {id:number;castId:number;kind:'fire'|'blue';radius:number;bornAt:number;expiresAt:number;hitIds:number[]}
@@ -56,6 +62,7 @@ export interface EnemyShot extends Vec {id:number;ownerId:number;px:number;py:nu
 export interface Zone extends Vec {id:number;kind:'lure'|'cone'|'route'|'supply';radius:number;bornAt:number;expiresAt:number;angle:number;length:number;width:number;hp:number;groupId?:number}
 export interface SkillEffects {dispatchUntil:number;dispatchStartedAt:number;dispatchCooldownUntil:number;pendingSupplyAt:number;pendingSupplyUntil:number;supplyGroupId:number;[key:string]:number}
 export type GameEvent=
+  {type:'elementalBurst';kind:'vortex'|'frost';x:number;y:number}|
   {type:'giantLand';x:number;y:number;hop:GiantHop}|
   {type:'ultimateBeat';kind:UltimateKind;beat:number;x:number;y:number}|
   {type:'detonation';x:number;y:number}|{type:'chainLink';fromX:number;fromY:number;x:number;y:number}|
@@ -67,7 +74,7 @@ export type GameEvent=
   {type:'heal';id:number;amount:number;x:number;y:number}|{type:'defend';kind:'umbrella'|'bubble';x:number;y:number;victimId:number}|
   {type:'weapon';kind:WeaponKind;previous:WeaponKind;x:number;y:number}|{type:'attack';id:number;kind:WeaponKind;x:number;y:number;angle:number}|
   {type:'skill';kind:SkillKind;x:number;y:number;time:number;facing:Vec;pickupFrom?:Vec}|{type:'notice';message:string}|{type:'dash';x:number;y:number;angle:number}|{type:'enemyShot';x:number;y:number;angle:number};
-export interface GameState {giantPulses?:GiantPulse[];lastGiantWave?:number;ultimates?:UltimateCast[];time:number;score:number;kills:number;stage:number;wave:number;waveStartedAt:number;coins:GroundCoin[];collectedCoins:number;combo:number;comboUntil:number;revivesUsed:number;fields:SkillField[];ended:boolean;cause:EnemyKind|null;player:Player;enemies:Enemy[];pickups:Pickup[];seed:number;practice:boolean;weapon:WeaponState;meleeWaves:MeleeWave[];projectiles:Projectile[];enemyShots?:EnemyShot[];weaponDrops:WeaponDrop[];zones:Zone[];effects:SkillEffects;lastDamage:DamageSource|null;lastDamageAmount:number}
+export interface GameState {elementalFields?:ElementalField[];giantPulses?:GiantPulse[];lastGiantWave?:number;ultimates?:UltimateCast[];time:number;score:number;kills:number;stage:number;wave:number;waveStartedAt:number;coins:GroundCoin[];collectedCoins:number;combo:number;comboUntil:number;revivesUsed:number;fields:SkillField[];ended:boolean;cause:EnemyKind|null;player:Player;enemies:Enemy[];pickups:Pickup[];seed:number;practice:boolean;weapon:WeaponState;meleeWaves:MeleeWave[];projectiles:Projectile[];enemyShots?:EnemyShot[];weaponDrops:WeaponDrop[];zones:Zone[];effects:SkillEffects;lastDamage:DamageSource|null;lastDamageAmount:number}
 export interface Settings {mode:'joystick'|'tilt';joystickSize:'small'|'medium'|'large';hand:'left'|'right';sensitivity:'low'|'medium'|'high';music:number;sfx:number;muted:boolean;reduceMotion:boolean;shake:boolean;quality:'standard'|'simple'}
 export const DEFAULT_SETTINGS:Settings={mode:'joystick',joystickSize:'medium',hand:'left',sensitivity:'medium',music:0.35,sfx:0.7,muted:false,reduceMotion:false,shake:true,quality:'standard'};
 export interface BestRecord {score:number;time:number;rulesVersion:string;date:string}
@@ -75,7 +82,7 @@ export interface SaveData {version:1;settings:Settings;best:BestRecord|null;tuto
 export const RULES_VERSION='night-market-4.0';
 export const ENEMY_NAMES:Record<EnemyKind,string>={bun:'包子怪',onigiri:'三角饭团',siumai:'金黄烧卖',zongzi:'青叶粽',box:'外卖盒怪',bowl:'大碗面怪',giantBun:'巨包三连坐'};
 export const WEAPON_NAMES:Record<WeaponKind,string>={tongs:'伸缩取餐夹',bag:'纸袋气炮',chopsticks:'飞筷匣',spirit:'汤灵保温壶',knife:'拆箱快刀',tray:'回旋餐盘',umbrella:'折叠配送伞',sword:'签收尺剑',lunchbox:'弹射餐盒',talisman:'派单符册'};
-export const SKILL_NAMES:Record<SkillKind,string>={fan:'旋风电扇',skate:'滑板环绕',soda:'汽水缓速',lure:'试吃保温盒',bubble:'气泡缓冲卷',cones:'三联反光路锥',bell:'到站手铃',route:'导航纸地图',hook:'伸缩取餐钩',heat:'加热餐包',dispatch:'派单终端',stamp:'加急印章',supply:'补给扫码券',icebox:'保冷箱冰浪',steamer:'蒸笼开席',express:'加急三连送',berry:'杨梅汽水炸屏',health:'暖心汤包'};
+export const SKILL_NAMES:Record<SkillKind,string>={fan:'旋风电扇',skate:'滑板环绕',soda:'汽水缓速',lure:'试吃保温盒',bubble:'气泡缓冲卷',cones:'三联反光路锥',bell:'到站手铃',route:'导航纸地图',hook:'伸缩取餐钩',heat:'加热餐包',dispatch:'派单终端',stamp:'加急印章',supply:'补给扫码券',icebox:'保冷箱冰浪',steamer:'蒸笼开席',express:'加急三连送',berry:'杨梅汽水炸屏',health:'暖心汤包',vortex:'乌金涡锅',poison:'毒雾泡菜坛',frost:'冰封刨冰机'};
 export const WEAPON_KINDS=Object.keys(WEAPON_NAMES) as WeaponKind[];
 export const SKILL_KINDS=Object.keys(SKILL_NAMES) as SkillKind[];
 

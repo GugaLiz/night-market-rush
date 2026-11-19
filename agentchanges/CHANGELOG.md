@@ -705,3 +705,33 @@
 - **实现/结果**：暂停与加载共用局内软陶配送包，换装箱和金币改用对应图形。武器、技能和怪物均取战斗图集真实裁框，按钮控件使用固定图形。夜市图鉴加入完整怪物造型、生命、伤害、预警与走位说明。快递包按三单十二程飞行，每程 1.24 秒，拾取后第 15 秒落下终章，折返可引导方向。HUD 显示单数和时间，尾迹淡出、签收音和最后一击同步。
 - **验证**：通过 TypeScript、Vite、259 项 Vitest 与 17 项端到端测试。4173 生产资源与 dist 的 JS/CSS 字节一致；桌面和 844×390 横屏模拟各核对 35 张图鉴卡的真实帧与等比显示，滚到末张精英卡后可切换返回。28 个物品图标按 3 种容器与战场帧像素比对。桌面验证脚本的定点观察者最初在技能结束前倒下，更新验证场景保护后测到十二次落地、十五秒终章和消退；真实生产试验场经普通拾取也完整录到三单、十二次交替抵达和签收声，录像 15.918 秒。横屏触控三单倒数及四款技能音效正常。
 - **风险/后续**：手机触控由 Chrome 模拟。GitHub 当前账号没有此仓库写权限，推送权限检查返回 403。
+## 2026-11-20 02:33:58 +08:00 — feature
+
+- **摘要**：普通挑战和配送试验场加入乌金涡锅、毒雾泡菜坛、冰封刨冰机。
+- **涉及文件**：
+  - `docs/verification/clay/elemental-skills.webm`
+  - `public/assets/clay-elemental-tools.webp`
+  - `src/core/elemental-skills.ts`
+  - `src/render/elemental-fx.ts`
+  - `tests/elemental-skills.test.ts`
+  - `README.md`
+  - `docs/ASSET_PROVENANCE.md`
+  - `src/core/game.ts`
+  - `src/core/skills.ts`
+  - `src/main.ts`
+  - `src/platform/audio.ts`
+  - `src/render/assets.ts`
+  - `src/render/clay-frames.ts`
+  - `src/render/delivery-skills.ts`
+  - `src/render/renderer.ts`
+  - `src/shared/types.ts`
+  - `src/ui/catalog.ts`
+  - `src/ui/game-icons.ts`
+  - `src/ui/ui.ts`
+  - `tests/e2e/v2-ui.spec.ts`
+  - `tests/v4-core.test.ts`
+  - `agentchanges/CHANGELOG.md`
+- **原因/目标**：将黑洞聚怪、离场持续中毒和范围冻结做成可拾取的独立技能，并把它们的过程和结算表现做进实际战斗。
+- **实现/结果**：涡锅让地面怪在锅前分轨盘旋 3.2 秒后收紧引爆；坛雾持续 5.5 秒，怪物离开后仍每半秒扣血，最长 3 秒；冰浪在 0.8 秒内铺开，冻住的目标于施放后第 3 秒碎裂。不同技能可叠用，拾取动作、范围效果、怪物状态和专属声音随模拟时钟更新。三件软陶实物共用原生 ImageGen 透明图集，原始提示词记于美术来源文档。图鉴增加至 21 种技能，试验场有独立试打入口。
+- **验证**：通过 TypeScript、Vite、265 项 Vitest、18 项 Playwright。覆盖中毒离场、同拍碎冰与毒杀结算、叠用和重置、真实拾取、普通局随机掉落。正式版的 JS、CSS 和道具图集与 dist 逐字节一致，横屏 844×390 的简化特效及减少动态模式下逐项用摇杆拾取成功。960×540 实战视频长 15.34 秒，验证每段音轨与跳转。
+- **风险/后续**：手机触控为 Chrome 模拟。GitHub Pages 依赖远端接收 main，推送预检的 HTTPS 连接被重置。

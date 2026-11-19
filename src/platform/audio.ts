@@ -95,6 +95,17 @@ export class GameAudio {
       this.noiseBurst(now+.012,heavy?.32:.15,.16,1450,300);
       return;
     }
+    if(event.type==='elementalBurst'){
+      if(event.kind==='vortex'){
+        this.note(138,now,.38,.31,'sine',38);
+        this.friction(now,.19,.24,1850,340);
+        this.note(418,now+.025,.25,.11,'triangle',178);
+      }else{
+        this.friction(now,.14,.26,5800,1500);
+        [1480,2230,2920].forEach((f,i)=>this.note(f,now+i*.028,.19-i*.03,.13-i*.022,'sine',f*.83));
+      }
+      return;
+    }
     if(event.type==='ultimateBeat'){
       switch(event.kind){
         case 'icebox':
@@ -171,6 +182,11 @@ export class GameAudio {
         if(now-this.lastFanHit<.14)return;this.lastFanHit=now;
         this.noiseBurst(now+.025,.12,.115,1850,710);
         this.note(184,now+.04,.08,.09,'triangle',112);
+      }else if(event.source==='poison'){
+        if(now-this.lastHit<.16)return;
+        this.lastHit=now;
+        this.note(354,now,.083,.11,'sine',650);
+        this.noiseBurst(now+.03,.067,.07,760,1480);
       }else if(WEAPON_KINDS.includes(event.source as WeaponKind)){
         // One contact for a volley or a cluster. A later bounce can still answer the first hit.
         if((event.burstIndex??1)!==1||now-this.lastWeaponHit<.085)return;
@@ -317,6 +333,20 @@ export class GameAudio {
       case 'steamer':this.note(250,at,.07,.11,'triangle',165);break;
       case 'express':this.noiseBurst(at,.08,.13,850,2750);break;
       case 'berry':this.noiseBurst(at,.16,.11,1000,3100);break;
+      case 'vortex':
+        this.note(485,at,.15,.15,'triangle',156);
+        this.noiseBurst(at+.04,.65,.18,430,2300);
+        this.note(72,at+.06,.85,.20,'sine',135);
+        break;
+      case 'poison':
+        this.note(390,at,.08,.16,'sine',125);
+        this.noiseBurst(at+.035,.46,.14,790,2350);
+        [230,340,280].forEach((f,i)=>this.note(f,at+.075+i*.082,.09,.13,'sine',f*1.8));
+        break;
+      case 'frost':
+        this.friction(at,.32,.19,1540,4500);
+        [660,990,1320,1980].forEach((f,i)=>this.note(f,at+.025+i*.073,.28,.105,'sine'));
+        break;
       case 'fan':
         // A switch clicks, the little motor spins up, then hot air rattles the order slip.
         this.note(610,at+.018,.033,.11,'triangle',310);

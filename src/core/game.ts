@@ -9,7 +9,7 @@ import {collectCoins,dropCoins} from './rewards';
 import {advanceWave,spawnMarketEnemies} from './waves';
 import {driftPickup,launchPickup,skillContact} from './pickup-motion';
 import {giantPulseContact,giantPulseLifetime} from './giant-bun';
-import {ULTIMATE_KINDS,isUltimate,type UltimateKind} from '../shared/types';
+import {ELEMENTAL_KINDS,ULTIMATE_KINDS,isUltimate,type ElementalKind,type UltimateKind} from '../shared/types';
 
 /** Resolve each crossed drop in travel order. A stationary rider gets the closest overlapping choice. */
 function pickupContacts<T extends Vec & {id:number}>(start:Vec,end:Vec,items:T[],reach:(item:T)=>number) {
@@ -39,7 +39,7 @@ export class Game {
     this.batch=0;this.openingPlaced=false;this.dropsSinceFan=0;this.waveDemo=false;
     this.nextUltimateAt=8;this.ultimateIndex=0;
     this.nextHealthAt=0;
-    this.state={ultimates:[],seed:stableSeed,time:0,score:0,kills:0,stage:1,wave:1,waveStartedAt:0,coins:[],collectedCoins:0,combo:0,comboUntil:0,revivesUsed:0,fields:[],ended:false,cause:null,practice,
+    this.state={ultimates:[],elementalFields:[],seed:stableSeed,time:0,score:0,kills:0,stage:1,wave:1,waveStartedAt:0,coins:[],collectedCoins:0,combo:0,comboUntil:0,revivesUsed:0,fields:[],ended:false,cause:null,practice,
       player:{...WORLD.start,px:WORLD.start.x,py:WORLD.start.y,vx:0,vy:0,facing:1,radius:CONFIG.player.radius,skateUntil:0,hp:100,maxHp:100,invulnerableUntil:0,hurtAt:-100,bubbleUntil:0,heatUntil:0,stampUntil:0,moveDirection:{x:1,y:0},sprintTime:0,sprintMultiplier:1,dashUntil:0,dashReadyAt:0,dashDirection:{x:1,y:0}},
       enemies:[],pickups:[],weapon:{kind:'tongs',readyAt:0,equippedAt:0,targetId:null,attack:null},meleeWaves:[],projectiles:[],enemyShots:[],weaponDrops:[],zones:[],
       effects:{dispatchUntil:0,dispatchStartedAt:0,dispatchCooldownUntil:0,pendingSupplyAt:0,pendingSupplyUntil:0,supplyGroupId:0},lastDamage:null,lastDamageAmount:0};
@@ -80,18 +80,27 @@ export class Game {
       }
     }
   }
-  setupCombatDemo(kind:UltimateKind|'giantBun'):void {
+  setupCombatDemo(kind:UltimateKind|ElementalKind|'giantBun'):void {
     this.reset(51623,true);
     const p=this.state.player;
     if(kind==='giantBun'){
       this.spawnEnemy('giantBun',{x:960,y:305});
       return;
     }
-    // Keep the same street and targets for all four pickup runs so their footprints can be compared.
+    // The same spread of targets makes it possible to compare each pickup's footprint.
     const positions=[[160,274],[309,263],[496,222],[797,244],[914,248],[1120,236],
       [236,406],[428,433],[822,383],[998,427],[1134,415],[172,544],[353,553],
       [496,581],[717,535],[871,577],[1045,577],[1140,552]];
-    positions.forEach(([x,y],i)=>this.spawnEnemy(i%6===0?'bowl':i%4===0?'box':'bun',{x,y}));
+    if(isUltimate(kind)){
+      positions.forEach(([x,y],i)=>this.spawnEnemy(i%6===0?'bowl':i%4===0?'box':'bun',{x,y}));
+    }else{
+      // Put a ranged foe and several different snacks behind the pickup. The rider can
+      // watch the status persist there while their forward-facing weapon keeps firing.
+      const queue=['bowl','onigiri','box','siumai','bowl','zongzi'] as const;
+      positions.forEach(([x,y],i)=>this.spawnEnemy(queue[i%queue.length],{x,y}));
+      this.spawnEnemy('bowl',{x:p.x-136,y:p.y+45});
+      this.spawnEnemy('zongzi',{x:p.x-70,y:p.y-145});
+    }
     this.addPickup(kind,{x:p.x+80,y:p.y},{vx:88,vy:34});
   }
   setupWaveDemo():void {
@@ -123,7 +132,7 @@ export class Game {
     const s=this.state;
     if(!s.ended)restorePlayerHealth(s,s.player.maxHp,s.player,this.ctx);
   }
-  clearArena():void{const s=this.state;s.giantPulses=[];s.ultimates=[];s.enemies=[];s.pickups=[];s.weaponDrops=[];s.projectiles=[];s.meleeWaves=[];s.enemyShots=[];s.zones=[];s.coins=[];s.fields=[];s.combo=0;s.comboUntil=0;this.waveDemo=false;s.player.dashUntil=0;s.player.dashReadyAt=0;s.player.sprintTime=0;s.player.sprintMultiplier=1;s.weapon.attack=null;s.weapon.targetId=null;}
+  clearArena():void{const s=this.state;s.giantPulses=[];s.ultimates=[];s.elementalFields=[];s.enemies=[];s.pickups=[];s.weaponDrops=[];s.projectiles=[];s.meleeWaves=[];s.enemyShots=[];s.zones=[];s.coins=[];s.fields=[];s.combo=0;s.comboUntil=0;this.waveDemo=false;s.player.dashUntil=0;s.player.dashReadyAt=0;s.player.sprintTime=0;s.player.sprintMultiplier=1;s.weapon.attack=null;s.weapon.targetId=null;}
   spawnEnemy(kind:EnemyKind,position?:Vec):Enemy {
     const cfg=CONFIG.enemies[kind],p=position??{x:this.state.player.x+140,y:this.state.player.y};
     const x=clamp(p.x,WORLD.bounds.left+cfg.radius,WORLD.bounds.right-cfg.radius),y=clamp(p.y,WORLD.bounds.top+cfg.radius,WORLD.bounds.bottom-cfg.radius);
@@ -352,7 +361,7 @@ for(const e of s.enemies){if(e.kind==='giantBun'||!this.active(e)||e.contactSupp
     const ordinaryCount=s.pickups.filter(p=>p.kind!=='health').length;
     if(ordinaryCount)this.emptySince=s.time;
     if(s.time<this.nextPickupAt&&!(ordinaryCount===0&&s.time-this.emptySince>=CONFIG.pickup.emptyGrace))return;
-    const support:SkillKind[]=['skate','soda','bubble','lure','bell'];
+    const support:SkillKind[]=['skate','soda','bubble','lure','bell',...ELEMENTAL_KINDS];
     if(!this.openingPlaced&&ordinaryCount+2<=CONFIG.pickup.cap){
       const kind=support[Math.floor(this.random()*support.length)];
       const fan=this.pickupPosition('fan');

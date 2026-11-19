@@ -17,11 +17,11 @@ export async function loadAssets(onProgress?: (n: number) => void): Promise<Asse
     'clay-night-market.webp', 'clay-riverside-market.webp', 'clay-chibi-home.webp', 'clay-actors.webp',
     'clay-weapons.webp', 'clay-supplies.webp', 'clay-bun-courier-rig.webp', 'delivery-skills.webp',
     'weapon-strikes.webp', 'clay-ultimate-fx.webp', 'clay-courier-workwear.webp', 'clay-market-mascots.webp',
-    'clay-street-snacks.webp', 'clay-soup-dumpling.webp',
+    'clay-street-snacks.webp', 'clay-soup-dumpling.webp', 'clay-elemental-tools.webp',
   ];
   let completed = 0;
   onProgress?.(0);
-  const [background, riverside, courierHome, atlas, weapons, supplies, rig, deliveryFields, strikes, ultimateFx, workwear, mascots, streetSnacks, soupDumpling] =
+  const [background, riverside, courierHome, atlas, weapons, supplies, rig, deliveryFields, strikes, ultimateFx, workwear, mascots, streetSnacks, soupDumpling, elementalTools] =
     await Promise.all(files.map(name => new Promise<HTMLImageElement>((resolve, reject) => {
       const image = new Image();
       image.onload = () => { onProgress?.(++completed / files.length); resolve(image); };
@@ -40,6 +40,7 @@ export async function loadAssets(onProgress?: (n: number) => void): Promise<Asse
   register(atlas, clayFrames.ultimates);
   register(weapons, clayFrames.weapons);
   register(supplies, clayFrames.supplies);
+  register(elementalTools, clayFrames.elementals);
   sprites.health = {image:soupDumpling, x:0, y:0, width:soupDumpling.naturalWidth, height:soupDumpling.naturalHeight};
   register(rig, clayFrames.rig);
   register(workwear, clayFrames.workwear);
