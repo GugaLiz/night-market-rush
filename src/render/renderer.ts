@@ -274,6 +274,9 @@ export class Renderer {
     const trayInFlight=s.weapon.kind==='tray'&&s.projectiles.some(q=>q.kind==='tray');
     const movingGhosts=!this.settings.reduceMotion&&this.settings.quality==='standard';
     this.shadow(p.x,p.y,24,.28);
+    // Keep the ground marker below the planted shoes so the soles read against the floor.
+    c.save();c.globalAlpha*=.55;c.strokeStyle='#fff1bc';c.lineWidth=1.45;
+    c.beginPath();c.ellipse(p.x,p.y,p.radius+2,4,0,0,TAU);c.stroke();c.restore();
     if(movingGhosts){
       for(const ghost of this.ghosts){
         const age=s.time-ghost.time;
@@ -298,7 +301,6 @@ export class Renderer {
       stamp.restore();c.drawImage(image,x,y);
       this.ghosts.push({image,x,y,time:s.time});
     }else this.rig.draw(c,p,s.weapon,s.time,this.frameDt,this.settings,1.35,s.ended,trayInFlight,useAge);
-    c.strokeStyle='#fff1bc';c.lineWidth=2;c.beginPath();c.ellipse(p.x,p.y,p.radius+2,4,0,0,TAU);c.stroke();
   }
 
   private enemy(e: Enemy, time: number, target=false): void {

@@ -13,10 +13,10 @@ const S = WORLD.shortSide;
 export const CONFIG = {
   step: 1 / 60,
   player: {
-    speed: .46 * S, accelerationTime: .044, decelerationTime: .032,
-    turnRate: 12 * Math.PI, aimThreshold: .075,
+    speed: .645 * S, precisionSpeed: .46 * S, accelerationTime: .030, decelerationTime: .023,
+    turnRate: 16 * Math.PI, aimThreshold: .075,
     radius: .018 * S, minY:180, hp:100, protection:.75, sprintAfter:1.8, sprintMax:1.12,
-    dashDuration:.18, dashCooldown:3, dashSpeed:3, dashExitTime:.055,
+    dashDuration:.18, dashCooldown:3, dashSpeed:1.42*S, dashExitTime:.055,
   },
   enemies: {
     bun: {speed: .075 * S, radius: .020 * S, coins:1, hp:30, damage:8},

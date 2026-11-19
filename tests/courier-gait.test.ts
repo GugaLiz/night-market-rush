@@ -17,8 +17,8 @@ function scene() {
     gait.update(player,dt,scale,(player.dashUntil??0)>game.state.time);
   };
   const homeError=()=>Math.max(
-    distance(gait.right,{x:player.x+5.5*scale,y:player.y+1.2*scale}),
-    distance(gait.left,{x:player.x-5.5*scale,y:player.y-1.2*scale}),
+    distance(gait.right,{x:player.x+8*scale,y:player.y+2*scale}),
+    distance(gait.left,{x:player.x-8*scale,y:player.y-2*scale}),
   );
   return {game,player,gait,tick,homeError};
 }
@@ -51,6 +51,48 @@ describe('courier foot placement',()=>{
     }
     expect(homeError()).toBeLessThan(1.1);
     expect(Math.max(gait.right.lift,gait.left.lift)).toBeLessThan(.01);
+  });
+
+  it.each([30,60,120])('replants the airborne shoe through a full-speed turn at %i Hz',hz=>{
+    for(const approach of [.32,.40,.48]){
+      const {gait,player,tick}=scene();
+      for(let i=0;i<Math.round(hz*approach);i++)tick({x:1,y:0},1/hz);
+      for(let i=0;i<Math.round(hz*.28);i++){
+        tick({x:-1,y:0},1/hz);
+        for(const [side,foot] of [[1,gait.right],[-1,gait.left]] as const){
+          // A missed pivot leaves the old landing more than fifty rig units behind the body.
+          expect(Math.abs((foot.x-player.x)/scale-side*8)).toBeLessThan(34);
+        }
+      }
+    }
+  });
+
+  it('walks with smaller lifts on a lightly held stick and settles into a staggered stance',()=>{
+    function measure(input:number){
+      const {player,gait,tick,homeError}=scene();
+      let peak=0,landings=0;
+      for(let i=0;i<66;i++){
+        const wasLifted=gait.right.lift>.01 || gait.left.lift>.01;
+        tick({x:0,y:-input},1/120);
+        const lift=Math.max(gait.right.lift,gait.left.lift);
+        if(wasLifted && lift<.01)landings++;
+        peak=Math.max(peak,lift);
+      }
+      for(let i=0;i<80;i++)tick({x:0,y:0},1/120);
+      expect(homeError()).toBeLessThan(.62);
+      expect((gait.right.x-gait.left.x)/scale).toBeCloseTo(16,0);
+      expect((gait.right.y-gait.left.y)/scale).toBeCloseTo(4,0);
+      expect(gait.weight).toBeLessThan(-.12);
+      const rest=[{...gait.right},{...gait.left}];
+      for(let i=0;i<12;i++)tick({x:0,y:0},1/120);
+      expect(distance(gait.right,rest[0])+distance(gait.left,rest[1])).toBe(0);
+      expect(player.vx).toBe(0);
+      return {peak,landings};
+    }
+    const walk=measure(.13),run=measure(1);
+    expect(walk.peak).toBeGreaterThan(3);
+    expect(run.peak).toBeGreaterThan(walk.peak+3);
+    expect(run.landings).toBeGreaterThan(walk.landings+1);
   });
 
   it('freezes a paused swing, recovers from a dash, and resets shoes at a new spawn',()=>{

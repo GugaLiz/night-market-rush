@@ -58,16 +58,17 @@ describe('V4 continuous play', () => {
     const game=new Game(82);
     game.reset(82,true);
     const p=game.state.player;
-    p.y=590;
+    p.x=1000;p.y=500;
     run(game,.2,{x:.3,y:0});
-    expect(p.vx).toBeCloseTo(CONFIG.player.speed*.3);
+    expect(p.vx).toBeGreaterThan(74);
+    expect(p.vx).toBeLessThan(80);
     run(game,.2,{x:1,y:0});
     const before=p.x;
     game.update(1/60,{x:-1,y:0});
     expect(p.vx).toBeLessThan(0);
     expect(p.x).toBeLessThan(before);
     for(let frame=0;frame<150;frame++){
-      const angle=Math.PI+frame*.009;
+      const angle=Math.PI-.5+frame*.009;
       game.update(1/60,{x:Math.cos(angle),y:Math.sin(angle)});
     }
     expect(p.sprintMultiplier).toBeCloseTo(CONFIG.player.sprintMax);
@@ -97,6 +98,28 @@ describe('V4 continuous play', () => {
     expect(p.moveDirection).toEqual({x:0,y:1});
   });
 
+  it('gets a full throw to running speed in two frames while preserving a fine adjustment',()=>{
+    const game=new Game(411);game.reset(411,true);
+    const p=game.state.player,step=1/60;
+    game.update(step,{x:.04,y:0});
+    expect(p.vx).toBeGreaterThan(9);expect(p.vx).toBeLessThan(11);
+    game.update(step,still);
+    game.update(step,{x:1,y:0});
+    expect(p.vx).toBeGreaterThan(175);
+    game.update(step,{x:1,y:0});
+    expect(p.vx).toBeGreaterThanOrEqual(345);expect(p.vx).toBeLessThanOrEqual(350);
+    const fullSpeed=p.vx,corner=p.x;
+    for(let i=0;i<2;i++){
+      game.update(step,{x:0,y:1});
+      expect(Math.hypot(p.vx,p.vy)).toBeCloseTo(fullSpeed);
+    }
+    expect(p.vx).toBeCloseTo(0);
+    expect(p.x-corner).toBeLessThan(4);
+    const letGo=p.y;
+    run(game,2*step);
+    expect(p.vy).toBe(0);expect(p.y-letGo).toBeLessThan(1.7);
+  });
+
   it('takes current intent for a same-frame dash and blends into the held exit or a stop',()=>{
     const game=new Game(403),p=game.state.player;
     run(game,.1,{x:1,y:0});
@@ -115,6 +138,7 @@ describe('V4 continuous play', () => {
     run(game,11/60);
     const endX=stopped.x;
     expect(endX-WORLD.start.x).toBeGreaterThan(105);
+    expect(endX-WORLD.start.x).toBeLessThan(125);
     run(game,.2);
     expect(stopped.x-endX).toBeLessThan(.1);
     expect(stopped.vx).toBe(0);

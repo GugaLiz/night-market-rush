@@ -13,6 +13,8 @@ const blend=(a:Point,b:Point,t:number):Point=>({x:lerp(a.x,b.x,t),y:lerp(a.y,b.y
 const smooth=(v:number)=>{const t=clamp(v);return t*t*(3-2*t);};
 const angleBlend=(a:number,b:number,t:number)=>a+Math.atan2(Math.sin(b-a),Math.cos(b-a))*t;
 const widths:Record<WeaponKind,number>={tongs:34,bag:26,chopsticks:31,spirit:23,knife:29,tray:27,umbrella:35,sword:43,lunchbox:26,talisman:24};
+const hipWidth=6;
+const legReach=31;
 
 export class CourierRig {
   private gait=new CourierGait();
@@ -73,29 +75,33 @@ export class CourierRig {
     const turnLean=clamp(p.vx/CONFIG.player.speed*flip-delayedX,-1,1);
     const shift=this.gait.weight*flip*accent;
     const hipRoll=shift*.115;
-    const stepSwing=clamp(((footR.x-footL.x)-11)/30 * this.look.x*flip+
+    const stepSwing=clamp(((footR.x-footL.x)-16)/30 * this.look.x*flip+
       (footR.y-footL.y+footR.lift-footL.lift)*this.look.y/28,-1,1)*running;
     const cue=windup?-smooth(phase):active?1-smooth(phase)*.24:recovering?.76*settle:0;
     this.effort=lerp(this.effort,cue,1-Math.exp(-step/.032));
     const effort=this.effort;
     const heavy=kind==='sword'||kind==='umbrella'||kind==='lunchbox';
     const lean=effort*(heavy?5.5:3.7);
-    const hipX=shift*2.5;
+    // Load one leg while standing and shift onto the striking side through release.
+    // The shoes stay on their planted world positions during a standing attack.
+    const hipX=shift*2.5+(1-running)*(.85+hx*flip*effort*.96);
     const upperX=hipX*.55+clamp(delayedX*(dash?7:5.6)+turnLean*4,-10,10)*accent+hx*flip*lean;
     const hurt=!dead&&time-p.hurtAt<.1?1-clamp((time-p.hurtAt)/.1):0;
-    const bounce=(dead?17:0)+(dash?3:0)+this.gait.rise*accent+hurt*.6+
-      (settings.reduceMotion?0:Math.sin(time*2.6)*.45)+hy*lean*.5+(windup&&heavy?2.1*phase:0);
+    const bounce=dead?17:lerp(-4.5,-1,running)+(dash?3:0)+this.gait.rise*accent+hurt*.6+
+      hy*lean*lerp(.19,.45,running)+(windup&&heavy?1.2*phase:0);
     // In this top-down projection a planted foot can trail toward the camera on a
     // sharp turn. Lower the pelvis over the extended leg while the other foot lands.
     const minHipY=(foot:typeof footR,side:1|-1)=>{
-      const dx=foot.x-(side===1?1:0)-(side*5+hipX);
-      const verticalReach=Math.sqrt(Math.max(0,29*29-dx*dx));
-      return foot.y-5+28-side*hipRoll*5-verticalReach;
+      const dx=foot.x-(side===1?1:0)-(side*hipWidth+hipX);
+      const verticalReach=Math.sqrt(Math.max(0,legReach*legReach-dx*dx));
+      return foot.y-5+28-side*hipRoll*hipWidth-verticalReach;
     };
-    const neededDrop=Math.max(0,Math.max(minHipY(footR,1),minHipY(footL,-1))-bounce);
-    this.crouch=Math.max(neededDrop,lerp(this.crouch,neededDrop,1-Math.exp(-step/.065)));
+    const neededDrop=clamp(Math.max(minHipY(footR,1),minHipY(footL,-1))-bounce,0,6);
+    this.crouch=lerp(this.crouch,neededDrop,1-Math.exp(-step/(neededDrop>this.crouch?.032:.065)));
     const bodyY=dead?bounce:bounce+this.crouch;
-    const chest:Point={x:upperX,y:-44+bodyY+delayedY*running*1.3*accent};
+    // The quiet breath lifts the jacket and shoulders without bouncing both knees.
+    const breath=dead||settings.reduceMotion?0:Math.sin(time*2.45)*.44*(1-running);
+    const chest:Point={x:upperX,y:-44+bodyY+breath+delayedY*running*1.3*accent};
     const sweepTurn=melee?Math.sin(melee.angle-heading)*(windup?smooth(phase):settle):0;
     const shoulderRoll=-hipRoll*.8+(stepSwing*.045+sweepTurn*(heavy?.17:.11))*accent;
     const shoulderR={x:upperX+8,y:chest.y-6+shoulderRoll*8},shoulderL={x:upperX-8,y:chest.y-6-shoulderRoll*8};
@@ -174,9 +180,12 @@ export class CourierRig {
       left=blend(left,blend(handle,held,lift),take);
     }
     if(dead){right={x:20,y:-17};left={x:-20,y:-17};toolAngle=1.1;footR.x=17;footL.x=-16;footR.y=0;footL.y=0;}
-    ctx.save();ctx.translate(p.x,p.y);ctx.scale(scale*flip,scale);
+    ctx.save();
+    // Small atlas details such as shoelaces should stay steady as a foot moves between pixels.
+    ctx.imageSmoothingQuality='medium';
+    ctx.translate(p.x,p.y);ctx.scale(scale*flip,scale);
     if(!dead&&p.invulnerableUntil>time)ctx.globalAlpha*=settings.reduceMotion?.84:.81+Math.sin(time*12)*.05;
-    const hipR={x:5+hipX,y:-28+bodyY+hipRoll*5},hipL={x:-5+hipX,y:-28+bodyY-hipRoll*5};
+    const hipR={x:hipWidth+hipX,y:-28+bodyY+hipRoll*hipWidth},hipL={x:-hipWidth+hipX,y:-28+bodyY-hipRoll*hipWidth};
     const rightInFront=(footR.y+footR.lift)>(footL.y+footL.lift);
     const kneeFacing=.65+Math.abs(this.look.x)*.35;
     this.leg(ctx,rightInFront?hipL:hipR,rightInFront?footL:footR,rightInFront?'L':'R',dead,kneeFacing);
@@ -188,7 +197,7 @@ export class CourierRig {
       if(lid>.01)this.openLid(ctx,packX,packY,tilt,packWidth,packHeight,lid);
     };
     if(!back)drawPack();
-    this.bodyPart(ctx,'rigTorsoFront','rigTorsoBack',upperX*.70,-30+bodyY,25-hurt*.8,dead?-.08:upperX*.023+shoulderRoll,23);
+    this.bodyPart(ctx,'rigTorsoFront','rigTorsoBack',upperX*.70,-30+bodyY+breath,25-hurt*.8,dead?-.08:upperX*.023+shoulderRoll,23);
     if(back)drawPack();
     if(take>0)this.arm(ctx,shoulderL,left,'L',-1);
     // arm() clamps its target to the actual wrist through two-bone IK.
@@ -218,7 +227,7 @@ export class CourierRig {
     };
     const toolBehindHead=melee?Math.sin(toolAngle)<-.12:back;
     if(toolBehindHead)drawTool();
-    this.bodyPart(ctx,'rigHeadFront','rigHeadBack',upperX-2,-52+bodyY*.84,35,dead?-.19:shoulderRoll*.38+upperX*.009,43);
+    this.bodyPart(ctx,'rigHeadFront','rigHeadBack',upperX-2,-52+bodyY*.84+breath*.65,35,dead?-.19:shoulderRoll*.38+upperX*.009,43);
     if(!toolBehindHead)drawTool();
     if(attack&&active&&!melee&&this.launch?.id!==attack.id){
       this.launch={id:attack.id,point:{x:p.x+flip*right.x*scale+hx*10,y:p.y+right.y*scale+hy*10}};
@@ -257,14 +266,22 @@ export class CourierRig {
     desired.x=wrist.x;desired.y=wrist.y;
   }
   private leg(ctx:CanvasRenderingContext2D,hip:Point,foot:Point&{pitch:number;lift:number},side:'L'|'R',dead:boolean,kneeFacing:number):void {
-    const ankle={x:foot.x-(side==='R'?1:0),y:foot.y-5};
-    const dx=ankle.x-hip.x,dy=ankle.y-hip.y,d=Math.max(.1,Math.hypot(dx,dy));
-    // Two projected bones keep their length while the swing knee leads the ankle.
-    const bone=Math.max(13.1,d*.501),bend=Math.min(11,Math.sqrt(Math.max(0,bone*bone-d*d*.25)))*kneeFacing;
+    // An abrupt pivot can move the body beyond a planned foothold. Roll the
+    // heel off that mark at full extension, keeping the shoe joined to the shin.
+    const heelOffset=side==='R'?1:0;
+    const targetX=foot.x-heelOffset-hip.x,targetY=foot.y-5-hip.y;
+    const extension=Math.min(1,legReach/Math.max(.1,Math.hypot(targetX,targetY)));
+    const dx=targetX*extension,dy=targetY*extension,d=Math.max(.1,Math.hypot(dx,dy));
+    const ankle={x:hip.x+dx,y:hip.y+dy};
+    // A loaded knee stays nearly above its ankle. Only a lifted or advancing
+    // thigh projects a pronounced bend, especially when seen from the side.
+    const stride=Math.max(this.gait.drive*.56,clamp(foot.lift/7));
+    const bone=Math.max(14,d*.501),fold=Math.sqrt(Math.max(0,bone*bone-d*d*.25));
+    const bend=Math.min(dead?10:lerp(side==='R'?1:2.5,10,stride),fold)*kneeFacing;
     const knee={x:(hip.x+ankle.x)*.5+dy/d*bend,y:(hip.y+ankle.y)*.5-dx/d*bend};
     this.part(ctx,'rigThigh',hip.x,hip.y,Math.hypot(knee.x-hip.x,knee.y-hip.y)+3,Math.atan2(knee.y-hip.y,knee.x-hip.x)-Math.PI/2,.07,7.5);
     this.part(ctx,'rigShin',knee.x,knee.y,Math.hypot(ankle.x-knee.x,ankle.y-knee.y)+2,Math.atan2(ankle.y-knee.y,ankle.x-knee.x)-Math.PI/2,.09,6.2);
-    this.part(ctx,side==='R'?'rigShoeR':'rigShoeL',foot.x,foot.y,8,dead?(side==='R'?.15:-.15):foot.pitch,1,12);
+    this.part(ctx,side==='R'?'rigShoeR':'rigShoeL',ankle.x+heelOffset,ankle.y+5,8,dead?(side==='R'?.15:-.15):foot.pitch,1,12);
   }
   private tool(ctx:CanvasRenderingContext2D,name:string,hand:Point,angle:number,width:number,stretch:number):void {
     const sprite=this.assets.sprites[name];if(!sprite)return;

@@ -164,8 +164,11 @@ export class Game {
       if(along>=0&&along<=z.length&&Math.abs(across)<=z.width/2)multiplier=1.2;
     }
     const tuning=CONFIG.player;
-    const maxSpeed=tuning.speed*multiplier*(p.sprintMultiplier??1);
-    const targetSpeed=maxSpeed*Math.min(1,length);
+    const pace=multiplier*(p.sprintMultiplier??1);
+    const maxSpeed=tuning.speed*pace;
+    const strength=Math.min(1,length);
+    // Keep fine stick movements at walking pace and give a full throw the whole running speed.
+    const targetSpeed=pace*strength*(tuning.precisionSpeed+(tuning.speed-tuning.precisionSpeed)*strength**2);
     if(length>=tuning.aimThreshold)p.moveDirection=direction;
     const dashRemaining=(p.dashUntil??0)-(this.state.time-dt);
     if(dashRemaining>1e-9){
@@ -173,7 +176,7 @@ export class Game {
       // The opening impulse commits to its heading; the tail hands control to the held stick.
       const progress=clamp(1-(dashRemaining-dt*.5)/tuning.dashExitTime,0,1);
       const exit=progress*progress*(3-2*progress);
-      const impulse=tuning.speed*tuning.dashSpeed*(1-exit);
+      const impulse=tuning.dashSpeed*(1-exit);
       p.vx=d.x*impulse+direction.x*targetSpeed*exit;
       p.vy=d.y*impulse+direction.y*targetSpeed*exit;
     }else{
