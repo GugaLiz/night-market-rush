@@ -250,7 +250,15 @@ describe('V4 continuous play', () => {
     run(game,2.02);
     expect(s.wave).toBe(2);
     expect(s.waveStartedAt).toBeCloseTo(36);
-    expect({coins:s.coins,pickups:s.pickups,player:{x:s.player.x,y:s.player.y}}).toEqual(before);
+    expect(s.coins).toEqual(before.coins);
+    expect({x:s.player.x,y:s.player.y}).toEqual(before.player);
+    expect(s.pickups.map(p=>p.id)).toEqual(before.pickups.map(p=>p.id));
+    for(const [i,p] of s.pickups.entries()){
+      const initial=before.pickups[i],elapsed=s.time-initial.bornAt;
+      expect(p).toMatchObject({kind:initial.kind,bornAt:initial.bornAt,vx:initial.vx,vy:initial.vy});
+      expect(p.x).toBeCloseTo(initial.x+initial.vx!*elapsed);
+      expect(p.y).toBeCloseTo(initial.y+initial.vy!*elapsed);
+    }
     expect(game.drainEvents().filter(e=>e.type==='wave')).toEqual([{type:'wave',wave:2}]);
     game.reset(35);
     game.state.player.invulnerableUntil=1000;

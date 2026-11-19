@@ -281,7 +281,7 @@ export class UI {
 
   showOpeningHint():void{
     const movement=this.settings.mode==='tilt'?'倾斜手机':this.pointerIsCoarse.matches?'拖动摇杆':'方向键 / WASD';
-    this.hintEl.textContent=`${movement}移动并瞄准，碰道具放技能`;
+    this.hintEl.textContent=`${movement}移动并瞄准，碰青色泡放技能，靠近金箱换武器`;
     this.hintEl.hidden=false;
   }
 
@@ -331,9 +331,9 @@ export class UI {
         this.overlay.innerHTML=this.paper(`<h2 id="dialog-title">走位取道具，清出路线收金币</h2>
           <p class="muted">靠近游荡的小妖，它们才会追你。边走边转身，取餐夹会自动横扫。看见碗怪瞄准的虚线，往侧面闪开。</p>
           <div class="guide-grid">
-            <article><div class="guide-icon fan">${icon('fan')}</div><h3>取道具清场</h3><p>用电扇吹开热餐的蒸汽。<br>风卷扩开时仍可转向。</p></article>
+            <article><div class="guide-icon fan">${icon('fan')}</div><h3>迎上技能泡</h3><p>青色闪电泡碰到街边会反弹。<br>迎上它，立即发动里面的技能。</p></article>
             <article><div class="guide-icon skate">${icon('coin')}</div><h3>走过金币</h3><p>怪物倒下后留下金币。<br>靠近收取，金币才入账。</p></article>
-            <article><div class="guide-icon soda">${icon('wave')}</div><h3>连续换波</h3><p>新一波直接进场。<br>地面物品留在原处。</p></article>
+            <article><div class="guide-icon soda">${icon('wave')}</div><h3>靠近武器箱</h3><p>金色方箱停在原地。<br>走近换装，旧武器可回来取。</p></article>
           </div>
           <div class="guide-controls"><span><b>电脑</b> WASD / 方向键移动 · Space / Shift 冲刺</span><span><b>手机</b> 摇杆 / 倾斜移动 · 点按冲刺</span></div>
           <p class="warning-note">击败数是本局成绩。生命耗尽后可免费复活一次，也可直接查看成绩。</p>
@@ -381,7 +381,7 @@ export class UI {
   private renderCatalog():void{
     const weapons=this.catalogTab==='weapons';
     const cards=weapons?WEAPON_KINDS.map((kind,i)=>({kind,title:WEAPON_NAMES[kind],id:`W${String(i+1).padStart(2,'0')}`,...WEAPON_GUIDE[kind]})):SKILL_KINDS.map((kind,i)=>({kind,title:SKILL_NAMES[kind],id:`S${String(i+1).padStart(2,'0')}`,...SKILL_GUIDE[kind]}));
-    this.overlay.innerHTML=this.paper(`<div class="catalog-title"><h2 id="dialog-title">武器与道具图鉴</h2>${this.button('返回','close-catalog','secondary compact','data-primary')}</div><div class="settings-tabs" role="tablist" aria-label="图鉴分类"><button class="tab ${weapons?'selected':''}" data-catalog="weapons" role="tab" aria-selected="${weapons}">${WEAPON_KINDS.length} 款武器</button><button class="tab ${weapons?'':'selected'}" data-catalog="skills" role="tab" aria-selected="${!weapons}">${SKILL_KINDS.length} 种技能</button></div><p class="catalog-note">${weapons?'武器持续朝行进方向攻击，没有目标也照常出手。转向改变下一次攻击方向；拾取武器箱换装。':'触碰道具即生效。在配送试验场可以反复体验四款大招，试转向和落点。'}</p><div class="catalog-grid">${cards.map(card=>`<article><div class="catalog-icon">${icon(card.kind)}</div><div><span class="catalog-id">${card.role}</span><h3>${card.title}</h3><p>${card.description}</p><small>${card.detail}</small></div></article>`).join('')}</div>`,'catalog-card');
+    this.overlay.innerHTML=this.paper(`<div class="catalog-title"><h2 id="dialog-title">武器与道具图鉴</h2>${this.button('返回','close-catalog','secondary compact','data-primary')}</div><div class="settings-tabs" role="tablist" aria-label="图鉴分类"><button class="tab ${weapons?'selected':''}" data-catalog="weapons" role="tab" aria-selected="${weapons}">${WEAPON_KINDS.length} 款武器</button><button class="tab ${weapons?'':'selected'}" data-catalog="skills" role="tab" aria-selected="${!weapons}">${SKILL_KINDS.length} 种技能</button></div><p class="catalog-note">${weapons?'武器持续朝行进方向攻击，没有目标也照常出手。转向改变下一次攻击方向；拾取武器箱换装。':'迎上漂浮的青色技能泡即可发动技能。在配送试验场可以反复体验四款大招，试转向和落点。'}</p><div class="catalog-grid">${cards.map(card=>`<article><div class="catalog-icon">${icon(card.kind)}</div><div><span class="catalog-id">${card.role}</span><h3>${card.title}</h3><p>${card.description}</p><small>${card.detail}</small></div></article>`).join('')}</div>`,'catalog-card');
   }
 
   private segments<T extends string>(field:string,values:Array<[T,string]>,selected:T){return `<div class="segments" role="group" aria-label="${field==='mode'?'操作方式':field==='hand'?'操作手位':field==='quality'?'特效质量':field==='sensitivity'?'灵敏度':'摇杆大小'}">${values.map(([value,label])=>`<button class="segment ${selected===value?'selected':''}" data-setting="${field}" data-value="${value}" aria-pressed="${selected===value}">${selected===value?'<span aria-hidden="true">✓</span> ':''}${label}</button>`).join('')}</div>`;}

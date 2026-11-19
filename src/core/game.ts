@@ -7,6 +7,7 @@ import {activateSkill,updateSkills} from './skills';
 import {updateEnemies,updateEnemyShots} from './enemies';
 import {collectCoins,dropCoins} from './rewards';
 import {advanceWave,spawnMarketEnemies} from './waves';
+import {driftPickup,launchPickup,skillContact} from './pickup-motion';
 import {giantPulseContact,giantPulseLifetime} from './giant-bun';
 import {ULTIMATE_KINDS,isUltimate,type UltimateKind} from '../shared/types';
 
@@ -64,7 +65,8 @@ export class Game {
     this.reset(1425,true);
     const s=this.state;
     Object.assign(s.player,{x:390,y:440,px:390,py:440});
-    this.addPickup('fan',{x:540,y:440});
+    // The first training order glides along the marked rightward approach.
+    this.addPickup('fan',{x:540,y:440},{vx:90,vy:-28});
     this.addPickup('soda',{x:915,y:285});
     // Densities vary between the central group, the outer flames and the surviving queue.
     const groups=[[522,402,12],[643,432,8],[569,555,8],[440,509,6],[550,308,5],[1030,348,8]];
@@ -87,7 +89,7 @@ export class Game {
       [236,406],[428,433],[822,383],[998,427],[1134,415],[172,544],[353,553],
       [496,581],[717,535],[871,577],[1045,577],[1140,552]];
     positions.forEach(([x,y],i)=>this.spawnEnemy(i%6===0?'bowl':i%4===0?'box':'bun',{x,y}));
-    this.addPickup(kind,{x:p.x+80,y:p.y});
+    this.addPickup(kind,{x:p.x+80,y:p.y},{vx:88,vy:34});
   }
   setupWaveDemo():void {
     this.reset(3912,true);
@@ -95,8 +97,8 @@ export class Game {
     s.time=CONFIG.waves.firstDuration-2;
     s.stage=difficultyAt(s.time).stage;
     this.waveDemo=true;
-    this.addPickup('soda',{x:875,y:320});
-    this.addPickup('fan',{x:795,y:475});
+    this.addPickup('soda',{x:875,y:320},{vx:76,vy:-55});
+    this.addPickup('fan',{x:795,y:475},{vx:89,vy:42});
     for(let i=0;i<6;i++)dropCoins(s,{x:850+i*23,y:430},1,this.ctx);
     for(let i=0;i<6;i++){
       const e=this.spawnEnemy('bun',{x:175+i*28,y:300});
@@ -153,8 +155,9 @@ export class Game {
     }
     this.contactDamage=updateEnemies(s,dt,difficulty.speedScale,this.ctx);
     updateEnemyShots(s,dt);
+    for(const pickup of s.pickups)driftPickup(pickup,s.seed,s.time,dt);
     updateSkills(s,dt,this.ctx,input);
-    this.collectPickups();this.collectWeapons();
+    this.collectPickups(dt);this.collectWeapons();
     updateWeapons(s,dt,this.ctx);
     collectCoins(s,dt,this.ctx);
     this.contactPlayer(dt);
@@ -290,6 +293,7 @@ export class Game {
   private addPickup(kind:SkillKind,position:Vec,extra:Partial<Pickup>={}):Pickup|null {
     if(this.state.pickups.filter(p=>!p.retiringUntil).length>=CONFIG.pickup.cap)return null;
     const radius=CONFIG.pickup.radius,p:Pickup={id:this.nextId++,kind,x:clamp(position.x,WORLD.bounds.left+radius,WORLD.bounds.right-radius),y:clamp(position.y,Math.max(WORLD.bounds.top+radius,CONFIG.player.minY),WORLD.bounds.bottom-radius),radius,bornAt:this.state.time,...extra};
+    launchPickup(p,this.state.seed);
     this.state.pickups.push(p);return p;
   }
   private pickupPosition(kind:SkillKind, other?:Vec):Vec|null {
@@ -375,18 +379,20 @@ export class Game {
     }
     this.nextPickupAt=s.time+(this.openingPlaced?CONFIG.pickup.interval:.5);this.emptySince=s.time;
   }
-  private collectPickups(){
+  private collectPickups(dt:number){
     const s=this.state,p=s.player;
     s.pickups=s.pickups.filter(p=>(!p.expiresAt||p.expiresAt>s.time)&&(!p.retiringUntil||p.retiringUntil>s.time));
     const available=s.pickups.filter(q=>!q.retiringUntil&&(q.readyAt??0)<=s.time&&(q.disabledUntil??0)<=s.time&&!(q.kind==='dispatch'&&s.effects.dispatchCooldownUntil>s.time));
     const start={x:p.px,y:p.py};
     const groups=new Set<number>();
-    for(const {item:q,time} of pickupContacts(start,p,available,pickupReach)){
+    const contacts=available.map(item=>skillContact(item,start,p,s.time,dt)).filter(hit=>hit!==null)
+      .sort((a,b)=>a.time-b.time||a.distance-b.distance||a.item.id-b.item.id);
+    for(const {item:q,time,at} of contacts){
       if(q.groupId&&groups.has(q.groupId))continue;
       if(q.groupId){groups.add(q.groupId);for(const sibling of s.pickups)if(sibling.groupId===q.groupId&&sibling.id!==q.id){sibling.retiringUntil=s.time+.4;sibling.pulledUntil=0;}}
       s.pickups=s.pickups.filter(v=>v.id!==q.id);
       const origin={x:p.px+(p.x-p.px)*time,y:p.py+(p.y-p.py)*time};
-      this.emit({type:'pickup',kind:q.kind,...origin});activateSkill(s,q.kind,origin,this.ctx,q);
+      this.emit({type:'pickup',kind:q.kind,...origin});activateSkill(s,q.kind,origin,this.ctx,at);
     }
     if(!s.pickups.length)this.emptySince=s.time;
   }

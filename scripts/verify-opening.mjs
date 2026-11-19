@@ -9,7 +9,7 @@ import {recordNormalRun, round, position} from './gameplay-recording.mjs';
 function observeOpening() {
   const proto = CanvasRenderingContext2D.prototype;
   const clear = proto.clearRect, ellipse = proto.ellipse, image = proto.drawImage;
-  let frame, cameraInverse, pickupShadow, start, fanAt, killsBeforeFan, coinsBeforeFan, killsInWindow = 0;
+  let frame, cameraInverse, start, fanAt, killsBeforeFan, coinsBeforeFan, killsInWindow = 0;
   const hud = id => parseInt(document.getElementById(id).textContent, 10);
   const drawingGame = ctx => ctx.canvas.id === 'game-canvas';
   function worldAtOrigin(ctx) {
@@ -29,10 +29,9 @@ function observeOpening() {
           coinsBeforeFan = frame.collectedCoins;
         }
         if (fanAt !== undefined && time-fanAt <= .650) killsInWindow = kills-killsBeforeFan;
-        frame = {time, kills, collectedCoins, pickups:[], coins:[], enemies:[], steamBrushes:0,
+        frame = {time, kills, collectedCoins, coins:[], enemies:[], steamBrushes:0,
           hp:hud('hp-value'), wave:hud('wave-value'), practice:shell.dataset.practice === 'true'};
         cameraInverse = undefined;
-        pickupShadow = undefined;
       } else frame = undefined;
     }
     return clear.apply(this, args);
@@ -41,7 +40,6 @@ function observeOpening() {
     if (frame && drawingGame(this) && cameraInverse) {
       if (rx === 24 && ry === 24*.32) frame.player = {x, y:y-2};
       if ((rx === 18 || rx === 26) && ry === rx*.32) frame.enemies.push({x,y:y-2});
-      if (x === 0 && y === 0 && rx === 19 && ry === 5) pickupShadow = worldAtOrigin(this);
       if (x === 0 && y === 1 && (ry === 7.8*.40 || ry === 9*.40)) frame.coins.push(worldAtOrigin(this));
     }
     return ellipse.call(this,x,y,rx,ry,...rest);
@@ -51,10 +49,13 @@ function observeOpening() {
       // Remove the exact scale and shake transform used for the painted floor.
       if (!cameraInverse && args.length === 4 && args[2] === 1280 && args[3] === 720)
         cameraInverse = this.getTransform().inverse();
-      if (args.length === 8 && pickupShadow && source.src.endsWith('/clay-supplies.webp')) {
+      if (cameraInverse && fanAt === undefined && args.length === 8 && source.src.endsWith('/clay-supplies.webp')) {
         const column = Math.floor(args[0]*4/source.naturalWidth), row = Math.floor(args[1]*4/source.naturalHeight);
-        frame.pickups.push({...pickupShadow, isFan:row === 0 && column === 0});
-        pickupShadow = undefined;
+        if (row === 0 && column === 0) {
+          const icon = worldAtOrigin(this);
+          // The fan itself sits two units right and roughly 39 units above the ground contact.
+          frame.fan = {x:icon.x-2,y:icon.y+39};
+        }
       }
       if (args.length === 8 && source.src.endsWith('/delivery-skills.webp') && args[1] === 0) {
         fanAt ??= frame.time;
@@ -71,7 +72,7 @@ const {bytes, evidence, result} = await recordNormalRun(async ({page, snapshot, 
   const route = [];
   const developmentHookAbsent=await page.evaluate(() => typeof window.__gameTest==='undefined');
   if(!await page.locator('script[src$="/@vite/client"]').count())assert.ok(developmentHookAbsent,'Production must omit its development hooks.');
-  let fan, firstDash, firstCollectionAfterPickup, burst, burstAt, phase = '', aimedAt, final;
+  let fan, firstFan, firstDash, firstCollectionAfterPickup, burst, burstAt, phase = '', aimedAt, final;
   let turnDegrees = 0, coinTarget;
   const deadline = Date.now() + 12000;
   while (Date.now() < deadline) {
@@ -79,13 +80,14 @@ const {bytes, evidence, result} = await recordNormalRun(async ({page, snapshot, 
     assert.equal(await page.locator('#game-shell').getAttribute('data-view'), 'play', 'Normal run was interrupted.');
     if (t >= 9.4) {final = state; break;}
     const fireAt = state.fanAt;
-    fan ??= state.pickups.find(item => item.isFan);
+    const visibleFan = state.fan;
+    if (visibleFan) {firstFan ??= visibleFan; fan = visibleFan;}
     if (fireAt !== undefined && !burst && t-fireAt >= .52 && state.steamBrushes >= 8) {
       burst = await still();
       burstAt = t;
     }
     if (fireAt !== undefined && !firstCollectionAfterPickup && state.collectedCoins > state.coinsBeforeFan) firstCollectionAfterPickup = t;
-    let goal = fan, nextPhase = 'approach-fan';
+    let goal = visibleFan, nextPhase = 'approach-fan';
     if (fireAt !== undefined) {
       if (state.coins.length) {
         // Hold the destination until it is collected. A centroid can fall between two far piles.
@@ -107,7 +109,7 @@ const {bytes, evidence, result} = await recordNormalRun(async ({page, snapshot, 
       const stick = {x: origin.x + dx/length * 25, y: origin.y + dy/length * 25, id: 1};
       await touch('touchMove', [stick]);
       if (nextPhase === 'collect') {
-        const ax = fan.x - startState.player.x, ay = fan.y - startState.player.y;
+        const ax = firstFan.x - startState.player.x, ay = firstFan.y - startState.player.y;
         const cosine = (ax * dx + ay * dy) / (Math.hypot(ax, ay) * length);
         turnDegrees = Math.max(turnDegrees, Math.acos(Math.max(-1, Math.min(1, cosine))) * 180 / Math.PI);
       }
@@ -126,7 +128,8 @@ const {bytes, evidence, result} = await recordNormalRun(async ({page, snapshot, 
   assert.ok(final && fan && burst && final.collectedCoins>final.coinsBeforeFan && firstDash && firstCollectionAfterPickup && turnDegrees>=35, 'Missing visible fan, coin collection, turn, dash or final checkpoint.');
   const report = {method:'从首页点开始挑战进入普通第一波。通过画布上的角色脚影、道具和掉币位置引导双指触摸。首次画出电扇蒸汽后，按可见 HUD 记录 650 毫秒内实际击败数。摄录页面实帧与游戏原声。',
     limits:'时间以普通局首个显示帧为零。击败数包括同时挥动的武器。桌面 Chrome 模拟横屏触摸，未测真机。',
-    developmentHookAbsent, practice:final.practice, wave:final.wave, fireAt:round(final.fanAt), burstAt:round(burstAt), fan:position(fan), killsBeforePickup:final.killsBeforeFan,
+    developmentHookAbsent, practice:final.practice, wave:final.wave, fireAt:round(final.fanAt), burstAt:round(burstAt),
+    firstFan:position(firstFan), fan:position(fan), killsBeforePickup:final.killsBeforeFan,
     killsInFirst650ms:final.killsInWindow, dashAt:round(firstDash), dashAim:aimedAt, coinsBeforePickup:final.coinsBeforeFan,
     firstCollectionAfterPickup:round(firstCollectionAfterPickup), maxStickTurnWhileCollectingDegrees:round(turnDegrees),
     final:{t:round(final.time), kills:final.kills, collectedCoins:final.collectedCoins, hp:final.hp}, route};

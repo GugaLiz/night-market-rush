@@ -55,7 +55,7 @@ export const CONFIG = {
     cones: {reach:114, spacing:52, radius:21},
   },
   spawn: {warning:.6, safeDistance:.22*S, gap:43, attempts:48, openingCount:40},
-  pickup: {radius: .027 * S, reach:56, choiceReach:42, firstAt: .35, interval: 4, emptyGrace: 2, cap: 4},
+  pickup: {radius: .027 * S, reach:56, choiceReach:42, driftMin:90, driftMax:115, firstAt: .35, interval: 4, emptyGrace: 2, cap: 4},
   weapons: {projectileCap:24, dropFirst:4, dropInterval:12, dropRadius:12, pickupReach:42},
   // V4 tuning values for the night-market adaptation. The video only establishes visible outcomes.
   waves: {firstDuration:36, duration:34, transition:1.65},

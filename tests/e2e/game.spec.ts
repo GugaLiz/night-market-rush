@@ -203,7 +203,11 @@ test('practice pickup and wave samples reset independently and do not carry rewa
   await expect(page.locator('#wave-banner')).toHaveText('WAVE 2');
   await expect(page.locator('#wave-banner')).toBeVisible();
   const after=await snapshot(page);
-  expect(after.player.x).toBe(before.player.x);expect(after.coins).toEqual(before.coins);expect(after.pickups).toEqual(before.pickups);
+  expect(after.player.x).toBe(before.player.x);expect(after.coins).toEqual(before.coins);
+  expect(after.pickups.map(p=>[p.id,p.kind,p.bornAt])).toEqual(before.pickups.map(p=>[p.id,p.kind,p.bornAt]));
+  for(const [i,p] of after.pickups.entries()){
+    expect(Math.hypot(p.x-before.pickups[i].x,p.y-before.pickups[i].y)).toBeGreaterThan(10);
+  }
   await page.getByRole('button',{name:'试验工具',exact:true}).click();
   await page.getByRole('button',{name:'取卡清场',exact:true}).click();
   const repeated=await snapshot(page);

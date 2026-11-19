@@ -5,7 +5,15 @@ import {mkdir, writeFile} from 'node:fs/promises';
 import {recordNormalRun, round, position} from './gameplay-recording.mjs';
 
 // Approach actual enemies on alternate sides of the market. Leave gear on the floor.
-function aimPastDrops(state, goal, lookahead) {
+const clamp=(n,lo,hi)=>Math.max(lo,Math.min(hi,n));
+// The short forecast can meet at most one wall on each axis.
+function predictDrop(drop,t,rules) {
+  if(drop.vx===undefined)return drop;
+  const {left,right,bottom}=rules.bounds,top=rules.minY,r=drop.radius;
+  const reflect=(n,lo,hi)=>n<lo?2*lo-n:n>hi?2*hi-n:n;
+  return {x:reflect(drop.x+drop.vx*t,left+r,right-r),y:reflect(drop.y+drop.vy*t,top,bottom-r)};
+}
+function aimPastDrops(state, goal, dash, rules) {
   const p=state.player;
   const desired=Math.atan2(goal.y-p.y,goal.x-p.x);
   const drops=[...state.pickups,...state.weaponDrops];
@@ -13,11 +21,16 @@ function aimPastDrops(state, goal, lookahead) {
   for(const turn of [0,.3,-.3,.6,-.6,.95,-.95,1.3,-1.3,1.7,-1.7,Math.PI]){
     const x=Math.cos(desired+turn), y=Math.sin(desired+turn);
     let score=Math.cos(turn);
-    for(const drop of drops){
-      const dx=drop.x-p.x,dy=drop.y-p.y;
-      const along=Math.max(0,Math.min(lookahead,dx*x+dy*y));
-      const clearance=Math.hypot(dx-x*along,dy-y*along);
-      score-=Math.max(0,(60-clearance)/12);
+    for(let step=1;step<=8;step++){
+      const t=step*.05,run=rules.speed*p.sprintMultiplier,boost=dash?Math.min(rules.dashDuration,t):0;
+      const distance=run*(t-boost)+rules.dashSpeed*boost;
+      const rx=clamp(p.x+x*distance,rules.bounds.left+p.radius,rules.bounds.right-p.radius);
+      const ry=clamp(p.y+y*distance,rules.minY,rules.bounds.bottom-p.radius);
+      for(const drop of drops){
+        const future=predictDrop(drop,t,rules);
+        const reach=drop.vx===undefined?rules.weaponReach:rules.skillReach;
+        score-=Math.max(0,reach+40-Math.hypot(future.x-rx,future.y-ry))*(9-step)/30;
+      }
     }
     if(score>best){best=score;direction={x,y};}
   }
@@ -25,14 +38,18 @@ function aimPastDrops(state, goal, lookahead) {
 }
 
 const {bytes, evidence, result} = await recordNormalRun(async ({page, snapshot, touch, origin, tap})=>{
+  const rules=await page.evaluate(async()=>{
+    const {CONFIG,WORLD}=await import(new URL('src/core/config.ts',document.baseURI).href);
+    return {...CONFIG.player,bounds:WORLD.bounds,skillReach:CONFIG.pickup.reach,weaponReach:CONFIG.weapons.pickupReach};
+  });
   const route=[], attacks=new Map(), seenSkills=new Set();
-  let fan, dashAt, final, releasedAt, minimumFanDistance=Infinity, targetId;
+  let fan, firstFan, dashAt, final, releasedAt, minimumFanDistance=Infinity, targetId;
   const deadline=Date.now()+15000;
   while(Date.now()<deadline){
     const s=await snapshot(), p=s.player;
     assert.equal(await page.locator('#game-shell').getAttribute('data-view'),'play');
     assert.equal(s.weapon.kind,'tongs');
-    assert.equal(s.fields.length+s.zones.length,0);
+    assert.equal(s.fields.length+s.zones.length,0,`A skill fired during the ordinary attack route at ${s.time.toFixed(2)}s.`);
     // Every skill that appeared stays visible in this short run. Kills are from the default weapon.
     const current=new Set(s.pickups.map(item=>item.id));
     for(const id of seenSkills)assert.ok(current.has(id),'A skill was collected on the ordinary attack route.');
@@ -44,12 +61,16 @@ const {bytes, evidence, result} = await recordNormalRun(async ({page, snapshot, 
       const sample=attacks.get(wave.id);
       if(sample && wave.hitIds.length>sample.hits.length)sample.hits=[...wave.hitIds];
     }
-    fan??=s.pickups.find(item=>item.kind==='fan');
+    fan=s.pickups.find(item=>fan ? item.id===fan.id : item.kind==='fan');
     if(fan){
+      firstFan??=fan;
       minimumFanDistance=Math.min(minimumFanDistance,Math.hypot(fan.x-p.x,fan.y-p.y));
       if(s.time>=9.35){final=s;break;}
-      if(s.time>=8.7){
-        if(!releasedAt){await touch('touchMove',[origin]);releasedAt=s.time;}
+      if(s.time>=8.7&&s.pickups.every(drop=>{
+        const remainingTravel=Math.hypot(drop.vx,drop.vy)*Math.max(0,9.45-s.time);
+        return Math.hypot(drop.x-p.x,drop.y-p.y)>rules.skillReach+remainingTravel+10;
+      })){
+        await touch('touchMove',[origin]);releasedAt??=s.time;
         await page.waitForTimeout(39);
         continue;
       }
@@ -64,7 +85,7 @@ const {bytes, evidence, result} = await recordNormalRun(async ({page, snapshot, 
       goal??={x:side>0?1140:140,y:370};
       if(route.at(-1)?.stage!==stage)route.push({stage,t:round(s.time),from:position(p),aim:position(goal),kills:s.kills});
       const wantsDash=stage===1&&!dashAt&&s.time>=2.3;
-      const direction=aimPastDrops(s,goal,wantsDash?170:94);
+      const direction=aimPastDrops(s,goal,wantsDash,rules);
       const stick={x:origin.x+direction.x*25,y:origin.y+direction.y*25,id:1};
       await touch('touchMove',[stick]);
       if(wantsDash){
@@ -77,7 +98,7 @@ const {bytes, evidence, result} = await recordNormalRun(async ({page, snapshot, 
     }
     await page.waitForTimeout(39);
   }
-  assert.ok(final&&dashAt&&releasedAt&&minimumFanDistance>24&&route.length===4);
+  assert.ok(final&&dashAt&&releasedAt&&minimumFanDistance>rules.skillReach&&route.length===4);
   const swings=[...attacks.values()].filter(a=>a.hits.length);
   const hits=new Set(swings.flatMap(a=>a.hits));
   assert.ok(final.kills>0 && hits.size>=2,'Ordinary swings must defeat enemies at distinct map positions.');
@@ -85,7 +106,7 @@ const {bytes, evidence, result} = await recordNormalRun(async ({page, snapshot, 
   return {
     method:'从首页一次进入普通第一波，全程用横屏双指控制正常摇杆和冲刺。按可见场上物件绕过技能与武器包，跟踪默认取餐夹的攻击 ID、命中 ID 和局内真实击败数。读取开发快照引导路线，没有修改游戏状态。',
     limits:'桌面 Chrome 模拟双指输入。命中列表按采样时刻读取，可能少计短暂出招。未测实体手机输入延迟。',
-    seed:final.seed, practice:final.practice, weapon:final.weapon.kind, fan:position(fan),
+    seed:final.seed, practice:final.practice, weapon:final.weapon.kind, firstFan:position(firstFan),fan:position(fan),
     closestFanDistance:round(minimumFanDistance), visibleSkillsAtEnd:seenSkills.size,
     dashAt:round(dashAt), stickCenteredAt:releasedAt?round(releasedAt):null, sampledSwings:swings, distinctSampledHits:hits.size, route,
     final:{t:round(final.time),kills:final.kills,coins:final.collectedCoins,hp:final.player.hp},

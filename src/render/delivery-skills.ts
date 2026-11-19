@@ -17,10 +17,11 @@ const trim: Record<SkillKind,string> = {
 const unit = (x:number) => clamp(x,0,1);
 const ease = (x:number) => {const t=unit(x);return t*t*(3-2*t);};
 const lerp = (a:number,b:number,t:number) => a+(b-a)*t;
-const ticketScale=1.32;
+const pickupScale=1.32;
 const groundIconY=-39;
 const groundIconHeight=(kind:SkillKind,width:number,height:number)=>
-  ticketScale*Math.min(kind==='fan'?45:39,(kind==='fan'?55:49)*height/width);
+  pickupScale*Math.min(kind==='fan'?45:39,(kind==='fan'?55:49)*height/width);
+const shellRadius=(kind:SkillKind)=>kind==='fan'||isUltimate(kind)?39:35;
 
 /** A short cream stitch on the side the rider is approaching marks the pickup threshold. */
 export function drawPickupReach(c:CanvasRenderingContext2D, item:Vec, player:Vec, radius:number):void {
@@ -46,9 +47,51 @@ export function nearestPickupHint(items:Pickup[],player:Vec,time:number):Pickup|
   return closest;
 }
 
-/** The loose tool sits on a short tear-off order tag, with its shadow at the pickup location. */
+/** A translucent mint shell keeps the actual tool visible through its centre. */
+function drawSkillShell(c:CanvasRenderingContext2D,r:number):void {
+  const fill=c.createRadialGradient(-r*.22,-r*.32,r*.15,0,0,r);
+  fill.addColorStop(0,'#f0ffe546');fill.addColorStop(.66,'#b9f8cd68');
+  fill.addColorStop(.91,'#54ccabb8');fill.addColorStop(1,'#1c817c');
+  c.fillStyle=fill;c.strokeStyle='#205d60';c.lineWidth=2.6;
+  c.beginPath();c.arc(0,0,r,0,tau);c.fill();c.stroke();
+  c.strokeStyle='#a0f6dc';c.lineWidth=2.2;
+  c.beginPath();c.arc(0,0,r-1.6,0,tau);c.stroke();
+  c.lineCap='round';c.lineWidth=4;c.strokeStyle='#f5ffdf';
+  c.beginPath();c.arc(0,0,r-4,3.68,4.35);c.stroke();
+  c.lineWidth=2;c.strokeStyle='#9befcf';
+  c.beginPath();c.arc(0,0,r-4,.17,1.0);c.stroke();
+}
+
+function drawSkillBadge(c:CanvasRenderingContext2D,r:number):void {
+  c.save();c.translate(-r*.62,r*.73);
+  c.fillStyle='#207771';c.strokeStyle='#c4ffe0';c.lineWidth=1.7;
+  c.beginPath();c.arc(0,0,10,0,tau);c.fill();c.stroke();
+  c.fillStyle='#fff1a1';c.beginPath();c.moveTo(1,-7);c.lineTo(-5.5,1.3);
+  c.lineTo(-.8,1.3);c.lineTo(-2,7.3);c.lineTo(5.8,-1.8);c.lineTo(1.1,-1.8);c.closePath();c.fill();
+  c.restore();
+}
+
+/** A short wake points back along the flight path without covering the tool. */
+function drawSkillWake(c:CanvasRenderingContext2D,r:number,vx:number,vy:number):void {
+  const speed=Math.hypot(vx,vy);
+  if(speed<2)return;
+  const reach=Math.min(28,speed*.19);
+  c.save();c.rotate(Math.atan2(vy,vx));
+  for(const side of [-1,1]){
+    const tail=-r-reach*(side<0?1:.68);
+    c.fillStyle=side<0?'#75e2c2b5':'#d7ffe5b8';c.beginPath();
+    c.moveTo(-r*.75,side*r*.49);
+    c.quadraticCurveTo(-r-4,side*r*.46,tail,side*r*.30);
+    c.quadraticCurveTo(-r,side*r*.29,-r*.79,side*r*.32);
+    c.closePath();c.fill();
+  }
+  c.fillStyle='#c8ffe0db';c.beginPath();c.ellipse(-r-reach-4,-r*.29,3.4,2.2,0,0,tau);c.fill();
+  c.restore();
+}
+
+/** All loose skills travel in the same bubble, with a ground shadow marking contact position. */
 export function drawDeliveryPickup(c:CanvasRenderingContext2D, assets:Assets, pickup:Pickup, player:Vec, time:number, quiet:boolean):void {
-  const p=pickup, color=trim[p.kind];
+  const p=pickup,r=shellRadius(p.kind);
   const reach=pickupReach(p);
   const near = quiet ? 0 : ease(1-(Math.hypot(p.x-player.x,p.y-player.y)-reach)/44);
   const loose = quiet ? 0 : Math.sin(time*3.5+p.id)*1.9;
@@ -56,18 +99,16 @@ export function drawDeliveryPickup(c:CanvasRenderingContext2D, assets:Assets, pi
   c.save();c.translate(p.x,p.y);
   if((p.disabledUntil??0)>time || (p.readyAt??0)>time)c.globalAlpha=.46;
   if(p.retiringUntil)c.globalAlpha*=unit((p.retiringUntil-time)/.4);
-  c.fillStyle='#35262d52';c.beginPath();c.ellipse(0,0,23,6,0,0,tau);c.fill();
+  c.fillStyle='#273a3e55';c.beginPath();c.ellipse(0,2,20,5,0,0,tau);c.fill();
   c.translate(0,groundIconY+loose-near*3);
-  c.save();c.translate(0,6);c.scale(ticketScale,ticketScale);c.rotate(-.12+near*.09);c.translate(-18,-18);
-  c.fillStyle='#ffedc8';c.strokeStyle=ink;c.lineWidth=1.8;
-  c.beginPath();c.moveTo(1,-3);c.lineTo(37,-3);c.lineTo(37,33);
-  for(let x=37;x>=1;x-=6){c.lineTo(x-3,30);c.lineTo(x-6,33);}
-  c.lineTo(-3,1);c.closePath();c.fill();c.stroke();
-  c.fillStyle=color;c.fillRect(0,-1,35,5);
-  c.strokeStyle='#b99b75';c.lineWidth=1;c.setLineDash([2,3]);c.beginPath();c.moveTo(1,24);c.lineTo(33,24);c.stroke();
-  c.restore();
+  if(!quiet&&!p.retiringUntil&&(p.readyAt??0)<=time){
+    const hooked=(p.pulledUntil??0)>time;
+    drawSkillWake(c,r,hooked?player.x-p.x:p.vx??0,hooked?player.y-p.y:p.vy??0);
+  }
+  drawSkillShell(c,r);
   const spr=assets.sprites[p.kind];
   if(spr)drawSprite(c,assets,p.kind,2,0,groundIconHeight(p.kind,spr.width,spr.height),-.035+near*.08,1,.5);
+  drawSkillBadge(c,r);
   c.restore();
 }
 
@@ -103,6 +144,15 @@ export function drawDeliveryUse(c:CanvasRenderingContext2D, assets:Assets, use:U
     : ground ? {x:use.x+side*21,y:use.y-6}
     : hand;
   const start=use.pickupFrom ? {x:use.pickupFrom.x+2,y:use.pickupFrom.y+groundIconY} : bag;
+  if(use.pickupFrom&&!quiet&&age<.16){
+    const t=unit(age/.16),r=shellRadius(use.kind)*(1+t*.22);
+    c.save();c.translate(start.x-2,start.y);c.lineCap='round';
+    c.strokeStyle='#b6ffdc';c.lineWidth=3-2*t;c.globalAlpha=.75*(1-t);
+    for(const a of [.15,2.05,4.32]){
+      c.beginPath();c.arc(0,0,r,a+t*.24,a+1.08-t*.52);c.stroke();
+    }
+    c.restore();
+  }
   const collect=ease(age/.10), grip=ease((age-.08)/.09), useTool=ease((age-.17)/.21);
   const heldX=lerp(lerp(start.x,bag.x,collect),hand.x,grip);
   const heldY=lerp(lerp(start.y,bag.y,collect),hand.y-4,grip);

@@ -19,6 +19,7 @@ describe('collecting from the edge of a route',()=>{
     const g=arena(),s=g.state;
     drop(s,101,'bubble',80,CONFIG.pickup.reach-1);
     drop(s,102,'heat',80,CONFIG.pickup.reach+1);
+    for(const item of s.pickups)Object.assign(item,{vx:50,vy:0});
     g.dash(right);
     g.update(.18,right);
     expect(s.player.bubbleUntil).toBeGreaterThan(s.time);

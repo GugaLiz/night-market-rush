@@ -614,3 +614,31 @@
 - **实现/结果**：飞筷以开匣、青绸带双筷、交叉筷印呈现五路贯穿，纸袋炮形成带折痕的气团。三角饭团滚动转向、金黄烧卖跳行、青叶粽侧绕，各带日常、警戒、受击、残血帧；开局与增援混合普通小怪，保留原有弓形追击包子与特殊敌人。技能票面和道具各放大32%，拾起后平滑收回手中。保存实战首波和飞筷前后对照。
 - **验证**：244项Vitest、TypeScript、Vite构建通过。首次17项浏览器回归中一次冲刺冷却等待期间画面返回首页，停止并行改动后全套17项通过。1024个种子检查首批比例、间距与安全距离。正式4173从开始挑战进入即实绘三种新怪，Chrome战斗画布验证全部12种表情状态。风扇45→59.4单位，同路线实际拾取生效；桌面和844×390横屏模拟验证飞筷五路扇射，三只碗怪各扣74血。减少动态与正式版横屏触控检查通过，正式服务JS和新图集与dist逐字节相同。
 - **风险/后续**：GitHub当前凭据的推送权限检查返回403，本地4173已更新。触控使用Chrome模拟。
+## 2026-11-19 23:57:07 +08:00 — feature
+
+- **摘要**：技能改为在全场飘动反弹的青色闪电泡，武器使用固定金色换装箱。
+- **涉及文件**：
+  - `docs/verification/clay/drifting-pickups.webp`
+  - `scripts/verify-drifting-pickups.mjs`
+  - `src/core/pickup-motion.ts`
+  - `tests/pickup-motion.test.ts`
+  - `README.md`
+  - `docs/V4_PLAYTEST.md`
+  - `scripts/verify-combat.mjs`
+  - `scripts/verify-opening.mjs`
+  - `src/core/config.ts`
+  - `src/core/game.ts`
+  - `src/main.ts`
+  - `src/render/battle-frame.ts`
+  - `src/render/delivery-skills.ts`
+  - `src/render/renderer.ts`
+  - `src/shared/types.ts`
+  - `src/ui/ui.ts`
+  - `tests/e2e/game.spec.ts`
+  - `tests/pickup-reach.test.ts`
+  - `tests/v4-core.test.ts`
+  - `agentchanges/CHANGELOG.md`
+- **原因/目标**：局内技能和武器拾取物过于相似，需要从外形、运动和接触反馈区分。
+- **实现/结果**：十七种技能共用闪电泡，按局种子和物品标识确定漂移轨迹，碰边分段反射，滤除等待补给、吸取和退场时的自然漂移。骑手与技能按相对运动判定接触，骑手移动和技能弹射均有帧间插值。金色武器箱保留原位与退换机制。同步更新教程、图鉴、验收录像追踪和实战四帧图。
+- **验证**：TypeScript、Vite、252 项单元测试和 17 项浏览器回归通过。1280×720 与 844×390 横屏模拟均实测撞壁折返、暂停、迎面拾扇放出风场、原地换装与旧武器掉回。减少动态保留闪电徽记。4173 正式普通局风扇在 1.6 秒漂移 178.63 单位，武器箱 4.16 至 8.48 秒固定。四款大招触控验收与静态包浏览器检查通过，服务主包和 dist 字节一致。
+- **风险/后续**：当前 GitHub 凭据对仓库的推送权限检查返回 403。横屏触控为 Chrome 模拟。

@@ -194,7 +194,7 @@ export class Renderer {
   }
 
   private battle(s: GameState): void {
-    const c = this.ctx, t = this.settings.reduceMotion ? 0 : s.time;
+    const c = this.ctx;
     this.trackFootwork(s);
     drawSkillFields(c, s.fields, s.time, this.settings.quality === 'simple', this.settings.reduceMotion, this.assets);
     drawUltimateGround(c,s,this.settings,this.assets);
@@ -220,11 +220,17 @@ export class Renderer {
       const locked=drop.readyAt>s.time || (drop.returnDrop&&!drop.leftPickupCircle);
       if(!locked)drawPickupReach(c,drop,s.player,CONFIG.weapons.pickupReach);
       this.shadow(drop.x,drop.y,27,.25);
-      c.save();c.strokeStyle=drop.returnDrop?'#a6d4c1':'#ffe39d';c.fillStyle='#ffd88718';c.lineWidth=3;c.beginPath();c.ellipse(drop.x,drop.y,31,13,0,0,Math.PI*2);c.fill();c.stroke();
-      if(!drop.returnDrop){const beam=c.createLinearGradient(drop.x,drop.y-90,drop.x,drop.y);beam.addColorStop(0,'#ffe1a000');beam.addColorStop(1,'#ffe1a050');c.fillStyle=beam;c.fillRect(drop.x-19,drop.y-90,38,84);}
-      this.sprite('weaponCrate',drop.x,drop.y+3,30);c.globalAlpha=locked?.5:1;
-      const src=this.assets.sprites[drop.kind],h=Math.min(39,55*src.height/src.width);this.sprite(drop.kind,drop.x,drop.y-14+Math.sin(t*3)*2,h);c.restore();
-      this.caption(locked?(drop.readyAt>s.time?'退换锁定':'离开后可退换'):`${drop.returnDrop?'退换':'武器'} · ${WEAPON_NAMES[drop.kind]}`,drop.x,drop.y+21,14,'#ffe3a6');
+      c.save();c.translate(drop.x,drop.y);
+      // A low bevel and brass corner caps mark a fixed equipment stand.
+      c.fillStyle='#975439';c.strokeStyle='#663c31';c.lineWidth=2;
+      c.beginPath();c.roundRect(-32,-7,64,16,5);c.fill();c.stroke();
+      c.fillStyle=locked?'#bc946c':'#d7944d';c.fillRect(-29,-6,58,9);
+      c.fillStyle=locked?'#d8b99a':'#ffe6a0';
+      for(const x of [-27,21])c.fillRect(x,-6,6,13);
+      this.sprite('weaponCrate',0,2,35);c.globalAlpha=locked?.5:1;
+      const src=this.assets.sprites[drop.kind],h=Math.min(39,55*src.height/src.width);
+      this.sprite(drop.kind,0,-18,h);c.restore();
+      this.caption(locked?(drop.readyAt>s.time?'武器 · 退换锁定':'武器 · 离开后可退换'):`${drop.returnDrop?'退换武器':'武器'} · ${WEAPON_NAMES[drop.kind]}`,drop.x,drop.y+24,14,'#ffe3a6');
     }
     drawMeleeWaves(c,s,this.settings);
     this.drawEffects(false);
@@ -242,7 +248,7 @@ export class Renderer {
     // Route choices and the courier stay legible even when a full row erupts at once.
     for(const pickup of s.pickups)drawDeliveryPickup(c,this.assets,pickup,s.player,s.time,this.settings.reduceMotion);
     const near=nearestPickupHint(s.pickups,s.player,s.time);
-    if(near)this.caption('靠近拾取 · '+SKILL_NAMES[near.kind],near.x,near.y+20,15,'#ffeab7');
+    if(near)this.caption('技能 · '+SKILL_NAMES[near.kind],near.x,near.y+20,15,'#c0ffe2');
     if(onRoute)drawRouteStride(c,s.player,s.time,this.settings.reduceMotion);
     this.drawCourier(s);
     if(this.rig.bagPoint && this.rig.supplyHand)for(const use of this.skillUses){

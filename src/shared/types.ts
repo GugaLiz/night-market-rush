@@ -38,7 +38,10 @@ export interface Enemy extends Vec {
 }
 export interface GroundCoin extends Vec {id:number;bornAt:number;value:number;dropOrigin?:Vec;attracted?:boolean}
 export interface SkillField extends Vec {id:number;castId:number;kind:'fire'|'blue';radius:number;bornAt:number;expiresAt:number;hitIds:number[]}
-export interface Pickup extends Vec {id:number;kind:SkillKind;radius:number;bornAt:number;readyAt?:number;expiresAt?:number;groupId?:number;pulledUntil?:number;disabledUntil?:number;retiringUntil?:number}
+export interface Pickup extends Vec {
+  id:number;kind:SkillKind;radius:number;bornAt:number;readyAt?:number;expiresAt?:number;groupId?:number;pulledUntil?:number;disabledUntil?:number;retiringUntil?:number;
+  px?:number;py?:number;vx?:number;vy?:number;turns?:Array<Vec & {fraction:number}>;
+}
 export interface WeaponDrop extends Vec {id:number;kind:WeaponKind;radius:number;bornAt:number;expiresAt:number;readyAt:number;returnDrop:boolean;leftPickupCircle:boolean}
 export interface WeaponAttack {id:number;kind:WeaponKind;phase:'windup'|'active'|'recovery';startedAt:number;releaseAt:number;endsAt:number;angle:number;swingSide?:1|-1;targetId:number;hitIds:number[];blocked:boolean}
 export interface MeleeWaveSlice extends Vec {angle:number;halfAngle:number;bornAt:number;startRadius:number}
