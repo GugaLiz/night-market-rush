@@ -57,7 +57,7 @@ export function activateSkill(s:GameState,kind:SkillKind,origin:Vec,ctx:CombatCo
       let length:number=CONFIG.skills.route.length;
       if(d.x>0)length=Math.min(length,(bounds.right-start.x)/d.x);else if(d.x<0)length=Math.min(length,(bounds.left-start.x)/d.x);
       if(d.y>0)length=Math.min(length,(bounds.bottom-start.y)/d.y);else if(d.y<0)length=Math.min(length,(bounds.top-start.y)/d.y);
-      zone(s,ctx,'route',start,5,{angle:Math.atan2(d.y,d.x),length:Math.max(0,length),width:CONFIG.skills.route.width});break;
+      zone(s,ctx,'route',start,CONFIG.skills.route.duration,{angle:Math.atan2(d.y,d.x),length:Math.max(0,length),width:CONFIG.skills.route.width});break;
     }
     case 'hook':startHook(s);break;
     case 'heat':p.heatUntil=now+5;break;

@@ -1,13 +1,14 @@
 import {CONFIG, WORLD} from '../core/config';
-import {DEFAULT_SETTINGS, ULTIMATE_KINDS, WEAPON_NAMES} from '../shared/types';
+import {DEFAULT_SETTINGS, SKILL_NAMES, ULTIMATE_KINDS, WEAPON_NAMES} from '../shared/types';
+import {isOnPaperRoute} from '../core/geometry';
 import {TOSS_DURATION} from '../core/ultimates';
 import type {Enemy, GameEvent, GameState, Settings, Vec, WeaponKind} from '../shared/types';
 import type {Assets, SpriteName} from './assets';
 import {drawSprite} from './sprite';
 import {CourierRig} from './character';
-import {drawPackingWrap,drawPaperRoute} from './courier-equipment';
+import {drawPackingWrap,drawPaperRoute,drawRouteStride} from './courier-equipment';
 import {DamageLabels} from './damage-labels';
-import {drawDeliveryPickup, drawDeliveryUse, drawPickupReach, drawUseRipple, useLifetime} from './delivery-skills';
+import {drawDeliveryPickup, drawDeliveryUse, drawPickupReach, drawUseRipple, nearestPickupHint, useLifetime} from './delivery-skills';
 import {WEAPONS} from '../core/weapons';
 import {drawChainLink, drawFlightWake, drawWeaponContact, type WeaponContact} from './weapon-effects';
 import {drawMeleeWaves} from './melee-waves';
@@ -200,7 +201,8 @@ export class Renderer {
     for(const use of this.skillUses)if(use.kind==='soda'||use.kind==='bell'){
       drawUseRipple(c,use,s.time-use.time,CONFIG.skills[use.kind].radius,this.settings.reduceMotion);
     }
-    this.zones(s);
+    const onRoute=s.zones.some(z=>isOnPaperRoute(s.player,z,s.time));
+    this.zones(s,onRoute);
     drawGroundCoins(c, s.coins, s.time, this.settings.reduceMotion);
     this.drawGroundImpact();
     for (const e of s.enemies) {
@@ -238,6 +240,9 @@ export class Renderer {
     drawUltimateAir(c,s,this.settings,this.assets);
     // Route choices and the courier stay legible even when a full row erupts at once.
     for(const pickup of s.pickups)drawDeliveryPickup(c,this.assets,pickup,s.player,s.time,this.settings.reduceMotion);
+    const near=nearestPickupHint(s.pickups,s.player,s.time);
+    if(near)this.caption('靠近拾取 · '+SKILL_NAMES[near.kind],near.x,near.y+20,15,'#ffeab7');
+    if(onRoute)drawRouteStride(c,s.player,s.time,this.settings.reduceMotion);
     this.drawCourier(s);
     if(this.rig.bagPoint && this.rig.supplyHand)for(const use of this.skillUses){
       drawDeliveryUse(c,this.assets,use,s.time,this.rig.bagPoint,this.rig.supplyHand,this.settings.reduceMotion);
@@ -449,14 +454,14 @@ export class Renderer {
     const c=this.ctx;c.save();c.font=`800 ${size}px "Microsoft YaHei",sans-serif`;c.textAlign='center';c.lineWidth=3;c.strokeStyle='#46352b';c.fillStyle=color;c.strokeText(text,x,y);c.fillText(text,x,y);c.restore();
   }
 
-  private zones(s:GameState):void {
+  private zones(s:GameState,onRoute:boolean):void {
     const c=this.ctx,reduced=this.settings.reduceMotion;
     for(const z of s.zones){
       if(z.kind==='supply'&&!s.pickups.some(p=>p.groupId===z.groupId&&!p.retiringUntil))continue;
       const age=Math.max(0,s.time-z.bornAt);
       c.save();c.globalAlpha=Math.min(1,(z.expiresAt-s.time)*2);
       if(z.kind==='route'){
-        drawPaperRoute(c,z,age,reduced);
+        drawPaperRoute(c,z,age,reduced,onRoute);
       }else{
         const settle=reduced?1:Math.min(1,age/.30);
         const lift=18*(1-Math.min(1,settle/.62))**2+3*Math.sin(Math.PI*Math.max(0,(settle-.62)/.38));

@@ -53,10 +53,10 @@ try {
     ctx.drawImage=(image,...args)=>{
       if(image instanceof HTMLImageElement && args.length===8){
         const name=parts.get([image.src,args[0],args[1]].join('|'));
-        if(['rigUpperR','rigForeR','rigHipFront','rigHeadFront'].includes(name)){
+        if(['rigUpperR','rigForeR','rigHipFront','rigTorsoFront','rigHeadFront'].includes(name)){
           const [x,y,w,h]=args.slice(4),m=ctx.getTransform();
           const center=m.transformPoint({x:x+w/2,y:y+h/2});
-          readings.parts[name]={height:Math.hypot(m.c,m.d)*h,y:center.y};
+          readings.parts[name]={width:Math.hypot(m.a,m.b)*w,height:Math.hypot(m.c,m.d)*h,y:center.y};
         }
         if(readings.ground && /^rig(Thigh|Shin|Shoe|Hip)/.test(name)){
           if(!before)before=lowerPixels();
@@ -112,11 +112,13 @@ try {
       idleProportions=await page.evaluate(()=>{
         const {parts,shoes}=window.shoeCheck;
         return {head:parts.rigHeadFront.height,arm:parts.rigUpperR.height+parts.rigForeR.height,
+          coatWidth:parts.rigTorsoFront.width,coatHeight:parts.rigTorsoFront.height,
           hipToSole:Math.max(...shoes.map(foot=>foot.y))-parts.rigHipFront.y};
       });
       // Use projected lengths, so changes to scale or atlas pixel dimensions are harmless.
       assert.ok(idleProportions.arm/idleProportions.head<.48,'The two arm segments must fit the compact courier silhouette');
-      assert.ok(idleProportions.hipToSole/idleProportions.head<.50,'Standing legs must remain short relative to the head');
+      assert.ok(idleProportions.hipToSole/idleProportions.head<.32,'The coat hem should sit close to the planted sneakers');
+      assert.ok(idleProportions.coatWidth/idleProportions.coatHeight>1.45,'The battle jacket should retain its wide, flared silhouette');
     }
     if(!captions.has(i)&&!process.env.FOOTWORK_FRAMES)continue;
     const crop=await page.evaluate(()=>{

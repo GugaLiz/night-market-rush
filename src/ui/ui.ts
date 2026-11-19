@@ -2,6 +2,7 @@ import {DEFAULT_SETTINGS, ENEMY_NAMES, WEAPON_NAMES, WEAPON_KINDS, SKILL_NAMES, 
 import {WEAPON_GUIDE, SKILL_GUIDE} from './catalog';
 import {WEAPONS} from '../core/weapons';
 import {CONFIG} from '../core/config';
+import {isOnPaperRoute} from '../core/geometry';
 
 export type View = 'home'|'loading'|'tutorial'|'countdown'|'play'|'pause'|'settings'|'confirm'|'revive'|'result'|'rotate'|'lab'|'catalog';
 export interface UIActions {
@@ -226,11 +227,12 @@ export class UI {
     this.weaponEl.style.setProperty('--weapon-ready',String(Math.max(0,Math.min(1,1-remaining/WEAPONS[weapon.kind].cooldown))));
     const activeZones=state.zones.filter(z=>z.expiresAt>state.time);
     const duration=(kind:'route'|'cone'|'lure')=>Math.max(0,...activeZones.filter(z=>z.kind===kind).map(z=>z.expiresAt-state.time));
-    const route=activeZones.find(z=>z.kind==='route');let inRoute=false;
-    if(route){const dx=state.player.x-route.x,dy=state.player.y-route.y;const along=dx*Math.cos(route.angle)+dy*Math.sin(route.angle),side=-dx*Math.sin(route.angle)+dy*Math.cos(route.angle);inRoute=along>=0&&along<=route.length&&Math.abs(side)<=route.width/2;}
+    const inRoute=activeZones.some(z=>isOnPaperRoute(state.player,z,state.time));
     const statuses:Array<{kind:string;label:string;seconds:number;active:boolean}>=[];
     const add=(kind:string,label:string,seconds:number,active=true)=>{if(seconds>0)statuses.push({kind,label,seconds,active});};
-    add('bubble','防撞×1',state.player.bubbleUntil-state.time);add('skate','滑板',state.player.skateUntil-state.time);add('route',inRoute?'路线加速':'路线',duration('route'),inRoute);add('dispatch','增援暂缓',state.effects.dispatchUntil-state.time);add('stamp','额外掉币 +1',state.player.stampUntil-state.time);add('cones',`路锥×${activeZones.filter(z=>z.kind==='cone').length}`,duration('cone'));add('lure','诱饵',duration('lure'));
+    add('bubble','防撞×1',state.player.bubbleUntil-state.time);add('skate','滑板环绕',state.player.skateUntil-state.time);
+    add('route',inRoute?`移速 +${Math.round((CONFIG.skills.route.speedMultiplier-1)*100)}%`:'踏上路线加速',duration('route'),inRoute);
+    add('dispatch','增援暂缓',state.effects.dispatchUntil-state.time);add('stamp','额外掉币 +1',state.player.stampUntil-state.time);add('cones',`路锥×${activeZones.filter(z=>z.kind==='cone').length}`,duration('cone'));add('lure','诱饵',duration('lure'));
     add('heat','武器急速',heat);
     const statusMarkup=statuses.slice(0,6).map(item=>`<div class="status-chip ${item.active?'':'inactive'}" data-status="${item.kind}" title="${item.label}"><span>${icon(item.kind)}</span><b>${item.label}</b><small>${item.seconds.toFixed(1)}秒</small></div>`).join('');
     if(statusMarkup!==this.lastStatus){this.statusEl.innerHTML=statusMarkup;this.lastStatus=statusMarkup;}

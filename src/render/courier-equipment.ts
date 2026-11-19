@@ -1,10 +1,10 @@
-import type {Zone} from '../shared/types';
+import type {Player,Zone} from '../shared/types';
 
 const tau=Math.PI*2;
 const unit=(n:number)=>Math.max(0,Math.min(1,n));
 
 /** Printed accordion folds roll out over the route's actual floor rectangle. */
-export function drawPaperRoute(c:CanvasRenderingContext2D,z:Zone,age:number,reduced:boolean):void {
+export function drawPaperRoute(c:CanvasRenderingContext2D,z:Zone,age:number,reduced:boolean,occupied:boolean):void {
   if(z.length<1)return;
   c.save();c.translate(z.x,z.y);c.rotate(z.angle);
   const half=z.width/2,unfold=reduced?1:1-(1-unit(age/.36))**3,edge=z.length*unfold;
@@ -23,13 +23,17 @@ export function drawPaperRoute(c:CanvasRenderingContext2D,z:Zone,age:number,redu
     c.lineTo(x+70,-half*.46);c.moveTo(x+70,half*.38);
     c.lineTo(x+corner+8,half*.38+offset);c.lineTo(x+corner+10,half);c.stroke();
   }
-  c.strokeStyle='#3a8176';c.lineWidth=3;c.lineCap='round';c.setLineDash([6,6]);
+  c.fillStyle=occupied?'#68f0c7':'#786446a1';
+  for(const y of [-half+2,half-5])c.fillRect(0,y,edge,occupied?4:2);
+  c.strokeStyle=occupied?'#205d56':'#3a8176';c.lineWidth=3;c.lineCap='round';c.setLineDash([6,6]);
   const routeY=(x:number)=>Math.sin(x/48)*6;
   c.beginPath();c.moveTo(3,0);
   for(let x=12;x<z.length-18;x+=12)c.lineTo(x,routeY(x));
   c.lineTo(Math.max(3,z.length-18),0);c.stroke();c.setLineDash([]);
-  c.strokeStyle='#fff1c6';c.fillStyle='#387f72';c.lineWidth=2;
-  for(let x=28;x<edge-18;x+=63){
+  c.strokeStyle=occupied?'#fffce1':'#fff1c6';c.fillStyle=occupied?'#136357':'#387f72';c.lineWidth=2;
+  const advance=reduced?0:(age*(occupied?80:32))%63;
+  for(let x=-35+advance;x<edge-18;x+=63){
+    if(x<5)continue;
     const y=routeY(x);c.beginPath();c.moveTo(x-8,y-7);c.lineTo(x+5,y);c.lineTo(x-8,y+7);c.lineTo(x-4,y);c.closePath();c.fill();c.stroke();
   }
   if(z.length>=30 && edge>=z.length-18){
@@ -40,6 +44,35 @@ export function drawPaperRoute(c:CanvasRenderingContext2D,z:Zone,age:number,redu
     c.fillStyle='#fff1ce';c.beginPath();c.arc(0,-11,4,0,tau);c.fill();c.restore();
   }
   if(unfold<1){c.fillStyle='#ffedc0b0';c.fillRect(Math.max(0,edge-5),-half,5,z.width);}
+  c.restore();
+
+  if(edge>=100){
+    // Keep the little road sign upright even when the map crosses the screen diagonally.
+    const along=Math.min(z.length*.42,142),across=half-19;
+    const cos=Math.cos(z.angle),sin=Math.sin(z.angle);
+    c.save();
+    c.translate(z.x+along*cos-across*sin,z.y+along*sin+across*cos);
+    c.font='bold 15px "Microsoft YaHei", sans-serif';c.textAlign='center';c.textBaseline='middle';
+    const label=occupied?'加速中':'上路加速',width=c.measureText(label).width+15;
+    c.fillStyle=occupied?'#235e51':'#493f32';c.strokeStyle=occupied?'#a8f6d3':'#efdbb3';c.lineWidth=1.5;
+    c.beginPath();c.roundRect(-width/2,-11,width,22,5);c.fill();c.stroke();
+    c.fillStyle='#fff4d9';c.fillText(label,0,1);c.restore();
+  }
+}
+
+/** Brief shoe-level slipstreams follow the actual travel direction on the paper. */
+export function drawRouteStride(c:CanvasRenderingContext2D,p:Player,time:number,reduced:boolean):void {
+  const speed=Math.hypot(p.vx,p.vy);
+  if(speed<55 || reduced)return;
+  const flow=Math.min(1,speed/380);
+  c.save();c.translate(p.x,p.y-2);c.rotate(Math.atan2(p.vy,p.vx));c.lineCap='round';
+  for(const side of [-1,1]){
+    const phase=(time*2.4+(side+1)*.24)%1;
+    const head=-11-phase*13,length=(13+phase*14)*flow;
+    c.beginPath();c.moveTo(head,side*9);c.quadraticCurveTo(head-length*.48,side*13,head-length,side*11);
+    c.strokeStyle='#307b6a';c.lineWidth=4;c.stroke();
+    c.strokeStyle='#beffe0';c.lineWidth=1.8;c.stroke();
+  }
   c.restore();
 }
 

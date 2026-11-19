@@ -19,8 +19,9 @@ await page.addInitScript(()=>{
     if(this.canvas.id==='game-canvas' && image instanceof HTMLImageElement && image.src.endsWith('clay-ultimate-fx.webp') && args.length===8){
       window.renderedUltimateTiles.add(Math.round(args[0]/args[2])+2*Math.round(args[1]/args[3]));
     }
-    if(this.canvas.id==='game-canvas' && image instanceof HTMLImageElement && image.src.endsWith('clay-courier-rig.webp') &&
-      args.length===8 && args[0]===789 && args[1]===779 && args[7]===48)window.flyingParcelX.push(this.getTransform().e/this.canvas.width);
+    const parcel=window.expressParcelSprite;
+    if(this.canvas.id==='game-canvas' && parcel && image instanceof HTMLImageElement && image.src===parcel.src &&
+      args.length===8 && args[0]===parcel.x && args[1]===parcel.y && args[7]===48)window.flyingParcelX.push(this.getTransform().e/this.canvas.width);
     return original.call(this,image,...args);
   };
 });
@@ -29,6 +30,11 @@ try{
   await page.clock.install({time:new Date('2026-02-01T20:00:00Z')});
   await page.clock.pauseAt(new Date('2026-02-01T20:00:01Z'));
   await page.goto(base,{waitUntil:'networkidle'});
+  await page.evaluate(async()=>{
+    const {loadAssets}=await import('/src/render/assets.ts');
+    const {image,x,y}=(await loadAssets()).sprites.rigBagSide;
+    window.expressParcelSprite={src:image.src,x,y};
+  });
   const button=name=>page.getByRole('button',{name,exact:true}).click({force:true});
   await button('配送试验场');
   for(const [kind,label,delay,tiles] of [

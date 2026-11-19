@@ -531,3 +531,31 @@
 - **实现/结果**：缩短手臂、腿和步幅，调整双手握点和前后脚动作；用独立透明立绘同步首页。怪物图集含16种普通、表情、受伤和残血造型，击败计数同步使用新版头像。
 - **验证**：238项单测、17项Chrome端到端、tsc、Vite通过。同场景原尺寸对比测得手臂约短21%、髋至承重鞋底约短26%。148帧走跑转向与移动攻击、四近战、六远程、餐盘回手及四种怪物预警通过。正式4173页面实绘新版首页和怪物，分发的JS和两张新图逐字节匹配dist。
 - **风险/后续**：手机横屏采用Chrome触控模拟。
+## 2026-11-19 21:20:04 +08:00 — fix
+
+- **摘要**：重绘普通挑战中的骑手，明确纸地图提速及技能拾取反馈，并更新本地试玩版。
+- **涉及文件**：
+  - `agentchanges/CHANGELOG.md`
+  - `docs/ASSET_PROVENANCE.md`
+  - `docs/verification/clay/bun-courier-battle.webp`
+  - `docs/verification/clay/paper-route-states.webp`
+  - `public/assets/clay-bun-courier-rig.webp`
+  - `scripts/verify-clay-footwork.mjs`
+  - `scripts/verify-clay-ultimates.mjs`
+  - `src/core/config.ts`
+  - `src/core/game.ts`
+  - `src/core/geometry.ts`
+  - `src/core/skills.ts`
+  - `src/render/assets.ts`
+  - `src/render/character.ts`
+  - `src/render/clay-frames.ts`
+  - `src/render/courier-equipment.ts`
+  - `src/render/delivery-skills.ts`
+  - `src/render/renderer.ts`
+  - `src/ui/catalog.ts`
+  - `src/ui/ui.ts`
+  - `tests/skills.test.ts`
+- **原因/目标**：玩家在战斗中难以看出骑手更新，也很难区分地面技能、换装点、飞行攻击与纸地图的生效范围。
+- **实现/结果**：12 个头部表情、外套、手套和箱包分件接入战斗骨架，调整站姿、步态和挥夹姿势。最近可用技能显示拾取提示，发动时显示用途。路线、脚后风线和状态栏与实际加速判定一致。保存普通挑战新旧动作及进出纸地图的实拍对照。
+- **验证**：240 项 Vitest、17 项 Chrome 端到端、TypeScript 和 Vite 构建通过。相同普通挑战输入在 4173 实绘新图集。实测线上速度 417.96，线外 348.30，来回切换和到期正常，减少动态关闭风线。148 帧步态、近战、远程、四种大招与横屏触控模拟通过。正式服务的脚本和两份骑手纹理与 dist 逐字节一致。
+- **风险/后续**：本地已部署。GitHub 当前凭据对目标仓库的推送权限检查返回 HTTP 403，Pages 上线依赖可写入此仓库的账号。手机使用 Chrome 触控模拟验证。

@@ -15,7 +15,7 @@ export interface Assets {
 export async function loadAssets(onProgress?: (n: number) => void): Promise<Assets> {
   const files = [
     'clay-night-market.webp', 'clay-riverside-market.webp', 'clay-chibi-home.webp', 'clay-actors.webp',
-    'clay-weapons.webp', 'clay-supplies.webp', 'clay-courier-rig.webp', 'delivery-skills.webp',
+    'clay-weapons.webp', 'clay-supplies.webp', 'clay-bun-courier-rig.webp', 'delivery-skills.webp',
     'weapon-strikes.webp', 'clay-ultimate-fx.webp', 'clay-courier-workwear.webp', 'clay-market-mascots.webp',
   ];
   let completed = 0;

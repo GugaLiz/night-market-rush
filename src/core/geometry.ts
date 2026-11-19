@@ -1,7 +1,16 @@
-import type {Vec} from '../shared/types';
+import type {Vec, Zone} from '../shared/types';
 
 export const clamp = (value: number, min: number, max: number): number => Math.max(min, Math.min(max, value));
 export const distanceSquared = (a: Vec, b: Vec): number => (a.x - b.x) ** 2 + (a.y - b.y) ** 2;
+
+/** Position is measured at the rider's feet along the clipped strip of paper. */
+export function isOnPaperRoute(point:Vec, route:Zone, time:number):boolean {
+  if (route.kind !== 'route' || time < route.bornAt || time >= route.expiresAt || route.length <= 0) return false;
+  const dx=point.x-route.x, dy=point.y-route.y;
+  const cos=Math.cos(route.angle), sin=Math.sin(route.angle);
+  const along=dx*cos+dy*sin, across=dy*cos-dx*sin;
+  return along >= 0 && along <= route.length && Math.abs(across) <= route.width/2;
+}
 
 /** Earliest time of a swept circle touching a stationary point, or null. */
 export function sweepContact(start: Vec, end: Vec, center: Vec, radius: number): number | null {

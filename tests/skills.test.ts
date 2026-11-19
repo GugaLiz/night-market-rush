@@ -2,6 +2,8 @@ import {describe,expect,it} from 'vitest';
 import {activateSkill,updateSkills} from '../src/core/skills';
 import {CONFIG} from '../src/core/config';
 import {Game} from '../src/core/game';
+import {isOnPaperRoute} from '../src/core/geometry';
+import {nearestPickupHint} from '../src/render/delivery-skills';
 import type {CombatContext} from '../src/core/contracts';
 import type {Enemy,GameEvent,GameState,Pickup,SkillKind} from '../src/shared/types';
 
@@ -73,6 +75,27 @@ describe('V2 skill mechanics',()=>{
   it('route follows movement direction, clips its endpoint and replaces itself',()=>{
     const {s,activate}=fixture();s.player.x=1180;activate('route');expect(s.zones[0].length).toBe(20);
     s.player.moveDirection={x:0,y:1};activate('route');expect(s.zones).toHaveLength(1);expect(s.zones[0].angle).toBeCloseTo(Math.PI/2);
+  });
+  it('the route includes its paper edges and drops the boost immediately at expiry',()=>{
+    const {s,activate}=fixture();
+    s.player.moveDirection={x:1,y:1};
+    activate('route');
+    const route=s.zones[0],cos=Math.cos(route.angle),sin=Math.sin(route.angle);
+    const point=(along:number,side:number)=>({x:route.x+cos*along-sin*side,y:route.y+sin*along+cos*side});
+    expect(isOnPaperRoute(route,route,s.time)).toBe(true);
+    expect(isOnPaperRoute(point(100,route.width/2-.001),route,s.time)).toBe(true);
+    expect(isOnPaperRoute(point(100,route.width/2+.001),route,s.time)).toBe(false);
+    expect(isOnPaperRoute(point(-1,0),route,s.time)).toBe(false);
+    expect(isOnPaperRoute(point(route.length+1,0),route,s.time)).toBe(false);
+    expect(isOnPaperRoute(route,route,route.expiresAt)).toBe(false);
+  });
+  it('prompts for one nearby skill and ignores locked, retired and distant drops',()=>{
+    const player={x:640,y:370};
+    const available=item(1,'fan',735),nearer=item(2,'skate',710),distant=item(3,'route',950);
+    const gated=[item(4,'heat',700,370,{readyAt:12}),item(5,'heat',700,370,{disabledUntil:12}),
+      item(6,'heat',700,370,{retiringUntil:12}),item(7,'heat',700,370,{expiresAt:10})];
+    expect(nearestPickupHint([...gated,available,distant,nearer],player,10)).toBe(nearer);
+    expect(nearestPickupHint([...gated,distant],player,10)).toBeUndefined();
   });
   it('hook selects one group member, skips gated items and moves rather than remotely activates',()=>{
     const {s,activate,step}=fixture();s.pickups=[item(1,'fan',700,370,{groupId:8}),item(2,'soda',710,370,{groupId:8}),item(3,'heat'),item(4,'dispatch',700,370,{disabledUntil:20}),item(5,'hook'),item(6,'bubble',700,370,{readyAt:11})];

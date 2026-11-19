@@ -1,5 +1,22 @@
 # 资产来源与重建说明
 
+## 2026-11-19 战斗骑手与包子配送制服
+
+内置 ImageGen 以此前的战斗分件为参考，生成带奶黄包子帽章的橘色头盔、低位珠眼、短披肩外套、薄荷绿连指手套及保温箱。在普通挑战和配送试验场，战斗渲染器逐件组装骑手，并根据朝向、出手和受伤状态切换头部。工装裤和鞋继续从独立工装图集中取样。[战斗骑手分件](../public/assets/clay-bun-courier-rig.webp)
+
+透明原图为 1448 × 1086 像素，按 4 列 3 行提取轮廓、清理边缘并打包成 1024 × 768 的 WebP。上排依次是正面、背面、受击和出手头部，中排是正背面外套与左右上臂，下排是左右连指手套和正侧面保温箱。成品 SHA-256 为 `5d11098c99d702343910a6ff591bbc2d4ac29126fed029154080111ee201cde4`。[普通挑战持夹、迈步和挥夹实拍对照](verification/clay/bun-courier-battle.webp)
+
+<details>
+<summary>战斗骑手分件生成提示词</summary>
+
+Use case: precise-object-edit. Deliver a real production sprite rig atlas of individually isolated molded polymer clay TOY PARTS for the battle avatar of a small female food delivery rider, not a portrait or a whole character. Image 1 shows the previous game's PARTS solely as reference for their camera facing and movable shapes. Direction to redesign: extremely adorable collectible bun-shop mascot form with a warm chef-cream bun shaped BADGE on top front center of a vibrant tangerine bike helmet, make its little pleated steamed bun applique clearly visible even in miniature. Her face is now an exceptionally wide nearly circular peach dumpling with low bead-like espresso eyes, sparkly tiny highlights, two rosy cheek spots, puffy rounded cheeks and a teeny open smile. No eyelashes, no angular thin sharp eyes, no large triangular mouth. Light bark-brown short side fringe and a little compact brown ponytail projecting left/back. Bold jade chin strap and a round ivory side helmet fastener. 'Steamed bun express' trade identity on a short round orange poncho-like jacket, a single large warm ivory steamed bun patch centered on chest. Mint-green sturdy oven-mitten hands with small molded thumbs. Render the same homemade matte doll clay with studio light top left, sharply clean dimensional silhouettes, gentle tactile texture. The individual parts need to read fully at 50px.
+EXACT 4 COLUMN BY 3 ROW SHEET of 12 ISOLATED SINGLE PARTS on fully TRANSPARENT background, no ground or shadows outside their silhouettes. Each equally spaced tile is one piece, with completely clear margins, no printed grids/labels/watermark. Landscape ratio 4:3. Make all four entire heads the same size and shape. ALL heads include helmet plus face/hair down to rounded chin, no neck or bodies.
+Row 1: (1) smiling calm head looking toward viewer/RIGHT in 3/4 view, bun helmet badge highly visible, eyes forward-right; (2) same helmeted head seen from BEHIND with face almost entirely hidden, ear right edge, rear helmet and little ponytail projecting back-left; (3) same angle as 1, expression squished eyes closed, comical slight wince; (4) same angle as 1, brave focused pout and winking one eye while attacking. All equally big.
+Row 2: (1) FRONT compact wide torso ONLY, cute broad egg-shaped orange courier jacket, nearly as wide as tall or wider, reflective cream hem, golden zipper, big cream steamed bun patch raised on chest, no head arms or legs. (2) matching BACK of sleeveless jacket ONLY, stylized folded short cape collar, no arms or head or bag. (3) right upper arm ONLY, a short fat orange puff-sleeve segment with one cream reflective stripe, gently capsule-shaped and oriented shoulder end at top, elbow end at bottom, no hand. (4) left upper arm ONLY, its mirror, identical size.
+Row 3: (1) right forearm and hand as ONE short vertically straight unit, elbow at top, tangerine cuff then large SOFT jade-teal rounded MITTEN at bottom with cream wrist trim and one raised thumb, no exposed skin, no upper arm. (2) same left forearm-mitten unit, opposite thumb. (3) insulated courier box back view, squat square jade-green bun-steamer insulated lunch delivery bag, warm cream domed steam-bun logo on flap, orange fasteners and top handle, no character. (4) identical green bag three-quarter side view, flap sides visible and ivory order slip tucked into side. The twelve items must be separated in evenly-sized invisible cells; never depict whole people. No extra props, no bases, no contact shadows. Authentic RGBA transparency.
+
+</details>
+
 新版首页立绘以工装骑手为参照，为短臂、短腿的新战斗比例单独生成。战斗造型可在同一机位、同样的走位下对照。[首页原型](../public/assets/clay-workwear-home.webp) · [战斗画面对照](verification/clay/chibi-battle-comparison.webp)
 
 <details>

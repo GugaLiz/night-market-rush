@@ -1,6 +1,7 @@
 import {clamp} from '../core/geometry';
 import {pickupReach} from '../core/config';
 import {isUltimate, SKILL_NAMES, type GameEvent, type Pickup, type SkillKind, type Vec} from '../shared/types';
+import {SKILL_GUIDE} from '../ui/catalog';
 import {drawSprite} from './sprite';
 import type {Assets} from './assets';
 
@@ -27,6 +28,18 @@ export function drawPickupReach(c:CanvasRenderingContext2D, item:Vec, player:Vec
   c.beginPath();c.arc(item.x,item.y,radius,angle-.22,angle+.22);
   c.strokeStyle=ink;c.lineWidth=3.5;c.stroke();
   c.strokeStyle='#ffeab5';c.lineWidth=1.7;c.stroke();c.restore();
+}
+
+/** Only the nearest available order gets a prompt, including when choosing from a supply box. */
+export function nearestPickupHint(items:Pickup[],player:Vec,time:number):Pickup|undefined {
+  let closest:Pickup|undefined;
+  let nearest=Infinity;
+  for(const p of items){
+    if(p.retiringUntil||(p.disabledUntil??0)>time||(p.readyAt??0)>time||(p.expiresAt??Infinity)<=time)continue;
+    const distance=Math.hypot(p.x-player.x,p.y-player.y);
+    if(distance<nearest&&distance<=pickupReach(p)+145){closest=p;nearest=distance;}
+  }
+  return closest;
 }
 
 /** The loose tool sits on a short tear-off order tag, with its shadow at the pickup location. */
@@ -119,7 +132,7 @@ export function drawDeliveryUse(c:CanvasRenderingContext2D, assets:Assets, use:U
   const labelOpacity=ease(age/.12)*fade;
   if(labelOpacity<=0)return;
   c.save();c.globalAlpha=labelOpacity;
-  const text=SKILL_NAMES[use.kind];c.font='bold 14px "Microsoft YaHei",sans-serif';
+  const text=SKILL_NAMES[use.kind]+' · '+SKILL_GUIDE[use.kind].role;c.font='bold 15px "Microsoft YaHei",sans-serif';
   const w=c.measureText(text).width+15;
   c.translate(clamp(use.x,12+w/2,1268-w/2),Math.min(652,use.y+32));
   c.fillStyle='#f7e3b9';c.strokeStyle='#614638';c.lineWidth=1.4;

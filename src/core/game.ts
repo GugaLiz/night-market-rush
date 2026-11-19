@@ -1,6 +1,6 @@
 import {WEAPON_KINDS,type Enemy,type EnemyKind,type GameEvent,type GameState,type Pickup,type SkillKind,type Vec,type WeaponKind,type DamageSource} from '../shared/types';
 import {CONFIG,WORLD,difficultyAt,pickupReach} from './config';
-import {clamp,distanceSquared,relativeSweep,sweepContact,segmentDistanceSquared} from './geometry';
+import {clamp,distanceSquared,isOnPaperRoute,relativeSweep,sweepContact,segmentDistanceSquared} from './geometry';
 import type {CombatContext} from './contracts';
 import {updateWeapons} from './weapons';
 import {activateSkill,updateSkills} from './skills';
@@ -193,11 +193,8 @@ export class Game {
       p.sprintDirection={x:x/n,y:y/n};
     }
     p.sprintMultiplier=1+(CONFIG.player.sprintMax-1)*clamp(((p.sprintTime??0)-CONFIG.player.sprintAfter)/.6,0,1);
-    let multiplier=1;
-    for(const z of this.state.zones)if(z.kind==='route'&&z.expiresAt>this.state.time){
-      const dx=p.x-z.x,dy=p.y-z.y,along=dx*Math.cos(z.angle)+dy*Math.sin(z.angle),across=-dx*Math.sin(z.angle)+dy*Math.cos(z.angle);
-      if(along>=0&&along<=z.length&&Math.abs(across)<=z.width/2)multiplier=1.2;
-    }
+    const onRoute=this.state.zones.some(z=>isOnPaperRoute(p,z,this.state.time));
+    const multiplier=onRoute ? CONFIG.skills.route.speedMultiplier : 1;
     const tuning=CONFIG.player;
     const pace=multiplier*(p.sprintMultiplier??1);
     const maxSpeed=tuning.speed*pace;

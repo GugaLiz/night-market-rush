@@ -45,7 +45,7 @@ export const CONFIG = {
     lure: {radius:270, targets:10},
     bell: {radius:240, targets:18},
     hook: {radius:240, targets:3, duration:.65, speed:740},
-    route: {length:420, width:110},
+    route: {length:420, width:110, duration:5, speedMultiplier:1.2},
     cones: {reach:114, spacing:52, radius:21},
   },
   spawn: {warning:.6, safeDistance:.22*S, gap:43, attempts:32, openingCount:40},
