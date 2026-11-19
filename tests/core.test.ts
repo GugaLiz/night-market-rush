@@ -2,6 +2,7 @@ import {describe,expect,it} from 'vitest';
 import {Game} from '../src/core/game';
 import {CONFIG,WORLD,difficultyAt} from '../src/core/config';
 import {relativeSweep,sweepContact} from '../src/core/geometry';
+import {spawnMarketEnemies} from '../src/core/waves';
 import type {EnemyKind,GameEvent,WeaponKind} from '../src/shared/types';
 const zero={x:0,y:0};
 function lab(kind:WeaponKind='tongs'){const g=new Game(77);g.reset(77,true);g.setWeapon(kind);g.state.weapon.readyAt=Infinity;g.drainEvents();return g;}
@@ -48,6 +49,74 @@ describe('HP and damage events',()=>{
 });
 
 describe('movement and seeded simulation',()=>{
+  it('skips failed random placements and observes the population cap, including warnings',()=>{
+    const g=new Game(4),s=g.state,events:GameEvent[]=[];
+    const ctx={random:()=>0,emit:(e:GameEvent)=>{events.push(e);}};
+    const spawn=(kind:EnemyKind,p:{x:number;y:number})=>g.spawnEnemy(kind,p);
+    const difficulty={...difficultyAt(0),cap:3};
+    spawnMarketEnemies(s,difficulty,7,spawn,ctx);
+    expect(s.enemies).toHaveLength(1);expect(events).toHaveLength(1);
+    // Every draw above picked the same occupied corner. The next free draw can still enter.
+    ctx.random=()=>.90;
+    spawnMarketEnemies(s,difficulty,7,spawn,ctx);
+    expect(s.enemies).toHaveLength(2);
+    s.player.x=WORLD.bounds.left+s.enemies[0].radius;s.player.y=CONFIG.player.minY;
+    s.enemies.shift();ctx.random=()=>0;
+    spawnMarketEnemies(s,difficulty,1,spawn,ctx);
+    expect(s.enemies).toHaveLength(1);expect(events).toHaveLength(2);
+    // With no space under the cap the spawner does not even draw a candidate.
+    ctx.random=()=>{throw new Error('over-cap spawn');};
+    spawnMarketEnemies(s,{...difficulty,cap:1},6,spawn,ctx);
+    expect(s.enemies).toHaveLength(1);
+  });
+  it('uses the interior and all quadrants for reinforcements before and after a normal wave transition',()=>{
+    for(const seed of [7,29,81,1907]){
+      const g=new Game(seed),s=g.state;
+      s.player.invulnerableUntil=1000;s.weapon.readyAt=Infinity;
+      const quadrants=[new Set<number>(),new Set<number>()],interior=[0,0];
+      tick(g,.4);s.enemies=[];
+      for(let frame=0;frame<60*46;frame++){
+        const previous=s.enemies.map(e=>({x:e.x,y:e.y,r:e.radius}));
+        g.update(1/60,zero);
+        const born=s.enemies.filter(e=>e.spawnAt===s.time);
+        if(!born.length)continue;
+        const wave=Math.min(s.wave,2)-1;
+        for(const e of born){
+          expect(e.march).toBeUndefined();
+          expect(Math.hypot(e.x-s.player.x,e.y-s.player.y)-e.radius-s.player.radius).toBeGreaterThanOrEqual(CONFIG.spawn.safeDistance);
+          expect(previous.every(q=>Math.hypot(e.x-q.x,e.y-q.y)-e.radius-q.r>=CONFIG.spawn.gap)).toBe(true);
+          previous.push({x:e.x,y:e.y,r:e.radius});
+          quadrants[wave].add(Number(e.x>640)+2*Number(e.y>410));
+          if(e.x>340&&e.x<940&&e.y>288&&e.y<535)interior[wave]++;
+        }
+        // Leave these bodies on the floor for the next arrival, and make vacancies for subsequent sets.
+        s.enemies=born;
+      }
+      expect(quadrants.map(q=>q.size)).toEqual([4,4]);
+      expect(interior.every(count=>count>=2)).toBe(true);
+    }
+  });
+  it('skips a saturated late-game floor below its cap, then fills only genuinely cleared space',()=>{
+    const g=new Game(284),s=g.state;
+    Object.assign(s,{time:200,wave:6,waveStartedAt:198});
+    s.player.invulnerableUntil=1000;s.weapon.readyAt=Infinity;
+    for(let column=0;column<14;column++)for(let row=0;row<6;row++){
+      const e=g.spawnEnemy('bun',{x:118+column*80,y:215+row*76});
+      e.stunUntil=1000;
+    }
+    const count=s.enemies.length;
+    expect(count).toBeLessThan(difficultyAt(s.time).cap);
+    tick(g,1.5);
+    expect(s.enemies).toHaveLength(count);
+    expect(g.drainEvents().filter(e=>e.type==='spawn')).toHaveLength(0);
+    s.enemies=s.enemies.filter(e=>e.x>=500||e.y>=460);
+    const retained=s.enemies.slice();
+    tick(g,1.3);
+    const spawned=g.drainEvents().filter(e=>e.type==='spawn');
+    expect(spawned.length).toBeGreaterThan(0);
+    expect(spawned.every(e=>e.x<500 && e.y<460)).toBe(true);
+    expect(spawned.every(e=>retained.every(q=>Math.hypot(e.x-q.x,e.y-q.y)>=CONFIG.spawn.gap+q.radius+CONFIG.enemies.bun.radius))).toBe(true);
+  });
   it('uses continuous sweeps even for a fast crossing',()=>{expect(sweepContact({x:0,y:0},{x:100,y:0},{x:50,y:0},10)).toBeCloseTo(.4);expect(relativeSweep({x:0,y:0},{x:100,y:0},{x:100,y:0},{x:0,y:0},10)).toBeCloseTo(.45);const g=lab();const e=threat(g,'box',540,370);e.phase='dash';e.phaseUntil=10;e.dashX=40;g.update(1/60,zero);expect(g.state.player.hp).toBe(80);});
   it('normalizes diagonals, brakes smoothly and slides on boundaries',()=>{const a=lab(),b=lab();tick(a,.5,{x:1,y:0});tick(b,.5,{x:1,y:1});expect(Math.hypot(a.state.player.x-640,a.state.player.y-370)).toBeCloseTo(Math.hypot(b.state.player.x-640,b.state.player.y-370));tick(a,.1);expect(a.state.player.vx).toBeCloseTo(0);a.state.player.x=WORLD.bounds.right-a.state.player.radius;const y=a.state.player.y;tick(a,.2,{x:1,y:1});expect(a.state.player.x).toBe(WORLD.bounds.right-a.state.player.radius);expect(a.state.player.y).toBeGreaterThan(y);});
   it('invalid input/time and huge dt stay finite and bounded',()=>{const g=lab();g.update(NaN,zero);g.update(Infinity,zero);g.update(-1,zero);expect(g.state.time).toBe(0);g.update(Number.MAX_VALUE,{x:NaN,y:Infinity});expect(g.state.time).toBeCloseTo(1);expect(g.state.player.x).toBe(640);});

@@ -352,7 +352,8 @@ export class Renderer {
   private shotWarning(e:Enemy,time:number):void {
     const c=this.ctx,a=e.shotAngle??0,progress=1-((e.shotWarnUntil??time)-time)/CONFIG.ranged.warning;
     c.save();c.beginPath();c.rect(WORLD.bounds.left,WORLD.bounds.top,WORLD.bounds.right-WORLD.bounds.left,WORLD.bounds.bottom-WORLD.bounds.top);c.clip();
-    c.translate(e.x,e.y);c.rotate(a);c.strokeStyle='#ed805ba0';c.lineWidth=2;c.setLineDash([7,8]);c.beginPath();c.moveTo(0,0);c.lineTo(CONFIG.ranged.range,0);c.stroke();c.setLineDash([]);
+    const travel = CONFIG.ranged.speed * CONFIG.ranged.lifetime;
+    c.translate(e.x,e.y);c.rotate(a);c.strokeStyle='#ed805ba0';c.lineWidth=2;c.setLineDash([7,8]);c.beginPath();c.moveTo(0,0);c.lineTo(travel,0);c.stroke();c.setLineDash([]);
     c.fillStyle='#ffb789';c.beginPath();c.moveTo(55,-6);c.lineTo(66,0);c.lineTo(55,6);c.fill();c.restore();
     c.save();c.strokeStyle='#ffe1a5';c.lineWidth=3;c.beginPath();c.arc(e.x,e.y-42,19,-Math.PI/2,-Math.PI/2+Math.PI*2*Math.max(0,progress));c.stroke();c.restore();
   }

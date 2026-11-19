@@ -29,7 +29,7 @@ function observeOpening() {
           coinsBeforeFan = frame.collectedCoins;
         }
         if (fanAt !== undefined && time-fanAt <= .650) killsInWindow = kills-killsBeforeFan;
-        frame = {time, kills, collectedCoins, pickups:[], coins:[], steamBrushes:0,
+        frame = {time, kills, collectedCoins, pickups:[], coins:[], enemies:[], steamBrushes:0,
           hp:hud('hp-value'), wave:hud('wave-value'), practice:shell.dataset.practice === 'true'};
         cameraInverse = undefined;
         pickupShadow = undefined;
@@ -40,6 +40,7 @@ function observeOpening() {
   proto.ellipse = function (x,y,rx,ry,...rest) {
     if (frame && drawingGame(this) && cameraInverse) {
       if (rx === 24 && ry === 24*.32) frame.player = {x, y:y-2};
+      if ((rx === 18 || rx === 26) && ry === rx*.32) frame.enemies.push({x,y:y-2});
       if (x === 0 && y === 0 && rx === 19 && ry === 5) pickupShadow = worldAtOrigin(this);
       if (x === 0 && y === 1 && (ry === 7.8*.40 || ry === 9*.40)) frame.coins.push(worldAtOrigin(this));
     }
@@ -65,10 +66,11 @@ function observeOpening() {
   window.readOpeningPicture = () => frame?.player && {...frame, fanAt, killsBeforeFan, coinsBeforeFan, killsInWindow};
 }
 
-const output = process.env.V4_OPENING_OUTPUT || fileURLToPath(new URL('../docs/verification/courier/fan/', import.meta.url));
+const output = process.env.V4_OPENING_OUTPUT || fileURLToPath(new URL('../test-results/recordings/opening/', import.meta.url));
 const {bytes, evidence, result} = await recordNormalRun(async ({page, snapshot, touch, still, origin, tap, startState}) => {
   const route = [];
-  assert.equal(await page.evaluate(() => typeof window.__gameTest), 'undefined', 'Expected the production build.');
+  const developmentHookAbsent=await page.evaluate(() => typeof window.__gameTest==='undefined');
+  if(!await page.locator('script[src$="/@vite/client"]').count())assert.ok(developmentHookAbsent,'Production must omit its development hooks.');
   let fan, firstDash, firstCollectionAfterPickup, burst, burstAt, phase = '', aimedAt, final;
   let turnDegrees = 0, coinTarget;
   const deadline = Date.now() + 12000;
@@ -95,15 +97,16 @@ const {bytes, evidence, result} = await recordNormalRun(async ({page, snapshot, 
         }
         nextPhase = 'collect';
       } else {
-        goal = state.pickups.toSorted((a,b) => Math.hypot(a.x-p.x,a.y-p.y)-Math.hypot(b.x-p.x,b.y-p.y))[0] ?? {x: 640, y: 370};
-        nextPhase = 'cross-to-next-pickup';
+        // With dispersed spawns the next coin source can be across the square.
+        goal = state.enemies.toSorted((a,b) => Math.hypot(a.x-p.x,a.y-p.y)-Math.hypot(b.x-p.x,b.y-p.y))[0] ?? {x:640,y:370};
+        nextPhase = 'approach-nearest-enemy';
       }
     }
     if (goal) {
       const dx = goal.x - p.x, dy = goal.y - p.y, length = Math.max(1, Math.hypot(dx,dy));
       const stick = {x: origin.x + dx/length * 25, y: origin.y + dy/length * 25, id: 1};
       await touch('touchMove', [stick]);
-      if (nextPhase === 'collect' && t - fireAt < 2) {
+      if (nextPhase === 'collect') {
         const ax = fan.x - startState.player.x, ay = fan.y - startState.player.y;
         const cosine = (ax * dx + ay * dy) / (Math.hypot(ax, ay) * length);
         turnDegrees = Math.max(turnDegrees, Math.acos(Math.max(-1, Math.min(1, cosine))) * 180 / Math.PI);
@@ -120,10 +123,10 @@ const {bytes, evidence, result} = await recordNormalRun(async ({page, snapshot, 
     }
     await page.waitForTimeout(58);
   }
-  assert.ok(final && fan && burst && final.killsInWindow >= 5 && final.collectedCoins-final.coinsBeforeFan >= 3 && firstDash && firstCollectionAfterPickup && turnDegrees >= 35, 'Missing opening burst, collection turn, dash or final checkpoint.');
-  const report = {method:'正式构建，从首页点开始挑战进入普通第一波。通过绘制到游戏画布的角色脚影、道具图集和掉币位置引导真实双指触摸操作。首次画出电扇蒸汽后，按可见 HUD 统计 650 毫秒内全部击败。录制页面合成实帧与游戏原音乐、音效。',
+  assert.ok(final && fan && burst && final.collectedCoins>final.coinsBeforeFan && firstDash && firstCollectionAfterPickup && turnDegrees>=35, 'Missing visible fan, coin collection, turn, dash or final checkpoint.');
+  const report = {method:'从首页点开始挑战进入普通第一波。通过画布上的角色脚影、道具和掉币位置引导双指触摸。首次画出电扇蒸汽后，按可见 HUD 记录 650 毫秒内实际击败数。摄录页面实帧与游戏原声。',
     limits:'时间以普通局首个显示帧为零。击败数包括同时挥动的武器。桌面 Chrome 模拟横屏触摸，未测真机。',
-    developmentHookAbsent:true, practice:final.practice, wave:final.wave, fireAt:round(final.fanAt), burstAt:round(burstAt), fan:position(fan), killsBeforePickup:final.killsBeforeFan,
+    developmentHookAbsent, practice:final.practice, wave:final.wave, fireAt:round(final.fanAt), burstAt:round(burstAt), fan:position(fan), killsBeforePickup:final.killsBeforeFan,
     killsInFirst650ms:final.killsInWindow, dashAt:round(firstDash), dashAim:aimedAt, coinsBeforePickup:final.coinsBeforeFan,
     firstCollectionAfterPickup:round(firstCollectionAfterPickup), maxStickTurnWhileCollectingDegrees:round(turnDegrees),
     final:{t:round(final.time), kills:final.kills, collectedCoins:final.collectedCoins, hp:final.hp}, route};

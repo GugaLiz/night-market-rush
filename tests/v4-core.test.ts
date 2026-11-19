@@ -10,20 +10,40 @@ function run(game:Game, seconds:number, input=still) {
 }
 
 describe('V4 continuous play', () => {
-  it('shows a row and scatter groups, offers two reachable skills, and leaves an open side', () => {
-    const game=new Game(24);
-    run(game,1);
-    const {enemies,pickups,player}=game.state;
-    const row=enemies.filter(e=>e.march?.x===1);
-    expect(row.length).toBeGreaterThanOrEqual(5);
-    expect(Math.max(...row.map(e=>e.y))-Math.min(...row.map(e=>e.y))).toBeLessThan(4);
-    expect(enemies.filter(e=>e.march?.x===-1).length).toBeGreaterThanOrEqual(5);
-    expect(enemies.filter(e=>!e.march).length).toBeGreaterThanOrEqual(4);
-    expect(enemies.every(e=>e.y<575)).toBe(true);
-    expect(pickups).toHaveLength(2);
-    expect(pickups.some(p=>p.kind==='fan')).toBe(true);
-    expect(pickups.every(p=>p.y>=CONFIG.player.minY&&p.y<WORLD.bounds.bottom)).toBe(true);
-    expect(player.hp).toBe(100);
+  it('scatters the opening warnings across the playable floor with room between bodies and two reachable pickups', () => {
+    const layouts=new Set<string>();
+    for(let index=0;index<24;index++){
+      const game=new Game(index*2654435769);
+      run(game,.4);
+      const {enemies,player}=game.state;
+      const cells=new Set<number>(),quadrants=new Set<number>();
+      let nearestEnemy=Infinity,nearestPlayer=Infinity;
+      expect(enemies).toHaveLength(CONFIG.spawn.openingCount);
+      for(const [i,e] of enemies.entries()){
+        cells.add(Math.floor((e.x-WORLD.bounds.left)/280)+4*Math.floor((e.y-CONFIG.player.minY)/154));
+        quadrants.add(Number(e.x>640)+2*Number(e.y>410));
+        expect(e.x).toBeGreaterThanOrEqual(WORLD.bounds.left+e.radius);
+        expect(e.x).toBeLessThanOrEqual(WORLD.bounds.right-e.radius);
+        expect(e.y).toBeGreaterThanOrEqual(CONFIG.player.minY);
+        expect(e.y).toBeLessThanOrEqual(WORLD.bounds.bottom-e.radius);
+        nearestPlayer=Math.min(nearestPlayer,Math.hypot(e.x-player.x,e.y-player.y)-e.radius-player.radius);
+        for(const other of enemies.slice(0,i))nearestEnemy=Math.min(nearestEnemy,Math.hypot(e.x-other.x,e.y-other.y)-e.radius-other.radius);
+      }
+      expect(quadrants.size).toBe(4);
+      expect(cells.size).toBeGreaterThanOrEqual(10);
+      expect(nearestEnemy).toBeGreaterThanOrEqual(CONFIG.spawn.gap);
+      expect(nearestPlayer).toBeGreaterThanOrEqual(CONFIG.spawn.safeDistance);
+      expect(enemies.every(e=>!e.march && game.state.time-e.spawnAt<CONFIG.spawn.warning)).toBe(true);
+      const positions=enemies.map(e=>[e.x,e.y]);
+      layouts.add(JSON.stringify(positions));
+      run(game,.5);
+      expect(game.state.enemies.map(e=>[e.x,e.y])).toEqual(positions);
+      expect(game.state.pickups).toHaveLength(2);
+      expect(game.state.pickups.some(p=>p.kind==='fan')).toBe(true);
+      expect(game.state.pickups.every(p=>p.y>=CONFIG.player.minY&&p.y<WORLD.bounds.bottom)).toBe(true);
+      expect(player.hp).toBe(100);
+    }
+    expect(layouts.size).toBe(24);
   });
 
   it('rewards steering into the opening fan with a real group clear and leaves enemies beyond it', () => {
@@ -144,7 +164,7 @@ describe('V4 continuous play', () => {
     expect(stopped.vx).toBe(0);
   });
 
-  it('opens with two optional routes and varies both the crowd side and the skills across seeds', () => {
+  it('opens with two optional routes and varies both the fan position and the skills across seeds', () => {
     const firstSkills=new Set<string>(),supports=new Set<string>(),fireSides=new Set<number>();
     for(let seed=1;seed<=24;seed++){
       const game=new Game(seed);

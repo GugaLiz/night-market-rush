@@ -19,11 +19,12 @@ describe('V3 final mechanism audit',()=>{
   g.state.enemyShots=[{id:81,ownerId:99,x:700,y:370,px:700,py:370,vx:-3600,vy:0,radius:6,damage:8,bornAt:0,expiresAt:10}];g.dash();g.update(1/60,zero);
   expect(g.state.player.hp).toBe(100);expect(g.state.enemyShots).toHaveLength(0);expect(g.state.weapon.attack?.blocked).toBe(false);expect(g.state.player.bubbleUntil).toBeGreaterThan(g.state.time);
  });
- it('crowd movement actually converges while retaining distinct finite positions',()=>{
+ it('a crowd inside its notice radius converges while retaining distinct finite positions',()=>{
   const g=new Game(15);g.reset(15,true);g.state.weapon.readyAt=Infinity;g.state.player.invulnerableUntil=Infinity;
-  for(let i=0;i<40;i++){const angle=i*Math.PI/20;g.spawnEnemy('bun',{x:640+Math.cos(angle)*450,y:370+Math.sin(angle)*230});}
+  for(let i=0;i<40;i++){const angle=i*Math.PI/20;g.spawnEnemy('bun',{x:640+Math.cos(angle)*180,y:370+Math.sin(angle)*160});}
   const average=()=>g.state.enemies.reduce((sum,e)=>sum+Math.hypot(e.x-640,e.y-370),0)/40;
   const initial=average();run(g,1200);const final=average();
+  expect(g.state.enemies.every(e=>e.alerted&&Number.isFinite(e.x)&&Number.isFinite(e.y))).toBe(true);
   expect(final).toBeLessThan(initial*.7);expect(new Set(g.state.enemies.map(e=>`${e.x.toFixed(2)},${e.y.toFixed(2)}`)).size).toBe(40);
  });
  it('multiple simultaneous weapon sources cannot duplicate a five-part kill',()=>{

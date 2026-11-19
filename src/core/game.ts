@@ -6,7 +6,7 @@ import {updateWeapons} from './weapons';
 import {activateSkill,updateSkills} from './skills';
 import {updateEnemies,updateEnemyShots} from './enemies';
 import {collectCoins,dropCoins} from './rewards';
-import {advanceWave,spawnFormation,spawnMarketOpening} from './waves';
+import {advanceWave,spawnMarketEnemies} from './waves';
 
 /** Seeded simulation shared by the main game and the practice arena. */
 export class Game {
@@ -14,7 +14,6 @@ export class Game {
   private randomState=1;private nextId=1;private nextEnemyAt=.35;private nextPickupAt=1;private nextWeaponAt=4;
   private emptySince=0;private events:GameEvent[]=[];private weaponBag:WeaponKind[]=[];
   private batch=0;private openingPlaced=false;private dropsSinceFan=0;private waveDemo=false;
-  private openingFan:Vec|null=null;
   private dispatchWasActive=false;private contactDamage=new Map<number,number>();
   private ctx:CombatContext={damage:(e,a,source,impactAngle)=>this.damage(e,a,source,impactAngle),emit:e=>this.emit(e),id:()=>this.nextId++,random:()=>this.random(),push:(e,o,d)=>this.push(e,o,d),active:e=>this.active(e),spawnPickup:(k,p,extra)=>this.addPickup(k,p,extra)};
   constructor(seed=Date.now()){this.reset(seed);}
@@ -22,7 +21,7 @@ export class Game {
     const stableSeed=Number.isFinite(seed)?seed>>>0:1;
     this.randomState=stableSeed||0x6d2b79f5;this.nextId=1;this.nextEnemyAt=.35;this.nextPickupAt=CONFIG.pickup.firstAt;this.nextWeaponAt=CONFIG.weapons.dropFirst;
     this.emptySince=0;this.events=[];this.weaponBag=[];this.dispatchWasActive=false;
-    this.batch=0;this.openingPlaced=false;this.openingFan=null;this.dropsSinceFan=0;this.waveDemo=false;
+    this.batch=0;this.openingPlaced=false;this.dropsSinceFan=0;this.waveDemo=false;
     this.state={seed:stableSeed,time:0,score:0,kills:0,stage:1,wave:1,waveStartedAt:0,coins:[],collectedCoins:0,combo:0,comboUntil:0,revivesUsed:0,fields:[],ended:false,cause:null,practice,
       player:{...WORLD.start,px:WORLD.start.x,py:WORLD.start.y,vx:0,vy:0,facing:1,radius:CONFIG.player.radius,skateUntil:0,hp:100,maxHp:100,invulnerableUntil:0,hurtAt:-100,bubbleUntil:0,heatUntil:0,stampUntil:0,moveDirection:{x:1,y:0},sprintTime:0,sprintMultiplier:1,sprintDirection:{x:1,y:0},dashUntil:0,dashReadyAt:0,dashDirection:{x:1,y:0}},
       enemies:[],pickups:[],weapon:{kind:'tongs',readyAt:0,equippedAt:0,targetId:null,attack:null},meleeWaves:[],projectiles:[],enemyShots:[],weaponDrops:[],zones:[],
@@ -95,7 +94,8 @@ export class Game {
   spawnEnemy(kind:EnemyKind,position?:Vec):Enemy {
     const cfg=CONFIG.enemies[kind],p=position??{x:this.state.player.x+140,y:this.state.player.y};
     const x=clamp(p.x,WORLD.bounds.left+cfg.radius,WORLD.bounds.right-cfg.radius),y=clamp(p.y,WORLD.bounds.top+cfg.radius,WORLD.bounds.bottom-cfg.radius);
-    const e:Enemy={id:this.nextId++,kind,x,y,px:x,py:y,radius:cfg.radius,spawnAt:this.state.practice?this.state.time-CONFIG.spawn.warning:this.state.time,slowUntil:0,phase:'chase',phaseUntil:this.state.time+CONFIG.spawn.warning+CONFIG.dash.approach,dashX:0,dashY:0,facing:x<this.state.player.x?1:-1,hp:cfg.hp,maxHp:cfg.hp,hurtAt:-100,stunUntil:0,stunStartedAt:-100,bellResistUntil:0,contactSuppressedUntil:0,skateHitAt:-100,wanderAngle:(this.nextId*2.399),wanderUntil:this.state.time+1,shotReadyAt:this.state.time+1.2+this.nextId%5*.3,shotWarnUntil:0,shotAngle:0};
+    const facing=this.state.practice?(x<this.state.player.x?1:-1):(this.random()<.5?-1:1);
+    const e:Enemy={id:this.nextId++,kind,x,y,px:x,py:y,radius:cfg.radius,spawnAt:this.state.practice?this.state.time-CONFIG.spawn.warning:this.state.time,slowUntil:0,phase:'chase',phaseUntil:this.state.time+CONFIG.spawn.warning+CONFIG.dash.approach,dashX:0,dashY:0,facing,hp:cfg.hp,maxHp:cfg.hp,hurtAt:-100,stunUntil:0,stunStartedAt:-100,bellResistUntil:0,contactSuppressedUntil:0,skateHitAt:-100,shotReadyAt:this.state.time+1.2+this.nextId%5*.3,shotWarnUntil:0,shotAngle:0};
     this.state.enemies.push(e);return e;
   }
   private emit(event:GameEvent){if(this.events.length>=1024)this.events.splice(0,256);this.events.push(event);}
@@ -109,16 +109,14 @@ export class Game {
     this.movePlayer(dt,input);
     if(!s.practice){
       const dispatch=s.effects.dispatchUntil>s.time;
-      const batchInterval=difficulty.interval*(5+Math.min(s.wave,3));
+      const batchSize=5+Math.min(s.wave,3),batchInterval=difficulty.interval*batchSize;
       if(this.dispatchWasActive&&!dispatch)this.nextEnemyAt=s.time+batchInterval;
       this.dispatchWasActive=dispatch;
       if(!dispatch&&s.time>=this.nextEnemyAt){
         const spawn=(kind:EnemyKind,at:Vec)=>this.spawnEnemy(kind,at);
-        if(this.batch===0&&s.time<1&&s.enemies.length===0){
-          this.openingFan=spawnMarketOpening(s,spawn,this.ctx);
-        }else{
-          spawnFormation(s,difficulty,this.batch,spawn,this.ctx);
-        }
+        const opening=this.batch===0&&s.time<1&&s.enemies.length===0;
+        const count=opening?CONFIG.spawn.openingCount:batchSize*(this.batch%3===2?2:1);
+        spawnMarketEnemies(s,difficulty,count,spawn,this.ctx);
         this.batch++;
         this.nextEnemyAt=s.time+batchInterval;
       }
@@ -136,7 +134,15 @@ export class Game {
       advanceWave(s,this.ctx);
       if(s.wave!==previous){
         this.nextEnemyAt=s.time+.5;
-        if(this.waveDemo)spawnFormation(s,difficulty,this.batch++,(kind,at)=>this.spawnEnemy(kind,at),this.ctx);
+        if(this.waveDemo){
+          const count=5+Math.min(s.wave,3),y=490+(this.random()-.5)*25;
+          for(let i=0;i<count;i++){
+            const x=WORLD.bounds.left+34+i*28;
+            const e=this.spawnEnemy('bun',{x,y});
+            e.march={x:1,y:0,until:s.time+4.2};
+            this.emit({type:'spawn',x,y});
+          }
+        }
       }
     }
   }
@@ -248,9 +254,11 @@ export class Game {
   }
   private pickupPosition(kind:SkillKind, other?:Vec):Vec|null {
     const s=this.state,b=WORLD.bounds;
+    const openingFan=kind==='fan'&&!this.openingPlaced;
+    let best:Vec|null=null,bestCount=-1;
     // Sample local groups once per drop. A nearby crowd gives a reason to detour to the fan.
     let target:Enemy|undefined;
-    if(kind==='fan'&&s.enemies.length){
+    if(kind==='fan'&&!openingFan&&s.enemies.length){
       let most=-1;
       for(let sample=0;sample<5;sample++){
         const candidate=s.enemies[Math.floor(this.random()*s.enemies.length)];
@@ -260,12 +268,19 @@ export class Game {
       }
     }
     for(let i=0;i<48;i++){
-      let x=b.left+64+this.random()*(b.right-b.left-128),y=CONFIG.player.minY+25+this.random()*(b.bottom-CONFIG.player.minY-75);
-      if(target&&i<16){
+      let x:number,y:number;
+      if(openingFan){
+        const angle=this.random()*Math.PI*2,distance=135+this.random()*110;
+        x=clamp(s.player.x+Math.cos(angle)*distance,b.left+32,b.right-32);
+        y=clamp(s.player.y+Math.sin(angle)*distance,CONFIG.player.minY+12,b.bottom-32);
+      }else if(target&&i<16){
         const dx=s.player.x-target.x,dy=s.player.y-target.y,n=Math.hypot(dx,dy)||1;
         const side=(this.random()-.5)*90;
         x=clamp(target.x+(dx*75-dy*side)/n,b.left+55,b.right-55);
         y=clamp(target.y+(dy*75+dx*side)/n,CONFIG.player.minY+18,b.bottom-55);
+      }else{
+        x=b.left+64+this.random()*(b.right-b.left-128);
+        y=CONFIG.player.minY+25+this.random()*(b.bottom-CONFIG.player.minY-75);
       }
       const position={x,y};
       if(distanceSquared(position,s.player)<(s.player.radius+CONFIG.pickup.radius+38)**2||s.pickups.some(p=>distanceSquared(p,position)<76**2)||s.weaponDrops.some(p=>distanceSquared(p,position)<65**2))continue;
@@ -273,9 +288,15 @@ export class Game {
         const dx=x-s.player.x,dy=y-s.player.y,ox=other.x-s.player.x,oy=other.y-s.player.y;
         if(distanceSquared(position,other)<145**2||dx*ox+dy*oy>.72*Math.hypot(dx,dy)*Math.hypot(ox,oy))continue;
       }
+      if(openingFan){
+        if(distanceSquared(position,s.player)<100**2)continue;
+        const count=s.enemies.filter(e=>distanceSquared(e,position)<CONFIG.skills.fan.fullRadius**2).length;
+        if(count>bestCount){best=position;bestCount=count;}
+        continue;
+      }
       return position;
     }
-    return null;
+    return best;
   }
   private schedulePickups(){
     const s=this.state;
@@ -285,7 +306,7 @@ export class Game {
     const support:SkillKind[]=['skate','soda','bubble','lure','bell'];
     if(!this.openingPlaced&&s.pickups.length+2<=CONFIG.pickup.cap){
       const kind=support[Math.floor(this.random()*support.length)];
-      const fan=this.openingFan&&distanceSquared(this.openingFan,s.player)>70**2?this.openingFan:this.pickupPosition('fan');
+      const fan=this.pickupPosition('fan');
       const alternate=fan&&this.pickupPosition(kind,fan);
       if(fan&&alternate){
         const pair:[SkillKind,Vec][]=[['fan',fan],[kind,alternate]];

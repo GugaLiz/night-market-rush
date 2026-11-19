@@ -274,3 +274,48 @@
 - **实现/结果**：基础跑速 248.4→348.3，调整速度响应使轻推仍可微调，冲刺速度独立。用支撑脚可达范围选落脚时刻，反向时从当前抬脚位置迈短步。站姿双脚错开，肩胸呼吸，脚下标记改画在鞋底下方。新增两版构建用相同按键的108帧浏览器动图。
 - **验证**：197 项 Vitest、15 项 Chrome E2E、7 项静态服务测试、TypeScript、Vite 构建与正式页面冒烟均通过。30/60/120 Hz 的落脚、反向、松手测试通过；实际键盘与模拟触控满速 348.3，直角转身约33ms，松杆余移约1.6。约0.9秒的同向直跑在前后两版均采得53段连续位移，距离223.58→313.47。128个开局种子能取扇并保留第二种道具，正式普通局模拟双指冲刺、拾扇收币和有声回放均通过。
 - **风险/后续**：实体手机触屏、传感器和设备显示延迟待实机验证。尝试 GitHub 推送的权限检查仍返回403，当前本机4173提供新版构建。
+
+## 2026-11-19 09:50:53 +08:00 — feature
+
+- **摘要**：普通局全图分散刷怪，近战怪按距离发现和放弃目标，碗怪可在远处锁线射击。
+- **涉及文件**：
+  - `README.md`
+  - `docs/V4_PLAYTEST.md`
+  - `docs/问题清单/README.md`
+  - `scripts/verify-combat.mjs`
+  - `scripts/verify-opening.mjs`
+  - `src/core/config.ts`
+  - `src/core/enemies.ts`
+  - `src/core/game.ts`
+  - `src/core/skills.ts`
+  - `src/core/waves.ts`
+  - `src/render/renderer.ts`
+  - `src/shared/types.ts`
+  - `src/ui/ui.ts`
+  - `tests/core.test.ts`
+  - `tests/v3-audit.test.ts`
+  - `tests/v3-core.test.ts`
+  - `tests/v4-core.test.ts`
+  - `docs/verification/enemies/behavior.webp`
+  - `scripts/verify-enemy-behavior.mjs`
+  - `tests/enemy-awareness.test.ts`
+  - `agentchanges/CHANGELOG.md`
+- **原因/目标**：开场与后续队列导致局部堆叠，远处游荡持续向玩家偏移。
+- **实现/结果**：每个新怪独立采样，避开玩家和现有敌人，保留出生预警与原批次节奏。三种敌人采用各自警戒和脱战距离，游荡、诱饵、路锥、冲刺和汤弹按当前状态行动。教程和重复验收随规则更新。
+- **验证**：128个种子复验开局均有40只并覆盖四象限。212项Vitest、15项桌面Chrome端到端、7项服务测试、类型检查、Vite正式构建与4173正式页冒烟通过。实测开火边界819与821、命中8点、侧移躲弹、补怪分布与10分钟百怪上限。普通局触控录像及实测四格图留档。
+- **风险/后续**：浏览器验证使用桌面Chrome，触控使用模拟输入。
+
+## 2026-11-19 09:53:49 +08:00 — docs
+
+- **摘要**：交付灯影剪纸、软陶盲盒、街机像素三张外卖员与包子怪Q版概念图。
+- **涉及文件**：
+  - `README.md`
+  - `docs/art-directions/chibi/README.md`
+  - `docs/art-directions/chibi/paper-cut.png`
+  - `docs/art-directions/chibi/clay-toy.png`
+  - `docs/art-directions/chibi/pixel-arcade.png`
+  - `agentchanges/CHANGELOG.md`
+- **原因/目标**：在分散生成和区域警戒功能完成后比较三种画风，再决定角色美术方向。
+- **实现/结果**：三种材质与动作分别独立生成，各一名外卖员与一只包子怪，以1536×1024原图归档并附生成描述。
+- **验证**：逐张检查主体、构图与数量，核对PNG尺寸，保留生成的源图。
+- **风险/后续**：等待美术方向选择。GitHub对此仓库的写权限检查返回403。

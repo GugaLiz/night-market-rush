@@ -111,8 +111,8 @@ function updateCones(s:GameState,dt:number,ctx:CombatContext):void {
       if(length<.001){nx=e.id%2?1:-1;ny=0;length=1;}
       nx/=length;ny/=length;
       // A deterministic tangent prevents enemies sticking forever in a straight row.
-      const tx=s.player.x-e.x,ty=s.player.y-e.y;
-      const side=(-ny*tx+nx*ty)>=0?1:-1;
+      const along=-ny*dx+nx*dy;
+      const side=Math.abs(along)>.001?Math.sign(along):(e.id%2?1:-1);
       const angle=Math.atan2(ny,nx)+side*Math.min(.12,dt*2.3);
       const point=legal({x:cone.x+Math.cos(angle)*(radius+.6),y:cone.y+Math.sin(angle)*(radius+.6)},e.radius);
       e.x=point.x;e.y=point.y;

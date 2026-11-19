@@ -12,7 +12,7 @@ export interface Enemy extends Vec {
   id:number;kind:EnemyKind;px:number;py:number;radius:number;spawnAt:number;slowUntil:number;
   phase:'chase'|'warn'|'dash'|'recover';phaseUntil:number;dashX:number;dashY:number;facing:number;
   hp:number;maxHp:number;hurtAt:number;stunUntil:number;stunStartedAt:number;bellResistUntil:number;contactSuppressedUntil:number;skateHitAt:number;
-  lureX?:number;lureY?:number;wanderAngle?:number;wanderUntil?:number;shotReadyAt?:number;shotWarnUntil?:number;shotAngle?:number;
+  alerted?:boolean;lureX?:number;lureY?:number;wanderAngle?:number;wanderUntil?:number;shotReadyAt?:number;shotWarnUntil?:number;shotAngle?:number;
   march?:{x:number;y:number;until:number};
   volleyRemaining?:number;nextVolleyAt?:number;
 }

@@ -49,7 +49,7 @@ describe('V3 movement and hostile projectile rules',()=>{
   it('bowl locks its warning aim for .9s before one slow shot, then waits',()=>{
     const g=lab(),b=g.spawnEnemy('bowl',{x:300,y:370});b.shotReadyAt=0;g.update(1/60,zero);
     const angle=b.shotAngle;expect(b.shotWarnUntil!-g.state.time).toBeCloseTo(.9);g.state.player.y=550;run(g,.8);expect(g.state.enemyShots).toHaveLength(0);expect(b.shotAngle).toBe(angle);
-    run(g,.12);expect(g.state.enemyShots).toHaveLength(1);expect(g.state.enemyShots![0].vy).toBeCloseTo(0);expect(Math.hypot(g.state.enemyShots![0].vx,g.state.enemyShots![0].vy)).toBe(90);
+    run(g,.12);expect(g.state.enemyShots).toHaveLength(1);expect(g.state.enemyShots![0].vy).toBeCloseTo(0);expect(Math.hypot(g.state.enemyShots![0].vx,g.state.enemyShots![0].vy)).toBe(CONFIG.ranged.speed);
     run(g,1);expect(g.state.enemyShots).toHaveLength(1);
   });
   it('hostile shots have real swept hits, eight damage, protection and bubble handling',()=>{

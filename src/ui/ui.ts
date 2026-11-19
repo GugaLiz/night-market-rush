@@ -318,7 +318,7 @@ export class UI {
       }
       case 'tutorial':
         this.overlay.innerHTML=this.paper(`<h2 id="dialog-title">走位取道具，清出路线收金币</h2>
-          <p class="muted">转身瞄准，武器会自动出手。取餐夹左右交替横扫，可以斜切怪群侧翼，挥动途中继续走位。</p>
+          <p class="muted">靠近游荡的小妖，它们才会追你。边走边转身，取餐夹会自动横扫。看见碗怪瞄准的虚线，往侧面闪开。</p>
           <div class="guide-grid">
             <article><div class="guide-icon fan">${icon('fan')}</div><h3>取道具清场</h3><p>用电扇吹开热餐的蒸汽。<br>风卷扩开时仍可转向。</p></article>
             <article><div class="guide-icon skate">${icon('coin')}</div><h3>走过金币</h3><p>怪物倒下后留下金币。<br>靠近收取，金币才入账。</p></article>

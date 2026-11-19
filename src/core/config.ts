@@ -10,6 +10,7 @@ export const WORLD = {
 } as const;
 
 const S = WORLD.shortSide;
+const soupRange=820;
 export const CONFIG = {
   step: 1 / 60,
   player: {
@@ -23,8 +24,13 @@ export const CONFIG = {
     box: {speed: .065 * S, radius: .022 * S, coins:2, hp:60, damage:12},
     bowl: {speed: .045 * S, radius: .040 * S, coins:3, hp:120, damage:18},
   } satisfies Record<EnemyKind, {speed: number; radius: number; coins:number; hp:number; damage:number}>,
+  awareness: {
+    bun: {notice:190, release:270},
+    box: {notice:235, release:330},
+    bowl: {notice:soupRange, release:920},
+  },
   dash: {warning: 1.1, duration: .5, recovery: 1.5, speed: .38 * S, approach: 4, concurrent: 1},
-  ranged: {warning:.9,interval:5,speed:90,damage:8,radius:6,cap:12,lifetime:7,range:620,concurrent:2},
+  ranged: {warning:.9,interval:5,speed:145,damage:8,radius:6,cap:12,lifetime:6.5,range:soupRange,concurrent:2},
   skills: {
     fan: {radius:130, fullRadius:250, damage:90},
     skate: {duration:4, inner:38, outer:140, damage:20, interval:.5},
@@ -35,7 +41,7 @@ export const CONFIG = {
     route: {length:420, width:110},
     cones: {reach:114, spacing:52, radius:21},
   },
-  spawn: {warning: .6, safeDistance: .22 * S, attempts: 24},
+  spawn: {warning:.6, safeDistance:.22*S, gap:43, attempts:32, openingCount:40},
   pickup: {radius: .027 * S, firstAt: .35, interval: 4, emptyGrace: 2, cap: 4},
   weapons: {projectileCap:24, dropFirst:4, dropInterval:12, dropRadius:12},
   // V4 tuning values for the night-market adaptation. The video only establishes visible outcomes.
