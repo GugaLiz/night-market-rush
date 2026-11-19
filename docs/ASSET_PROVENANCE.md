@@ -1,14 +1,34 @@
 # 资产来源与重建说明
 
+## 2026-11-19 骑手工装裤与工鞋
+
+内置 imagegen 以游戏中的骑手为原型，画出支撑脚着地、后脚蹬地、摆腿及背面提跟四种姿态。选定的设计使用深蓝裤料、奶白鞋头、炭色薄底和橙色后跟提带。[动作设计稿](art-directions/chibi/courier-workwear.webp)
+
+运行时使用第二次生成的透明分件图。上排依次是正面裤胯、背面裤胯、大腿和带卷边裤口的小腿。下排依次是朝右的侧面鞋、面向镜头的鞋尖、背向镜头的鞋跟和斜后视角。左右脚共用同向侧面鞋，正背方向各有独立裁片。每个部件按透明度裁切，缩放到 192 × 192 像素图格内的 174 像素范围，再导出为 768 × 384 RGBA WebP。SHA-256 为 `9B897ABB558D17DF8B3D8FD4E91F69985545D47894DF62CFE7093841F9879203`。[工装运行图集](../public/assets/clay-courier-workwear.webp) · [分件坐标](../src/render/clay-frames.ts)
+
+<details>
+<summary>工装分件生成提示词</summary>
+
+Use case precise-object-edit. Animation rig asset, not the character and not a whole outfit. As the art director of this miniature clay courier toy game, extract and reconstruct ONLY the lower-body modular components of the referenced chibi courier in an exact 4-column 2-row transparent sprite atlas with 8 isolated pieces, one single piece per cell. Target landscape 2:1. All items upright, equal sized cells, completely separated evenly with wide empty transparent gutters. No labels, letters, characters, boxes, stands, contact shadows or lines between objects. Copy the charcoal petrol-navy trousers, clay texture, flat cream low-top sneakers with a thin charcoal rubber sole and a small orange heel pull from the reference exactly. Subtle soft side lighting, clear edges, hand-shaped rounded modeling, photographed toy material, orthographic camera, very slight downward elevation. TOP ROW from left: (1) front view of an isolated blue trouser seat/pelvis ONLY, roughly twice as wide as tall, short horizontal waistband, curved crotch saddle, no legs, no underwear details, no belt, a subtle fly seam; (2) back view of same wide blue pelvis with faint yoke seam, no legs; (3) a single upper leg segment of the same trousers from upper thigh to knee, a plain vertical tapered short tube of soft blue cloth-clay with rounded ends that can overlap the adjoining leg parts, top slightly wider than bottom, no huge folds, one tiny soft knee fold low down; (4) single lower leg segment of the same trousers from knee down to ankle, blue cloth cylinder with a subtle rounded knee cap at its top and a small rolled blue cuff at its lower end, no shoe, no body, no skin. BOTTOM ROW four views of the SINGLE SAME low-top ivory sneaker with a small warm orange tab at heel, broad toe and dark thin flat rubber outsole. No legs, no socks, no high tops. (1) direct profile with round toe pointing RIGHT and ankle opening at LEFT, heel tab at left; (2) straight-on front with toe facing the viewer centrally, symmetric sides, heel tab mostly invisible behind ankle; (3) straight-on back showing the slim heel column and central orange pull tab, no laces visible; (4) rear three-quarter view with heel towards viewer at LEFT, toe receding away to RIGHT, mostly the side and back visible. Ensure exactly 4 isolated tidy components on each row and do not add second shoes. Native transparent alpha, empty area all transparent.
+
+</details>
+
 ## 2026-11-19 软陶盲盒战斗美术
+
+<details>
+<summary>新版首页工装立绘生成提示词</summary>
+
+Identity-preserving precise character costume edit. First reference is the edit target — create ONE single isolated transparent RGBA full-body courier in the exact running pose, scale, three-quarter facing right camera, determined expression, orange helmet, hair, face, upper jacket, hand with order slip, green insulated bag, clay texture, lighting and proportions of the first image. Second sheet is costume reference ONLY for new pants and shoes. Replace ONLY the orange shorts, exposed skin of both legs and orange shoes of first reference with continuous dark petrol-blue denim work trousers, chunky little loose tapered legs with seams, subtle folded knees, cuff touching each shoe, warm cream round toe work sneakers with slim dark grey rubber outsole and tiny orange loop at each heel. Anatomically rooted hips and bent knees; the figure carries her weight naturally in the same delivery stride. Final is a single full running soft polymer clay figurine, looking to screen right, both shoes fully visible, charming tangible tactile details; no floor, no background, no drop shadow, no backdrop, no labels, no duplicate characters, no weapon. Leave a thin transparent margin around all sides and use the composition of image 1.
+
+</details>
 
 以已选的软陶外卖员、外卖武器、受伤和小怪攻击概念为依据，使用内置 imagegen 独立生成含透明通道的运行素材。旧分件图提供骨架连接点和正背面朝向。制作时逐件清理透明边缘，居中缩放到 256 像素的图格，再编码为带 alpha 的 WebP。[角色原稿](art-directions/chibi/clay-toy.png) · [武器原稿](art-directions/chibi/clay-weapons.png) · [受击原稿](art-directions/chibi/clay-hurt-states.png) · [小怪出招原稿](art-directions/chibi/combat-fx/enemy-attacks.png)
 
 | 文件 | 游戏中的用途 |
 |---|---|
-| [clay-courier-home.webp](../public/assets/clay-courier-home.webp) | 首页独立跑姿，保温箱、橙色头盔和送餐小票随角色一起显示 |
+| [clay-workwear-home.webp](../public/assets/clay-workwear-home.webp) | 首页独立跑姿。用内置 ImageGen 参考旧立绘与工装设计稿，保留橙色头盔、保温箱和送餐小票，换上深蓝长裤、奶白工鞋及橙色后跟提带。RGBA 原图缩至 542 × 640 后编码为 WebP。 |
 | [clay-courier-rig.webp](../public/assets/clay-courier-rig.webp) | 四列五行，16 件头盔、制服、手脚和保温箱分件，加上挥击与受伤表情。站姿、转向、跑步着地和扶盔护箱按当前输入组成 |
-| [clay-shoe-views.webp](../public/assets/clay-shoe-views.webp) | 内置 imagegen 参照同套橙白软陶运动鞋，补画鞋尖正面、鞋跟正面、鞋跟斜侧面三个视角。透明图集为 384 × 144，游戏按移动朝向选择鞋面，以袜口对接小腿 |
+| [clay-shoe-views.webp](../public/assets/clay-shoe-views.webp) | 旧版橙白短裤造型的三向软陶运动鞋图集，尺寸为 384 × 144 |
 | [clay-actors.webp](../public/assets/clay-actors.webp) | 四列三行，包子普通、挤压、残血，盒怪、碗怪、三件外卖武器和四款大招拾取物 |
 | [clay-enemy-faces.webp](../public/assets/clay-enemy-faces.webp) | 以软陶怪物图集为参考，由内置 imagegen 生成的咧嘴笑、惊讶两排表情。按包子、餐盒、面碗三列裁切，保留透明通道并对齐脚底 |
 | [clay-weapons.webp](../public/assets/clay-weapons.webp) | 四列四行，十件可换武器、五种关联飞行物或展开件及装备箱。猫爪夹、纸袋、葱花盘使用已选概念造型 |

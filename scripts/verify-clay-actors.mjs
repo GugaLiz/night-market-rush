@@ -49,7 +49,8 @@ try {
   });
   await page.clock.runFor(80);
   const first=await page.evaluate(()=>window.clayDrawn);
-  for(const key of ['clay-night-market.webp','rigHeadFront','rigTorsoFront','rigShoeR','rigBagSide','bunHurt','bunLow'])assert.ok(first.includes(key),'Missing actual paint '+key+' in '+first.join(','));
+  for(const key of ['clay-night-market.webp','rigHeadFront','rigTorsoFront','rigHipFront','rigBagSide','bunHurt','bunLow'])assert.ok(first.includes(key),'Missing actual paint '+key+' in '+first.join(','));
+  assert.equal(first.filter(name=>name.startsWith('rigShoe')).length,2,'Count the pair irrespective of shared atlas frames');
   for(const kind of ['bun','box','bowl'])assert.ok([kind,kind+'Grin',kind+'Curious'].some(name=>first.includes(name)),'Missing '+kind);
   await mkdir('test-results/clay-art',{recursive:true});
   await page.screenshot({clip:{x:408,y:224,width:535,height:225},path:'test-results/clay-art/poses.png'});

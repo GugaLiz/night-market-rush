@@ -38,6 +38,37 @@ describe('courier foot placement',()=>{
     }
   });
 
+  it('rolls a fixed shoe from heel strike through flat support to toe-off',()=>{
+    const {gait,tick}=scene();
+    let heels=0,flat=0,toes=0;
+    for(let i=0;i<180;i++){
+      const before={...gait.right};
+      tick({x:1,y:0},1/120);
+      if(distance(before,gait.right)>1e-6 || gait.right.lift>.01)continue;
+      if(gait.right.pitch<-.07)heels++;
+      if(Math.abs(gait.right.pitch)<.04)flat++;
+      if(gait.right.pitch>.10)toes++;
+    }
+    expect(Math.min(heels,flat,toes)).toBeGreaterThan(2);
+    for(let i=0;i<90;i++)tick({x:0,y:0},1/120);
+    expect(Math.abs(gait.left.pitch)+Math.abs(gait.right.pitch)).toBeLessThan(.01);
+  });
+
+  it('turns both toes towards new travel without reversing a planted foot in one frame',()=>{
+    const {gait,tick}=scene();
+    for(let i=0;i<24;i++)tick({x:1,y:0});
+    for(let i=0;i<30;i++){
+      const old=[gait.left.yaw,gait.right.yaw];
+      tick({x:-1,y:0});
+      for(const [j,foot] of [gait.left,gait.right].entries()){
+        const delta=foot.yaw-old[j];
+        expect(Math.abs(Math.atan2(Math.sin(delta),Math.cos(delta)))).toBeLessThan(.46);
+      }
+    }
+    expect(Math.cos(gait.right.yaw)).toBeLessThan(-.98);
+    expect(Math.cos(gait.left.yaw)).toBeLessThan(-.98);
+  });
+
   it('changes footholds through reversals and settles both soles after a release',()=>{
     const {gait,tick,homeError}=scene();
     for(const input of [{x:1,y:0},{x:-1,y:0},{x:0,y:-1},{x:0,y:0}]){

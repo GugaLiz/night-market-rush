@@ -483,3 +483,26 @@
 - **实现/结果**：敌人用受击动画和余血条反馈扣血，保留骑手受伤与回血提示。更新试玩说明、浏览器检查和对应实战截图。
 - **验证**：236项单测、TypeScript和Vite通过。Chrome验证连续三挥、30只群杀无怪物伤害飘字，骑手−8和+8正常。4173正式页验证通过。
 - **风险/后续**：None
+## 2026-11-19 18:51:08 +08:00 — feature
+
+- **摘要**：将批准的骑手工装裤和工鞋造型接入战斗与首页，并重新部署本地试玩版。
+- **涉及文件**：
+  - `agentchanges/CHANGELOG.md`
+  - `docs/art-directions/chibi/courier-workwear.webp`
+  - `docs/ASSET_PROVENANCE.md`
+  - `docs/verification/clay/courier-workwear-motion.webp`
+  - `docs/verification/clay/courier-workwear-poses.webp`
+  - `public/assets/clay-courier-home.webp`
+  - `public/assets/clay-courier-workwear.webp`
+  - `public/assets/clay-workwear-home.webp`
+  - `scripts/verify-clay-actors.mjs`
+  - `scripts/verify-clay-footwork.mjs`
+  - `src/render/assets.ts`
+  - `src/render/character.ts`
+  - `src/render/clay-frames.ts`
+  - `src/render/courier-gait.ts`
+  - `tests/courier-gait.test.ts`
+- **原因/目标**：用户要求把腿脚设计稿实现到游戏中，修正原先站姿和跑步的承重感。
+- **实现/结果**：深蓝裤胯、膝与裤脚衔接，奶白圆头工鞋使用独立的正面、侧面、背面与斜后视图。落脚经由脚跟、全掌、前掌交替承重，每只脚在急转时独立换向。首页沿用同一制服。保存同路线前后对照与12帧分镜。
+- **验证**：238项Vitest（含11项步态）、17项Chrome端到端、TypeScript及Vite通过。148帧真实画布检查5个朝向和运动中攻击，裤鞋轮廓相连，停稳后鞋底漂移0像素。正式4173横屏触控模拟验证四招与转屏；正式页首页与实战均实际绘制新版图像并与dist逐字节一致。
+- **风险/后续**：触控在Chrome模拟环境验证，未使用实体手机。

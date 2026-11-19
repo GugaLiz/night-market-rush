@@ -22,27 +22,57 @@ try {
     const parts=new Map(Object.entries(assets.sprites).map(([name,s])=>[[s.image.src,s.x,s.y].join('|'),name]));
     const canvas=document.querySelector('#game-canvas'),ctx=canvas.getContext('2d');
     const draw=ctx.drawImage.bind(ctx),ellipse=ctx.ellipse.bind(ctx);
-    const readings=window.shoeCheck={frames:0,maxGap:0,views:[],ground:null};
-    // The two independent pieces must touch on the actual canvas, including on
-    // diagonals where a shin with an accidentally vertical rotation detaches.
-    let ankle;
+    const readings=window.shoeCheck={views:[],ground:null,shoes:[]};
+    // Compare the battle pixels before and after the trousers and shoes are painted.
+    // This includes the clipped openings of the sneakers and the renderer's actual layer order.
+    const width=144,height=110;
+    let before=null,after=null;
+    const lowerPixels=()=>ctx.getImageData(Math.round(readings.ground.x)-72,Math.round(readings.ground.y)-84,width,height).data;
+    window.lowerBodyConnected=()=>{
+      if(!before||!after)return [];
+      const solid=new Uint8Array(width*height);
+      for(let n=0;n<solid.length;n++){
+        const j=n*4;
+        const contrast=Math.max(Math.abs(after[j]-before[j]),Math.abs(after[j+1]-before[j+1]),Math.abs(after[j+2]-before[j+2]));
+        if(contrast>8)solid[n]=1;
+      }
+      const islands=[];
+      for(let n=0;n<solid.length;n++){
+        if(!solid[n])continue;
+        const pending=[n];solid[n]=0;let area=0;
+        while(pending.length){
+          const i=pending.pop();area++;
+          for(const next of [i-1,i+1,i-width,i+width]){
+            if(solid[next]){solid[next]=0;pending.push(next);}
+          }
+        }
+        if(area>=8)islands.push(area);
+      }
+      return islands.sort((a,b)=>b-a);
+    };
     ctx.drawImage=(image,...args)=>{
       if(image instanceof HTMLImageElement && args.length===8){
         const name=parts.get([image.src,args[0],args[1]].join('|'));
-        const [, , , , x,y,width,height]=args,matrix=ctx.getTransform();
-        if(name==='rigShin')ankle=matrix.transformPoint({x:0,y:height-2});
-        if(name?.startsWith('rigShoe') && ankle){
-          const side=name==='rigShoeL'||name==='rigShoeR';
-          const cuffX=side?.36:name==='rigShoeHeelSide'?.40:.50;
-          const opening=matrix.transformPoint({x:x+cuffX*width,y:y+(side?.13:.12)*height});
-          readings.maxGap=Math.max(readings.maxGap,Math.hypot(ankle.x-opening.x,ankle.y-opening.y));
-          readings.frames++;readings.views.push({name,flip:Math.sign(matrix.a)});ankle=undefined;
-        }
+        if(readings.ground && /^rig(Thigh|Shin|Shoe|Hip)/.test(name)){
+          if(!before)before=lowerPixels();
+          if(name.startsWith('rigShoe')){
+            const m=ctx.getTransform();
+            const [x,y,w,h]=args.slice(4);
+            const sole=m.transformPoint({x:x+w*.5,y:y+h});
+            const facing=name==='rigShoeR'||name==='rigShoeL'?'side':name;
+            const view=facing+'/'+Math.sign(m.a);
+            readings.shoes.push({x:sole.x,y:sole.y,view});
+            readings.views.push(view);
+          }
+        }else if(before&&!after)after=lowerPixels();
       }
       return draw(image,...args);
     };
     ctx.ellipse=(x,y,rx,ry,...rest)=>{
-      if(ry===4&&ctx.strokeStyle==='#fff1bc')readings.ground=ctx.getTransform().transformPoint({x,y}).toJSON();
+      if(ry===4&&ctx.strokeStyle==='#fff1bc'){
+        readings.ground=ctx.getTransform().transformPoint({x,y}).toJSON();
+        readings.shoes=[];before=null;after=null;
+      }
       return ellipse(x,y,rx,ry,...rest);
     };
   });
@@ -51,35 +81,53 @@ try {
     {at:34,down:['ArrowUp']},{at:44,up:['ArrowLeft']},
     {at:57,up:['ArrowUp'],down:['ArrowDown','ArrowRight']},
     {at:70,up:['ArrowRight']},{at:81,up:['ArrowDown']},
+    {at:96,down:['ArrowRight']},{at:111,up:['ArrowRight'],down:['ArrowLeft']},
+    {at:124,up:['ArrowLeft']},
   ];
   const captions=new Map([[4,'站稳持夹'],[15,'向右蹬地'],[28,'向左折返'],[39,'斜向远处'],
-    [52,'背向跑动'],[63,'向前转弯'],[76,'迎面跑动'],[94,'松手站定']]);
+    [52,'背向跑动'],[63,'向前转弯'],[76,'迎面跑动'],[94,'松手站定'],
+    [98,'移动起手'],[108,'持夹前进'],[114,'持夹回身'],[147,'收步站定']]);
   const cards=[];
   if(process.env.FOOTWORK_FRAMES)await mkdir(process.env.FOOTWORK_FRAMES,{recursive:true});
-  for(let i=0;i<96;i++){
+  const samples=[];
+  for(let i=0;i<148;i++){
+    if(i===96)await page.evaluate(()=>{window.__gameTest.game().state.weapon.readyAt=0;});
     const keys=route.find(event=>event.at===i);
     for(const key of keys?.up??[])await page.keyboard.up(key);
     for(const key of keys?.down??[])await page.keyboard.down(key);
     await page.clock.runFor(32);
+    const sample=await page.evaluate(()=>{
+      const {shoes,ground}=window.shoeCheck, {player,weapon}=window.__gameTest.game().state;
+      const soles=shoes.map(p=>({x:p.x-ground.x,y:p.y-ground.y,view:p.view})).sort((a,b)=>a.x-b.x);
+      return {shoes:soles,islands:window.lowerBodyConnected(),speed:Math.hypot(player.vx,player.vy),phase:weapon.attack?.phase};
+    });
+    samples.push(sample);
     if(!captions.has(i)&&!process.env.FOOTWORK_FRAMES)continue;
     const crop=await page.evaluate(()=>{
       const {ground}=window.shoeCheck;
       const image=document.createElement('canvas');image.width=163;image.height=152;
       image.getContext('2d').drawImage(document.querySelector('#game-canvas'),
-        ground.x-82,ground.y-136,163,152,0,0,163,152);
+        Math.round(ground.x)-82,Math.round(ground.y)-136,163,152,0,0,163,152);
       return image.toDataURL('image/png').split(',')[1];
     });
     if(captions.has(i))cards.push({caption:captions.get(i),crop});
     if(process.env.FOOTWORK_FRAMES)await writeFile(process.env.FOOTWORK_FRAMES+'/'+String(i).padStart(3,'0')+'.png',Buffer.from(crop,'base64'));
   }
-  const {maxGap,frames,views}=await page.evaluate(()=>window.shoeCheck);
-  assert.ok(frames>200,'Measure both shoes across the whole route');
-  assert.ok(maxGap<.5,'Painted shin endpoint misses sock opening by '+maxGap.toFixed(2)+' px');
-  for(const view of ['rigShoeToe','rigShoeHeel','rigShoeHeelSide'])assert.ok(views.some(v=>v.name===view),'Missing '+view);
-  for(const flip of [-1,1])assert.ok(views.some(v=>v.name==='rigShoeR'&&v.flip===flip),'Missing side facing '+flip);
-  assert.deepEqual(errors,[]);
+  const views=await page.evaluate(()=>window.shoeCheck.views);
+  for(const flip of [-1,1])assert.ok(views.includes('side/'+flip),'Missing side facing '+flip);
+  for(const view of ['rigShoeToe','rigShoeHeel','rigShoeHeelSide'])assert.ok(views.some(v=>v.startsWith(view+'/')),'Missing '+view);
+  for(const [i,sample] of samples.entries()){
+    assert.equal(sample.shoes.length,2,'Expected two shoes in sample '+i);
+    assert.equal(sample.islands.length,1,'Disconnected lower body in sample '+i+' (pixel areas: '+sample.islands+')');
+  }
+  assert.ok(samples.slice(21,34).some(s=>s.shoes[0].view!==s.shoes[1].view),'During reversal the planted and swinging shoe turn independently');
+  assert.ok(samples.slice(96,124).some(s=>s.phase==='active'&&s.speed>150),'Auto-attack must overlap running');
+  const settled=samples.slice(-5);
+  assert.ok(settled.every(s=>s.speed<.01),'Both feet must settle after key release');
+  const drift=Math.max(...settled.flatMap(s=>s.shoes.map((p,i)=>Math.hypot(p.x-settled[0].shoes[i].x,p.y-settled[0].shoes[i].y))));
+  assert.ok(drift<1,'Resting shoes drifted '+drift.toFixed(2)+' px');
   const image=await page.evaluate(async frames=>{
-    const out=document.createElement('canvas');out.width=4*163;out.height=2*178;
+    const out=document.createElement('canvas');out.width=4*163;out.height=3*178;
     const ctx=out.getContext('2d');ctx.fillStyle='#302629';ctx.fillRect(0,0,out.width,out.height);
     ctx.font='bold 15px "Microsoft YaHei", sans-serif';ctx.fillStyle='#fff1d6';
     for(const [i,card] of frames.entries()){
@@ -90,5 +138,14 @@ try {
   },cards);
   await mkdir('test-results/footwork',{recursive:true});
   await writeFile('test-results/footwork/courier.webp',Buffer.from(image,'base64'));
-  console.log('Measured '+frames+' painted shin-to-shoe contacts in five facing views. Maximum gap '+maxGap.toFixed(2)+' px.');
+  await page.keyboard.down('ArrowLeft');await page.keyboard.press('Space');await page.clock.runFor(80);
+  const dash=await page.evaluate(()=>{
+    const {player,time}=window.__gameTest.game().state;
+    return {active:player.dashUntil>time,vx:player.vx,ground:window.shoeCheck.ground};
+  });
+  assert.ok(dash.active && dash.vx<0,'Dash should run left');
+  await page.screenshot({clip:{x:Math.round(dash.ground.x)-82,y:Math.round(dash.ground.y)-136,width:163,height:152},path:'test-results/footwork/dash.png'});
+  await page.keyboard.up('ArrowLeft');
+  assert.deepEqual(errors,[]);
+  console.log('Checked '+samples.length+' connected lower-body silhouettes (five views), a real moving attack, a dash and a settled shoe drift of '+drift.toFixed(2)+' px.');
 } finally {await browser.close();}

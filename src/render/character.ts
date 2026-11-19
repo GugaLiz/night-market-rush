@@ -13,20 +13,24 @@ const blend=(a:Point,b:Point,t:number):Point=>({x:lerp(a.x,b.x,t),y:lerp(a.y,b.y
 const smooth=(v:number)=>{const t=clamp(v);return t*t*(3-2*t);};
 const angleBlend=(a:number,b:number,t:number)=>a+Math.atan2(Math.sin(b-a),Math.cos(b-a))*t;
 const widths:Record<WeaponKind,number>={tongs:34,bag:26,chopsticks:31,spirit:23,knife:29,tray:27,umbrella:35,sword:43,lunchbox:26,talisman:24};
-const hipWidth=6;
-const hipHeight=26;
-const legReach=31;
+const hipHeight=29;
+const legReach=34;
 const bagTilt=1.33;
 
-// The ankle joint is the opening in the sock. The painted sole sits below it
-// and the toe projects in the direction the courier is travelling.
+// The trouser hem wraps around each sneaker at its opening. The measurements
+// are normalized against the trimmed sprite, not the atlas cell.
 const shoes={
-  side:{name:'rigShoeR',width:17,height:13,cuffX:.36,cuffY:.13},
-  front:{name:'rigShoeToe',width:12,height:13,cuffX:.50,cuffY:.12},
-  rear:{name:'rigShoeHeel',width:12.5,height:13,cuffX:.50,cuffY:.12},
-  rearSide:{name:'rigShoeHeelSide',width:16,height:13,cuffX:.40,cuffY:.12},
+  side:{name:'rigShoeR',width:16.5,height:9.8,cuffX:.31,cuffY:.27},
+  front:{name:'rigShoeToe',width:10.7,height:11.5,cuffX:.50,cuffY:.19},
+  rear:{name:'rigShoeHeel',width:10.7,height:10.7,cuffX:.50,cuffY:.19},
+  rearSide:{name:'rigShoeHeelSide',width:14,height:9.8,cuffX:.40,cuffY:.24},
 };
 type Shoe=typeof shoes.side;
+function shoeView(yaw:number):Shoe {
+  const y=Math.sin(yaw);
+  if(y<-.50)return Math.abs(Math.cos(yaw))<.41?shoes.rear:shoes.rearSide;
+  return y>.80?shoes.front:shoes.side;
+}
 
 export class CourierRig {
   private gait=new CourierGait();
@@ -82,23 +86,18 @@ export class CourierRig {
     const running=dead?0:this.gait.drive;
     const depth=Math.abs(this.look.y);
     const lifted=(foot:typeof this.gait.right)=>{
-      const groundY=(foot.y-p.y)/scale;
-      const lift=foot.lift*(1-.32*depth)*(settings.reduceMotion?.68:1);
-      // Depth travel is foreshortened by the overhead camera. The shoe rolls
-      // under the hip instead of shooting up through the jacket on a tight turn.
-      return {x:(foot.x-p.x)*flip/scale,y:lerp(groundY,15*Math.tanh(groundY/15),depth)-lift,
-        pitch:foot.pitch*accent,lift};
+      const lift=foot.lift*(1-.40*depth)*(settings.reduceMotion?.68:1);
+      return {x:(foot.x-p.x)*flip/scale,y:(foot.y-p.y)/scale-lift,
+        pitch:foot.pitch*accent,lift,forward:Math.cos(foot.yaw)*flip,shoe:shoeView(foot.yaw)};
     };
     const footR=lifted(flip===1?this.gait.right:this.gait.left);
     const footL=lifted(flip===1?this.gait.left:this.gait.right);
-    const shoe=back?(Math.abs(this.look.x)<.41?shoes.rear:shoes.rearSide):
-      this.look.y>.80?shoes.front:shoes.side;
-    const cuffHeight=shoe.height*(1-shoe.cuffY);
     const delayedX=this.gait.velocity.x/CONFIG.player.speed*flip,delayedY=this.gait.velocity.y/CONFIG.player.speed;
     const turnLean=clamp(p.vx/CONFIG.player.speed*flip-delayedX,-1,1);
     const shift=this.gait.weight*flip*accent;
-    const hipRoll=shift*.115;
-    const stepSwing=clamp(((footR.x-footL.x)-16)/30 * this.look.x*flip+
+    const profile=running*Math.abs(this.look.x);
+    const hipWidth=6.5-profile*2.4, hipRoll=shift*.095;
+    const stepSwing=clamp(((footR.x-footL.x)-(16-6*profile))/30 * this.look.x*flip+
       (footR.y-footL.y+footR.lift-footL.lift)*this.look.y/28,-1,1)*running;
     const cue=windup?-smooth(phase):active?1-smooth(phase)*.24:recovering?.76*settle:0;
     this.effort=lerp(this.effort,cue,1-Math.exp(-step/.032));
@@ -107,15 +106,16 @@ export class CourierRig {
     const lean=effort*(heavy?5.5:3.7);
     // Load one leg while standing and shift onto the striking side through release.
     // The shoes stay on their planted world positions during a standing attack.
-    const hipX=shift*2.5+(1-running)*(.85+hx*flip*effort*.96);
+    const hipX=shift*(2.7+1.4*depth)+(1-running)*(.7+hx*flip*effort*.96);
     const hurtAge=time-p.hurtAt;
     const hurt=dead||hurtAge<0?0:smooth(hurtAge/.035)*(1-smooth((hurtAge-.055)/.28));
     const upperX=hipX*.55+clamp(delayedX*(dash?7:5.6)+turnLean*4,-10,10)*accent+hx*flip*lean-hurt*3*accent;
-    const bounce=dead?17:lerp(.5,3.5,running)+(dash?3:0)+this.gait.rise*accent+hurt*.6+
+    const bounce=dead?17:lerp(.5,1.8,running)+(dash?3:0)+this.gait.rise*accent+hurt*.6+
       hy*lean*lerp(.19,.45,running)+(windup&&heavy?1.2*phase:0);
     // In this top-down projection a planted foot can trail toward the camera on a
     // sharp turn. Lower the pelvis over the extended leg while the other foot lands.
     const minHipY=(foot:typeof footR,side:1|-1)=>{
+      const cuffHeight=foot.shoe.height*(1-foot.shoe.cuffY);
       const dx=foot.x-(side*hipWidth+hipX);
       const verticalReach=Math.sqrt(Math.max(0,legReach*legReach-dx*dx));
       return foot.y-cuffHeight+hipHeight-side*hipRoll*hipWidth-verticalReach;
@@ -222,10 +222,9 @@ export class CourierRig {
     if(!dead&&p.invulnerableUntil>time)ctx.globalAlpha*=settings.reduceMotion?.84:.81+Math.sin(time*12)*.05;
     const hipR={x:hipWidth+hipX,y:-hipHeight+bodyY+hipRoll*hipWidth},hipL={x:-hipWidth+hipX,y:-hipHeight+bodyY-hipRoll*hipWidth};
     const rightInFront=(footR.y+footR.lift)>(footL.y+footL.lift);
-    const kneeFacing=Math.abs(this.look.x);
-    this.leg(ctx,rightInFront?hipL:hipR,rightInFront?footL:footR,rightInFront?'L':'R',shoe,dead,kneeFacing);
-    this.leg(ctx,rightInFront?hipR:hipL,rightInFront?footR:footL,rightInFront?'R':'L',shoe,dead,kneeFacing);
-    this.bodyPart(ctx,'rigHipFront','rigHipBack',hipX,-22+bodyY,14,hipRoll,28);
+    this.leg(ctx,rightInFront?hipL:hipR,rightInFront?footL:footR,rightInFront?'L':'R',dead);
+    this.leg(ctx,rightInFront?hipR:hipL,rightInFront?footR:footL,rightInFront?'R':'L',dead);
+    this.bodyPart(ctx,'rigHipFront','rigHipBack',hipX,-24+bodyY,11.5,hipRoll,27-profile*2);
     if(take===0&&guard===0)this.arm(ctx,shoulderL,left,'L',-1);
     const drawPack=()=>{
       this.bodyPart(ctx,'rigBagSide','rigBag',packX,packY,packHeight,tilt,packWidth);
@@ -313,26 +312,40 @@ export class CourierRig {
     this.part(ctx,side==='R'?'rigForeR':'rigForeL',elbow.x,elbow.y,fore+2,Math.atan2(wrist.y-elbow.y,wrist.x-elbow.x)-Math.PI/2,.1,8.6);
     desired.x=wrist.x;desired.y=wrist.y;
   }
-  private leg(ctx:CanvasRenderingContext2D,hip:Point,foot:Point&{pitch:number;lift:number},side:'L'|'R',shoe:Shoe,dead:boolean,kneeFacing:number):void {
-    // An abrupt pivot can move the body beyond a planned foothold. Roll the
-    // heel off that mark at full extension, keeping the shoe joined to the shin.
-    const targetX=foot.x-hip.x;
-    const projected=foot.y-shoe.height*(1-shoe.cuffY)-hip.y;
-    const targetY=projected<10?10-5*Math.tanh((10-projected)/5):projected;
-    const extension=Math.min(1,legReach/Math.max(.1,Math.hypot(targetX,targetY)));
-    const dx=targetX*extension,dy=targetY*extension,d=Math.max(.1,Math.hypot(dx,dy));
-    const ankle={x:hip.x+dx,y:hip.y+dy};
-    // A loaded knee stays nearly above its ankle. Only a lifted or advancing
-    // thigh projects a pronounced bend, especially when seen from the side.
-    const stride=Math.max(this.gait.drive*.56,clamp(foot.lift/7));
-    const bone=Math.max(14,d*.501),fold=Math.sqrt(Math.max(0,bone*bone-d*d*.25));
-    const bend=Math.min(dead?10:lerp(1.3,8,stride),fold)*kneeFacing;
-    const knee={x:(hip.x+ankle.x)*.5+dy/d*bend,y:(hip.y+ankle.y)*.5-dx/d*bend};
-    this.part(ctx,'rigThigh',hip.x,hip.y,Math.hypot(knee.x-hip.x,knee.y-hip.y)+3,Math.atan2(knee.y-hip.y,knee.x-hip.x)-Math.PI/2,.07,11.7);
-    this.part(ctx,'rigShin',knee.x,knee.y,Math.hypot(ankle.x-knee.x,ankle.y-knee.y)+2,Math.atan2(ankle.y-knee.y,ankle.x-knee.x)-Math.PI/2,.09,8.8);
-    const pitch=dead?(side==='R'?.15:-.15):foot.pitch*lerp(.18,.85,kneeFacing);
+  private leg(ctx:CanvasRenderingContext2D,hip:Point,foot:Point&{pitch:number;lift:number;forward:number;shoe:Shoe},side:'L'|'R',dead:boolean):void {
+    const shoe=foot.shoe, toeSide=foot.forward<0?-1:1;
+    const pitch=dead?(side==='R'?.15:-.15):foot.pitch*lerp(.18,.85,Math.abs(foot.forward));
+    // Rotate about the heel on landing, and about the ball of the foot at
+    // push-off. Both lie on the same fixed ground mark throughout support.
+    const pivotX=((pitch>0?.82:.17)-shoe.cuffX)*shoe.width;
+    const soleDepth=(1-shoe.cuffY)*shoe.height;
+    const sin=Math.sin(pitch),cos=Math.cos(pitch);
+    const ankle={x:foot.x+toeSide*(pivotX*(1-cos)+soleDepth*sin),
+      y:foot.y-pivotX*sin-soleDepth*cos};
+    const dx=ankle.x-hip.x,dy=ankle.y-hip.y,d=Math.max(.1,Math.hypot(dx,dy));
+    // A support leg takes the weight relatively straight. The advancing
+    // leg folds forward at its knee, still aiming into the boot's toebox.
+    const bendLimit=lerp(2,11,clamp(foot.lift/7));
+    const fold=Math.sqrt(Math.max(0,(legReach*.5)**2-d*d*.25));
+    const bend=Math.min(dead?11:bendLimit,fold)*foot.forward;
+    const knee={x:lerp(hip.x,ankle.x,.5)+dy/d*bend,
+      y:lerp(hip.y,ankle.y,.5)-dx/d*bend};
+    const lowerAngle=Math.atan2(ankle.y-knee.y,ankle.x-knee.x)-Math.PI/2;
+    const upperAngle=Math.atan2(knee.y-hip.y,knee.x-hip.x)-Math.PI/2;
+    const calfLength=Math.hypot(ankle.x-knee.x,ankle.y-knee.y);
+    // A little cloth above the knee and below the ankle covers both joints;
+    // the visible bottom edge belongs to the rolled cuff of the trousers.
+    this.part(ctx,'rigShin',knee.x,knee.y,calfLength+3.9,lowerAngle,2.4/(calfLength+3.9),10.5);
+    const thighLength=Math.hypot(knee.x-hip.x,knee.y-hip.y);
+    this.part(ctx,'rigThigh',hip.x,hip.y,thighLength+4.4,upperAngle,2.4/(thighLength+4.4),13.4);
+    // Only the fabric at the collar sits in front of the shoe. The toe and
+    // outsole must remain visible when the airborne calf folds over them.
     const sprite=shoe===shoes.side&&side==='L'?'rigShoeL':shoe.name;
-    ctx.save();ctx.translate(ankle.x,ankle.y);ctx.rotate(pitch);
+    ctx.save();ctx.translate(ankle.x,ankle.y);ctx.scale(toeSide,1);ctx.rotate(pitch);
+    ctx.beginPath();ctx.rect(-shoe.width,-shoe.height,shoe.width*2,shoe.height*2);
+    ctx.moveTo(-3.5,-shoe.height);ctx.lineTo(-3.5,-.6);
+    ctx.quadraticCurveTo(0,2.8,3.5,-.6);ctx.lineTo(3.5,-shoe.height);ctx.closePath();
+    ctx.clip('evenodd');
     this.part(ctx,sprite,shoe.width*(.5-shoe.cuffX),0,shoe.height,0,shoe.cuffY,shoe.width);
     ctx.restore();
   }
