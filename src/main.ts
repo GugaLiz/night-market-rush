@@ -69,7 +69,7 @@ const ui:UI=new UI(document.getElementById('app')!,{
     else game.setupCombatDemo(kind);
     renderer?.reset();beginPlay(false);deliverEvents();
     const hint=kind==='pickup'?'向右取电扇，沿热风清出的路线收金币':kind==='wave'?'换波后，地面物品仍可拾取':
-      kind==='giantBun'?'看落点粉印，第三跳从缺口穿过':'向右取大招，然后用方向键或摇杆走位';
+      kind==='giantBun'?'看落点粉印，第三跳从缺口穿过':kind==='express'?'向右取单，快递包会来回三跳，你可以继续走位':'向右取大招，然后用方向键或摇杆走位';
     ui.toast(hint,1600);
   },
   catalog:()=>{cancelPendingStart();gesture();catalogOrigin=ui.currentView;input.setEnabled(false);if(live)audio.setScene('paused');ui.show('catalog',{settings,state:game.state});},

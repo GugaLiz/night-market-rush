@@ -27,7 +27,7 @@ function ripple(c:CanvasRenderingContext2D,x:number,y:number,r:number,color:stri
 
 function paperTrail(c:CanvasRenderingContext2D,cast:ExpressCast,s:GameState,assets:Assets,settings:Settings):void {
   if(!cast.landings.length)return;
-  const points=cast.onLeg?[...cast.landings,s.player]:cast.landings;
+  const points=cast.onLeg?[...cast.landings,cast]:cast.landings;
   const fade=unit((cast.expiresAt-s.time)/EXPRESS.fade),simple=thin(settings);
   c.save();c.lineCap='round';
   for(let i=1;i<points.length;i++){
@@ -228,6 +228,17 @@ function castTool(c:CanvasRenderingContext2D,s:GameState,cast:WaveCast,assets:As
 
 export function drawUltimateAir(c:CanvasRenderingContext2D,s:GameState,settings:Settings,assets:Assets):void {
   for(const cast of s.ultimates??[]){
-    if(cast.kind!=='express')castTool(c,s,cast,assets,settings);
+    if(cast.kind!=='express'){castTool(c,s,cast,assets,settings);continue;}
+    if(!cast.onLeg)continue;
+    const progress=unit((s.time-cast.legStart)/EXPRESS.leg);
+    const arc=Math.sin(progress*Math.PI);
+    const side=cast.target.x>=cast.landings[cast.landings.length-1].x?1:-1;
+    const lift=arc*(settings.reduceMotion?11:45);
+    c.save();
+    c.fillStyle='#4f42385c';c.beginPath();c.ellipse(cast.x,cast.y,22-5*arc,6-arc,0,0,tau);c.fill();
+    const top=cast.y-lift-4;
+    drawSprite(c,assets,'rigBagSide',cast.x,top,48,side*.14*arc,side);
+    drawSprite(c,assets,'express',cast.x-side*19,top-24,26,-side*(.2+arc*.16),side,.60);
+    c.restore();
   }
 }

@@ -1,5 +1,5 @@
 import {WEAPON_KINDS,type Enemy,type EnemyKind,type GameEvent,type GameState,type Pickup,type SkillKind,type Vec,type WeaponKind,type DamageSource} from '../shared/types';
-import {CONFIG,WORLD,difficultyAt} from './config';
+import {CONFIG,WORLD,difficultyAt,pickupReach} from './config';
 import {clamp,distanceSquared,relativeSweep,sweepContact,segmentDistanceSquared} from './geometry';
 import type {CombatContext} from './contracts';
 import {updateWeapons} from './weapons';
@@ -9,7 +9,16 @@ import {collectCoins,dropCoins} from './rewards';
 import {advanceWave,spawnMarketEnemies} from './waves';
 import {giantPulseContact,giantPulseLifetime} from './giant-bun';
 import {ULTIMATE_KINDS,isUltimate,type UltimateKind} from '../shared/types';
-import {expressCast,moveExpress} from './ultimates';
+
+/** Resolve each crossed drop in travel order. A stationary rider gets the closest overlapping choice. */
+function pickupContacts<T extends Vec & {id:number}>(start:Vec,end:Vec,items:T[],reach:(item:T)=>number) {
+  const contacts:{item:T;time:number}[]=[];
+  for(const item of items){
+    const time=sweepContact(start,end,item,reach(item));
+    if(time!==null)contacts.push({item,time});
+  }
+  return contacts.sort((a,b)=>a.time-b.time || distanceSquared(a.item,start)-distanceSquared(b.item,start) || a.item.id-b.item.id);
+}
 
 /** Seeded simulation shared by the main game and the practice arena. */
 export class Game {
@@ -96,10 +105,9 @@ export class Game {
   }
   dash(intent?:Vec):boolean {
     const s=this.state,p=s.player;if(s.ended||s.time<(p.dashReadyAt??0))return false;
-    const route=expressCast(s);
-    if(route&&route.landings.length<4)return false;
     const strength=intent?Math.hypot(intent.x,intent.y):0;
-    const d=intent&&Number.isFinite(strength)&&strength>=CONFIG.player.aimThreshold
+    p.dashFromMovement=Number.isFinite(strength)&&strength>=CONFIG.player.aimThreshold;
+    const d=intent&&p.dashFromMovement
       ? {x:intent.x/strength,y:intent.y/strength} : p.moveDirection;
     p.dashDirection={...d};
     p.moveDirection={...d};
@@ -111,7 +119,7 @@ export class Game {
     if(this.state.ended)return;const p=this.state.player,amount=p.maxHp-p.hp;p.hp=p.maxHp;
     if(amount>0)this.emit({type:'heal',id:this.nextId++,amount,x:p.x,y:p.y});
   }
-  clearArena():void{const s=this.state;if(expressCast(s)?.lastMovedAt===s.time){s.player.vx=0;s.player.vy=0;}s.giantPulses=[];s.ultimates=[];s.enemies=[];s.pickups=[];s.weaponDrops=[];s.projectiles=[];s.meleeWaves=[];s.enemyShots=[];s.zones=[];s.coins=[];s.fields=[];s.combo=0;s.comboUntil=0;this.waveDemo=false;s.player.dashUntil=0;s.player.dashReadyAt=0;s.player.sprintTime=0;s.player.sprintMultiplier=1;s.weapon.attack=null;s.weapon.targetId=null;}
+  clearArena():void{const s=this.state;s.giantPulses=[];s.ultimates=[];s.enemies=[];s.pickups=[];s.weaponDrops=[];s.projectiles=[];s.meleeWaves=[];s.enemyShots=[];s.zones=[];s.coins=[];s.fields=[];s.combo=0;s.comboUntil=0;this.waveDemo=false;s.player.dashUntil=0;s.player.dashReadyAt=0;s.player.sprintTime=0;s.player.sprintMultiplier=1;s.weapon.attack=null;s.weapon.targetId=null;}
   spawnEnemy(kind:EnemyKind,position?:Vec):Enemy {
     const cfg=CONFIG.enemies[kind],p=position??{x:this.state.player.x+140,y:this.state.player.y};
     const x=clamp(p.x,WORLD.bounds.left+cfg.radius,WORLD.bounds.right-cfg.radius),y=clamp(p.y,WORLD.bounds.top+cfg.radius,WORLD.bounds.bottom-cfg.radius);
@@ -127,7 +135,7 @@ export class Game {
     const difficulty=difficultyAt(s.time);
     s.stage=difficulty.stage;
     if(s.time>=s.comboUntil)s.combo=0;
-    const ridingExpress=this.movePlayer(dt,input);
+    this.movePlayer(dt,input);
     if(!s.practice){
       const dispatch=s.effects.dispatchUntil>s.time;
       const batchSize=5+Math.min(s.wave,3),batchInterval=difficulty.interval*batchSize;
@@ -145,11 +153,11 @@ export class Game {
     }
     this.contactDamage=updateEnemies(s,dt,difficulty.speedScale,this.ctx);
     updateEnemyShots(s,dt);
-    updateSkills(s,dt,this.ctx);
+    updateSkills(s,dt,this.ctx,input);
     this.collectPickups();this.collectWeapons();
     updateWeapons(s,dt,this.ctx);
     collectCoins(s,dt,this.ctx);
-    this.contactPlayer(dt,ridingExpress);
+    this.contactPlayer(dt);
     if(!s.ended&&(!s.practice||this.waveDemo)){
       const previous=s.wave;
       advanceWave(s,this.ctx);
@@ -167,9 +175,8 @@ export class Game {
       }
     }
   }
-  private movePlayer(dt:number,input:Vec):boolean {
+  private movePlayer(dt:number,input:Vec):void {
     const p=this.state.player;p.px=p.x;p.py=p.y;
-    if(moveExpress(this.state,input,dt))return true;
     const length=Math.hypot(input.x,input.y);
     const direction=length>.001?{x:input.x/length,y:input.y/length}:p.moveDirection;
     const previous=p.sprintDirection??direction;
@@ -198,15 +205,20 @@ export class Game {
     // Keep fine stick movements at walking pace and give a full throw the whole running speed.
     const targetSpeed=pace*strength*(tuning.precisionSpeed+(tuning.speed-tuning.precisionSpeed)*strength**2);
     if(length>=tuning.aimThreshold)p.moveDirection=direction;
-    const dashRemaining=(p.dashUntil??0)-(this.state.time-dt);
+    let dashRemaining=(p.dashUntil??0)-(this.state.time-dt);
+    const dashDirection=p.dashDirection??direction;
     if(dashRemaining>1e-9){
-      const d=p.dashDirection??direction;
-      // The opening impulse commits to its heading; the tail hands control to the held stick.
+      const released=p.dashFromMovement&&length<tuning.aimThreshold;
+      const reversed=length>=tuning.aimThreshold&&direction.x*dashDirection.x+direction.y*dashDirection.y<-.5;
+      if(released||reversed){p.dashUntil=0;dashRemaining=0;p.vx=0;p.vy=0;}
+    }
+    if(dashRemaining>1e-9){
+      // A tap from rest keeps its impulse. A held direction blends into running at the exit.
       const progress=clamp(1-(dashRemaining-dt*.5)/tuning.dashExitTime,0,1);
       const exit=progress*progress*(3-2*progress);
       const impulse=tuning.dashSpeed*(1-exit);
-      p.vx=d.x*impulse+direction.x*targetSpeed*exit;
-      p.vy=d.y*impulse+direction.y*targetSpeed*exit;
+      p.vx=dashDirection.x*impulse+direction.x*targetSpeed*exit;
+      p.vy=dashDirection.y*impulse+direction.y*targetSpeed*exit;
     }else{
       // Rotate the velocity, then change its magnitude. Ordinary corners retain their pace.
       let speed=Math.hypot(p.vx,p.vy);
@@ -235,9 +247,8 @@ export class Game {
     if(p.x!==x)p.vx=0;
     if(p.y!==y)p.vy=0;
     if(length>.001&&Math.hypot(p.x-p.px,p.y-p.py)<CONFIG.player.speed*dt*.1){p.sprintTime=0;p.sprintMultiplier=1;}
-    return false;
   }
-  private contactPlayer(dt:number,ridingExpress:boolean){
+  private contactPlayer(dt:number){
     const s=this.state,p=s.player;
     const contacts:Array<{id:number;kind:EnemyKind;t:number;amount:number;source:DamageSource;shot:boolean}>=[];
     for(const e of s.enemies){if(e.kind==='giantBun'||!this.active(e)||e.contactSuppressedUntil>s.time)continue;const t=relativeSweep({x:p.px,y:p.py},p,{x:e.px,y:e.py},e,p.radius+e.radius);if(t!==null){const amount=this.contactDamage.get(e.id)??CONFIG.enemies[e.kind].damage;contacts.push({id:e.id,kind:e.kind,t,amount,source:e.kind==='box'&&amount===20?'dash':e.kind,shot:false});}}
@@ -253,7 +264,7 @@ export class Game {
     const spent=new Set<number>();
     for(const q of s.enemyShots??[]){const t=relativeSweep({x:p.px,y:p.py},p,{x:q.px,y:q.py},q,p.radius+q.radius);if(t!==null){spent.add(q.id);contacts.push({id:q.id,kind:'bowl',t,amount:q.damage,source:'bowl',shot:true});}}
     s.enemyShots=(s.enemyShots??[]).filter(q=>!spent.has(q.id));
-    if(p.invulnerableUntil>s.time||(p.dashUntil??0)>s.time-dt+1e-9||ridingExpress)return;
+    if(p.invulnerableUntil>s.time||(p.dashUntil??0)>s.time-dt+1e-9)return;
     contacts.sort((a,b)=>a.t-b.t||b.amount-a.amount||a.id-b.id);const hit=contacts[0];if(!hit)return;
     if(p.bubbleUntil>s.time){p.bubbleUntil=0;p.invulnerableUntil=s.time+CONFIG.player.protection;for(const e of s.enemies)if(distanceSquared(e,p)<=48**2)this.push(e,p,24);this.emit({type:'defend',kind:'bubble',x:p.x,y:p.y,victimId:hit.id});return;}
     const amount=Math.min(p.hp,hit.amount);p.hp-=amount;p.hurtAt=s.time;p.invulnerableUntil=s.time+CONFIG.player.protection;s.lastDamage=hit.source;s.lastDamageAmount=amount;
@@ -274,7 +285,7 @@ export class Game {
       s.enemies=s.enemies.filter(e=>e.id!==enemy.id);
       const value=CONFIG.enemies[enemy.kind].coins+(s.player.stampUntil>s.time?1:0);
       dropCoins(s,enemy,value,this.ctx);
-      this.emit({type:'kill',kind:enemy.kind,victimId:enemy.id,x:enemy.x,y:enemy.y,points:1,source,impactAngle});
+      this.emit({type:'kill',kind:enemy.kind,victimId:enemy.id,x:enemy.x,y:enemy.y,points:1,maxHp:enemy.maxHp,facing:enemy.facing,source,impactAngle});
     }
     return total;
   }
@@ -315,7 +326,9 @@ export class Game {
         y=CONFIG.player.minY+25+this.random()*(b.bottom-CONFIG.player.minY-75);
       }
       const position={x,y};
-      if(distanceSquared(position,s.player)<(s.player.radius+CONFIG.pickup.radius+38)**2||s.pickups.some(p=>distanceSquared(p,position)<76**2)||s.weaponDrops.some(p=>distanceSquared(p,position)<65**2))continue;
+      if(distanceSquared(position,s.player)<(CONFIG.pickup.reach+20)**2 ||
+        s.pickups.some(p=>distanceSquared(p,position)<(pickupReach(p)+CONFIG.pickup.reach)**2) ||
+        s.weaponDrops.some(p=>distanceSquared(p,position)<(CONFIG.weapons.pickupReach+CONFIG.pickup.reach)**2))continue;
       if(isUltimate(kind)&&distanceSquared(position,s.player)>325**2)continue;
       if(other){
         const dx=x-s.player.x,dy=y-s.player.y,ox=other.x-s.player.x,oy=other.y-s.player.y;
@@ -368,28 +381,34 @@ export class Game {
   private collectPickups(){
     const s=this.state,p=s.player;
     s.pickups=s.pickups.filter(p=>(!p.expiresAt||p.expiresAt>s.time)&&(!p.retiringUntil||p.retiringUntil>s.time));
-    const contacts=s.pickups.filter(q=>!q.retiringUntil&&(q.readyAt??0)<=s.time&&(q.disabledUntil??0)<=s.time&&!(q.kind==='dispatch'&&s.effects.dispatchCooldownUntil>s.time)).map(q=>({q,t:sweepContact({x:p.px,y:p.py},p,q,p.radius+q.radius)})).filter(v=>v.t!==null).sort((a,b)=>a.t!-b.t!||a.q.id-b.q.id);
-    const consumed=new Set<number>(),groups=new Set<number>();
-    for(const {q,t} of contacts){
-      if(consumed.has(q.id)||q.groupId&&groups.has(q.groupId))continue;
+    const available=s.pickups.filter(q=>!q.retiringUntil&&(q.readyAt??0)<=s.time&&(q.disabledUntil??0)<=s.time&&!(q.kind==='dispatch'&&s.effects.dispatchCooldownUntil>s.time));
+    const start={x:p.px,y:p.py};
+    const groups=new Set<number>();
+    for(const {item:q,time} of pickupContacts(start,p,available,pickupReach)){
+      if(q.groupId&&groups.has(q.groupId))continue;
       if(q.groupId){groups.add(q.groupId);for(const sibling of s.pickups)if(sibling.groupId===q.groupId&&sibling.id!==q.id){sibling.retiringUntil=s.time+.4;sibling.pulledUntil=0;}}
-      consumed.add(q.id);s.pickups=s.pickups.filter(v=>v.id!==q.id);
-      const origin={x:p.px+(p.x-p.px)*t!,y:p.py+(p.y-p.py)*t!};
+      s.pickups=s.pickups.filter(v=>v.id!==q.id);
+      const origin={x:p.px+(p.x-p.px)*time,y:p.py+(p.y-p.py)*time};
       this.emit({type:'pickup',kind:q.kind,...origin});activateSkill(s,q.kind,origin,this.ctx,q);
     }
     if(!s.pickups.length)this.emptySince=s.time;
   }
   private equip(kind:WeaponKind,drop:boolean){
     const s=this.state,w=s.weapon;if(w.kind===kind)return;const previous=w.kind;
-    if(drop){s.weaponDrops=s.weaponDrops.filter(d=>!d.returnDrop);s.weaponDrops.push({id:this.nextId++,kind:previous,x:s.player.x,y:s.player.y,radius:12,bornAt:s.time,expiresAt:s.time+10,readyAt:s.time+2,returnDrop:true,leftPickupCircle:false});}
+    if(drop){s.weaponDrops=s.weaponDrops.filter(d=>!d.returnDrop);s.weaponDrops.push({id:this.nextId++,kind:previous,x:s.player.x,y:s.player.y,radius:CONFIG.weapons.dropRadius,bornAt:s.time,expiresAt:s.time+10,readyAt:s.time+2,returnDrop:true,leftPickupCircle:false});}
     w.kind=kind;w.readyAt=Math.max(w.readyAt,s.time+.25);w.equippedAt=s.time;w.attack=null;w.targetId=null;
     this.emit({type:'weapon',kind,previous,x:s.player.x,y:s.player.y});
   }
   private collectWeapons(){
     const s=this.state,p=s.player;s.weaponDrops=s.weaponDrops.filter(d=>d.expiresAt>s.time);
-    for(const d of s.weaponDrops)if(d.returnDrop&&s.time>=d.readyAt&&distanceSquared(d,p)>(d.radius+p.radius+2)**2)d.leftPickupCircle=true;
-    const contacts=s.weaponDrops.filter(d=>s.time>=d.readyAt&&(!d.returnDrop||d.leftPickupCircle)).map(d=>({d,t:sweepContact({x:p.px,y:p.py},p,d,d.radius+p.radius)})).filter(v=>v.t!==null).sort((a,b)=>a.t!-b.t!||a.d.id-b.d.id);
-    const hit=contacts[0];if(!hit)return;s.weaponDrops=s.weaponDrops.filter(d=>d.id!==hit.d.id);this.equip(hit.d.kind,true);
+    const start={x:p.px,y:p.py},reach=CONFIG.weapons.pickupReach;
+    // Starting outside matters: the outward sweep still intersects the old package.
+    for(const d of s.weaponDrops)if(d.returnDrop&&s.time>=d.readyAt&&distanceSquared(d,start)>(reach+2)**2)d.leftPickupCircle=true;
+    const available=s.weaponDrops.filter(d=>s.time>=d.readyAt&&(!d.returnDrop||d.leftPickupCircle));
+    const hit=pickupContacts(start,p,available,()=>reach)[0];
+    if(!hit)return;
+    s.weaponDrops=s.weaponDrops.filter(d=>d.id!==hit.item.id);
+    this.equip(hit.item.kind,true);
   }
   private scheduleWeapon(){
     const s=this.state;s.weaponDrops=s.weaponDrops.filter(d=>d.expiresAt>s.time);
@@ -397,10 +416,10 @@ export class Game {
     const b=WORLD.bounds;
     for(let i=0;i<32;i++){
       const top=Math.max(b.top+55,CONFIG.player.minY),x=b.left+65+this.random()*(b.right-b.left-130),y=top+this.random()*(b.bottom-top-55),position={x,y};
-      if(distanceSquared(position,s.player)<90**2||distanceSquared(position,s.player)>270**2||s.enemies.some(e=>distanceSquared(e,position)<75**2||(e.phase==='warn'||e.phase==='dash')&&segmentDistanceSquared(e,{x:e.x+e.dashX*200,y:e.y+e.dashY*200},position)<55**2)||s.pickups.some(p=>distanceSquared(p,position)<65**2)||s.weaponDrops.some(p=>distanceSquared(p,position)<65**2))continue;
+      if(distanceSquared(position,s.player)<90**2||distanceSquared(position,s.player)>270**2||s.enemies.some(e=>distanceSquared(e,position)<75**2||(e.phase==='warn'||e.phase==='dash')&&segmentDistanceSquared(e,{x:e.x+e.dashX*200,y:e.y+e.dashY*200},position)<55**2)||s.pickups.some(p=>distanceSquared(p,position)<(pickupReach(p)+CONFIG.weapons.pickupReach)**2)||s.weaponDrops.some(p=>distanceSquared(p,position)<(2*CONFIG.weapons.pickupReach)**2))continue;
       if(!this.weaponBag.length){this.weaponBag=WEAPON_KINDS.filter(k=>k!==s.weapon.kind);for(let j=this.weaponBag.length-1;j>0;j--){const k=Math.floor(this.random()*(j+1));[this.weaponBag[j],this.weaponBag[k]]=[this.weaponBag[k],this.weaponBag[j]];}}
       let kind=this.weaponBag.pop()!;if(kind===s.weapon.kind)kind=this.weaponBag.pop()??WEAPON_KINDS.find(k=>k!==s.weapon.kind)!;
-      s.weaponDrops.push({id:this.nextId++,kind,x,y,radius:12,bornAt:s.time,expiresAt:s.time+20,readyAt:s.time,returnDrop:false,leftPickupCircle:true});this.nextWeaponAt=s.time+10+this.random()*4;return;
+      s.weaponDrops.push({id:this.nextId++,kind,x,y,radius:CONFIG.weapons.dropRadius,bornAt:s.time,expiresAt:s.time+20,readyAt:s.time,returnDrop:false,leftPickupCircle:true});this.nextWeaponAt=s.time+10+this.random()*4;return;
     }
     this.nextWeaponAt=s.time+1;
   }

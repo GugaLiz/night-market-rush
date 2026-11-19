@@ -14,6 +14,25 @@ function advance(game:Game,seconds:number){
 }
 
 describe('enemy attention and soup-shot range',()=>{
+  it('rounds a roaming corner and lets individual buns take an arc until they close in',()=>{
+    const g=arena(),s=g.state;
+    const walker=g.spawnEnemy('box',{x:200,y:400});
+    walker.wanderHeading=0;walker.wanderAngle=Math.PI/2;walker.wanderUntil=10;
+    g.update(1/60,still);
+    expect(walker.wanderHeading).toBeGreaterThan(0);
+    expect(walker.wanderHeading).toBeLessThan(.05);
+    advance(g,.65);
+    expect(walker.wanderHeading).toBeCloseTo(Math.PI/2);
+
+    const bend=g.spawnEnemy('bun',{x:s.player.x-160,y:s.player.y});
+    const direct=g.spawnEnemy('bun',{x:s.player.x+160,y:s.player.y});
+    advance(g,.33);
+    expect(bend.x).toBeGreaterThan(s.player.x-152);
+    expect(Math.abs(bend.y-s.player.y)).toBeGreaterThan(1);
+    expect(direct.x).toBeLessThan(s.player.x+152);
+    expect(direct.y).toBeCloseTo(s.player.y);
+  });
+
   it('wanders on the same seeded path for distant players on opposite sides of the street',()=>{
     const trace=(playerX:number)=>{
       const g=arena(),p=g.state.player;

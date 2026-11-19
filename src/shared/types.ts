@@ -18,11 +18,12 @@ export interface GiantPulse extends Vec {
 interface CastBase extends Vec {kind:UltimateKind;bornAt:number;expiresAt:number;hitIds:number[]}
 export interface WaveCast extends CastBase {kind:'icebox'|'steamer'|'berry';released:boolean;angle:number;reach:number}
 export interface ExpressCast extends CastBase {
-  kind:'express';landings:Vec[];legStart:number;target:Vec;onLeg:boolean;lastMovedAt:number;
+  kind:'express';px:number;py:number;landings:Vec[];legStart:number;target:Vec;onLeg:boolean;
 }
 export type UltimateCast=WaveCast|ExpressCast;
 export interface Player extends Vec {
   px:number;py:number;vx:number;vy:number;facing:number;radius:number;skateUntil:number;
+  dashFromMovement?:boolean;
   hp:number;maxHp:number;invulnerableUntil:number;hurtAt:number;bubbleUntil:number;heatUntil:number;stampUntil:number;moveDirection:Vec;sprintTime?:number;sprintMultiplier?:number;sprintDirection?:Vec;dashUntil?:number;dashReadyAt?:number;dashDirection?:Vec;
 }
 export interface Enemy extends Vec {
@@ -30,12 +31,12 @@ export interface Enemy extends Vec {
   id:number;kind:EnemyKind;px:number;py:number;radius:number;spawnAt:number;slowUntil:number;
   phase:'chase'|'warn'|'dash'|'recover';phaseUntil:number;dashX:number;dashY:number;facing:number;
   hp:number;maxHp:number;hurtAt:number;stunUntil:number;stunStartedAt:number;bellResistUntil:number;contactSuppressedUntil:number;skateHitAt:number;
-  alerted?:boolean;lureX?:number;lureY?:number;wanderAngle?:number;wanderUntil?:number;shotReadyAt?:number;shotWarnUntil?:number;shotAngle?:number;
+  alerted?:boolean;lureX?:number;lureY?:number;wanderAngle?:number;wanderHeading?:number;wanderUntil?:number;shotReadyAt?:number;shotWarnUntil?:number;shotAngle?:number;
   march?:{x:number;y:number;until:number};
   volleyRemaining?:number;nextVolleyAt?:number;
   bellStunUntil?:number;chilledUntil?:number;tossAt?:number;tossHeight?:number;
 }
-export interface GroundCoin extends Vec {id:number;bornAt:number;value:number;dropOrigin?:Vec}
+export interface GroundCoin extends Vec {id:number;bornAt:number;value:number;dropOrigin?:Vec;attracted?:boolean}
 export interface SkillField extends Vec {id:number;castId:number;kind:'fire'|'blue';radius:number;bornAt:number;expiresAt:number;hitIds:number[]}
 export interface Pickup extends Vec {id:number;kind:SkillKind;radius:number;bornAt:number;readyAt?:number;expiresAt?:number;groupId?:number;pulledUntil?:number;disabledUntil?:number;retiringUntil?:number}
 export interface WeaponDrop extends Vec {id:number;kind:WeaponKind;radius:number;bornAt:number;expiresAt:number;readyAt:number;returnDrop:boolean;leftPickupCircle:boolean}
@@ -56,7 +57,7 @@ export type GameEvent=
   {type:'ultimateBeat';kind:UltimateKind;beat:number;x:number;y:number}|
   {type:'detonation';x:number;y:number}|{type:'chainLink';fromX:number;fromY:number;x:number;y:number}|
   {type:'wave';wave:number}|{type:'coin';amount:number;x:number;y:number}|
-  {type:'pickup';kind:SkillKind;x:number;y:number}|{type:'kill';kind:EnemyKind;x:number;y:number;points:number;victimId?:number;source?:DamageSource;impactAngle?:number}|
+  {type:'pickup';kind:SkillKind;x:number;y:number}|{type:'kill';kind:EnemyKind;x:number;y:number;points:number;victimId?:number;maxHp?:number;facing?:number;source?:DamageSource;impactAngle?:number}|
   {type:'fail';kind:EnemyKind;x:number;y:number;source?:DamageSource;amount?:number}|{type:'warn';x:number;y:number}|
   {type:'spawn';x:number;y:number}|{type:'stage';stage:number}|{type:'skillEnd';kind:SkillKind}|
   {type:'damage';id:number;victimId:number;source:DamageSource;amount:number;nominal:number;x:number;y:number;time:number;impactAngle?:number;burstIndex?:number;burstCount?:number}|

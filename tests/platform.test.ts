@@ -66,7 +66,38 @@ describe('browser steering',()=>{
       expect(east.y/east.x).toBeCloseTo(.25);
       tilt(-6,-1.5);now+=17;
       expect(input.getVector().x).toBeLessThan(0);
+      tilt(.7,.5);now+=17;
+      expect(input.getVector()).toEqual({x:0,y:0});
     }finally{input.dispose();clock.mockRestore();vi.unstubAllGlobals();}
+  });
+
+  it('clears a released pointer outside the surface and ignores stale key repeats after focus returns',()=>{
+    const browser=new EventTarget();
+    class Surface extends EventTarget {
+      closest(){return null;}
+      getBoundingClientRect(){return {left:0,top:0,width:800,height:450};}
+      setPointerCapture(){throw new Error('pointer capture unavailable');}
+      hasPointerCapture(){return false;}
+    }
+    const surface=new Surface();
+    vi.stubGlobal('window',browser);vi.stubGlobal('document',new EventTarget());vi.stubGlobal('Element',Surface);
+    const input=new WebInput(surface as unknown as HTMLElement,()=>{});
+    const pointer=(target:EventTarget,type:string,id:number,x:number,buttons=1)=>target.dispatchEvent(
+      Object.assign(new Event(type,{cancelable:true}),{pointerId:id,pointerType:'mouse',button:0,buttons,clientX:x,clientY:260}));
+    const key=(repeat=false)=>browser.dispatchEvent(Object.assign(new Event('keydown',{cancelable:true}),{code:'KeyD',repeat}));
+    try{
+      input.setEnabled(true);
+      pointer(surface,'pointerdown',1,100);pointer(surface,'pointermove',1,180);
+      pointer(browser,'pointerup',2,180);expect(input.getVector().x).toBe(1);
+      pointer(browser,'pointerup',1,820);expect(input.getVector().x).toBe(0);
+      pointer(surface,'pointerdown',3,200);pointer(surface,'pointermove',3,120);
+      expect(input.getVector().x).toBe(-1);
+      pointer(surface,'pointermove',3,120,0);expect(input.getVector().x).toBe(0);
+      key();expect(input.getVector().x).toBe(1);
+      browser.dispatchEvent(new Event('blur'));input.setEnabled(true);
+      key(true);expect(input.getVector().x).toBe(0);
+      key();expect(input.getVector().x).toBe(1);
+    }finally{input.dispose();vi.unstubAllGlobals();}
   });
 });
 

@@ -8,7 +8,9 @@
 |---|---|
 | [clay-courier-home.webp](../public/assets/clay-courier-home.webp) | 首页独立跑姿，保温箱、橙色头盔和送餐小票随角色一起显示 |
 | [clay-courier-rig.webp](../public/assets/clay-courier-rig.webp) | 四列五行，16 件头盔、制服、手脚和保温箱分件，加上挥击与受伤表情。站姿、转向、跑步着地和扶盔护箱按当前输入组成 |
+| [clay-shoe-views.webp](../public/assets/clay-shoe-views.webp) | 内置 imagegen 参照同套橙白软陶运动鞋，补画鞋尖正面、鞋跟正面、鞋跟斜侧面三个视角。透明图集为 384 × 144，游戏按移动朝向选择鞋面，以袜口对接小腿 |
 | [clay-actors.webp](../public/assets/clay-actors.webp) | 四列三行，包子普通、挤压、残血，盒怪、碗怪、三件外卖武器和四款大招拾取物 |
+| [clay-enemy-faces.webp](../public/assets/clay-enemy-faces.webp) | 以软陶怪物图集为参考，由内置 imagegen 生成的咧嘴笑、惊讶两排表情。按包子、餐盒、面碗三列裁切，保留透明通道并对齐脚底 |
 | [clay-weapons.webp](../public/assets/clay-weapons.webp) | 四列四行，十件可换武器、五种关联飞行物或展开件及装备箱。猫爪夹、纸袋、葱花盘使用已选概念造型 |
 | [clay-supplies.webp](../public/assets/clay-supplies.webp) | 四列四行，原有十三件技能道具，以及路锥、诱饵餐箱和补给箱 |
 | [clay-ultimate-fx.webp](../public/assets/clay-ultimate-fx.webp) | 内置 imagegen 生成并整理为两列四行，依次为冰晶、蒸汽卷、签收票、汽水飞沫、冰浪扇面、中空蒸汽环、奶泡喷泉、杨梅。运行时随伤害波前和真实落点组合绘制 |
@@ -16,6 +18,13 @@
 | [clay-riverside-market.webp](../public/assets/clay-riverside-market.webp) | 1600 × 900 的河畔茶市。以原河畔布局和软陶材质为参考生成，青砖、竹子和河栏保留在同机位换波画面中 |
 
 各分件的有效像素矩形随源码保存，战斗、首页和图鉴读取项目本地资源。[分件坐标](../src/render/clay-frames.ts)
+
+<details>
+<summary>骑手鞋子补充视角的生成提示词</summary>
+
+Use case: precise-object-edit. Game sprite asset: create a compact orthographic turntable of ONLY the chunky white sock-and-orange sneaker from row four, first column of the provided soft-clay toy delivery rider parts reference. Ignore the other parts of the sheet. A single image with 3 separated isolated single sneaker sprites in one horizontal row. All three are the same right shoe, all same size and level on same baseline, camera sees from approx 15 degrees above, fixed soft top-left lighting. Left third = toes pointed directly toward camera, two cream laces and rounded solid light cream toe cap. Center third = heel-pointing toward camera, toe points away, plain rounded orange heel panel with thin cream piping, cream ribbed sole and small orange heel pull loop; NO laces visible on back. Right third = rear three quarter view, heel towards our left and toes point diagonally away toward the RIGHT edge, visible orange heel and side. Original style must be preserved: handmade terracotta orange and warm off-white plasticine crossover strap sneaker with stubby cream sock, real soft clay texture, tiny molded sole grooves, charming miniature chunky shape. Each is one small SHOЕ, empty cuff at top, zero leg or body. Center each isolated sprite in its own third. Entire silhouettes included, plenty of transparent blank margin and separation. Alpha transparent background, no ground shadows, no checker, no scenery, no text, no labels.
+
+</details>
 
 ## 2026-11-19 配送员制服与技能
 

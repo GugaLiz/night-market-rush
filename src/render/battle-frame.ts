@@ -22,5 +22,6 @@ export function sampleBattleFrame(state: GameState, fraction: number): GameState
     enemies: state.enemies.map(pose),
     projectiles: state.projectiles.map(shot => shot.phase === 'chain' ? shot : pose(shot)),
     enemyShots: state.enemyShots?.map(pose),
+    ultimates: state.ultimates?.map(cast=>cast.kind==='express'?pose(cast):cast),
   };
 }

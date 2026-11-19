@@ -1,4 +1,4 @@
-import type {EnemyKind} from '../shared/types';
+import type {EnemyKind, Pickup} from '../shared/types';
 
 /** Coordinates are game units, never display pixels. All adapters use this view. */
 export const WORLD = {
@@ -49,13 +49,18 @@ export const CONFIG = {
     cones: {reach:114, spacing:52, radius:21},
   },
   spawn: {warning:.6, safeDistance:.22*S, gap:43, attempts:32, openingCount:40},
-  pickup: {radius: .027 * S, firstAt: .35, interval: 4, emptyGrace: 2, cap: 4},
-  weapons: {projectileCap:24, dropFirst:4, dropInterval:12, dropRadius:12},
+  pickup: {radius: .027 * S, reach:56, choiceReach:42, firstAt: .35, interval: 4, emptyGrace: 2, cap: 4},
+  weapons: {projectileCap:24, dropFirst:4, dropInterval:12, dropRadius:12, pickupReach:42},
   // V4 tuning values for the night-market adaptation. The video only establishes visible outcomes.
   waves: {firstDuration:36, duration:34, transition:1.65},
-  rewards: {coinGrace:.42, attractionRadius:64, attractionSpeed:320, collectRadius:13, cap:96, comboDuration:2.4},
+  rewards: {coinGrace:.42, attractionRadius:110, attractionSpeed:535, collectRadius:15, cap:96, comboDuration:2.4},
   reviveProtection: 3,
 } as const;
+
+/** Distance between the rider's feet and the drop's ground position, in world units. */
+export function pickupReach(item:Pick<Pickup,'groupId'>):number {
+  return item.groupId ? CONFIG.pickup.choiceReach : CONFIG.pickup.reach;
+}
 
 export interface Difficulty {
   stage: number;

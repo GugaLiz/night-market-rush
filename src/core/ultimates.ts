@@ -30,14 +30,11 @@ function cornerDistance(p:Vec):number {
 
 export function castUltimate(s:GameState,kind:UltimateKind,origin:Vec):void {
   // Different skills can overlap. Repeating the same skill replaces its old visual tail and hit history.
-  if(kind==='express'&&expressCast(s)?.lastMovedAt===s.time){
-    s.player.vx=0;s.player.vy=0;
-  }
   s.ultimates=(s.ultimates??[]).filter(c=>c.kind!==kind);
   const base={x:origin.x,y:origin.y,bornAt:s.time,hitIds:[]};
   if(kind==='express'){
     s.ultimates.push({...base,kind,expiresAt:s.time+EXPRESS.windup+3*(EXPRESS.leg+CONFIG.step)+EXPRESS.fade,
-      landings:[],legStart:s.time+EXPRESS.windup,target:{x:origin.x,y:origin.y},onLeg:false,lastMovedAt:-1});
+      px:origin.x,py:origin.y,landings:[],legStart:s.time+EXPRESS.windup,target:{x:origin.x,y:origin.y},onLeg:false});
     return;
   }
   const tune=WAVES[kind];
@@ -104,71 +101,55 @@ export function expressCast(s:GameState):ExpressCast|undefined {
   return s.ultimates?.find((cast):cast is ExpressCast=>cast.kind==='express');
 }
 
-export function expressLift(s:GameState):number {
-  const cast=expressCast(s);
-  return cast?.onLeg ? 49*Math.sin(Math.PI*clamp((s.time-cast.legStart)/EXPRESS.leg,0,1)) : 0;
-}
-
 function nextStop(s:GameState,cast:ExpressCast,input:Vec):Vec {
-  const b=WORLD.bounds,p=s.player;
+  const b=WORLD.bounds;
   const left=b.left+52,right=b.right-52,top=CONFIG.player.minY+28,bottom=b.bottom-50;
   let sign:number;
   if(cast.landings.length===1){
-    sign=Math.abs(p.moveDirection.x)>.28?Math.sign(p.moveDirection.x):(p.x<(left+right)/2?1:-1);
-    if((sign>0?right-p.x:p.x-left)<(right-left)*.35)sign=-sign;
-  }else sign=p.x<(left+right)/2?1:-1;
+    const facing=s.player.moveDirection.x;
+    sign=Math.abs(facing)>.28?Math.sign(facing):(cast.x<(left+right)/2?1:-1);
+    if((sign>0?right-cast.x:cast.x-left)<(right-left)*.35)sign=-sign;
+  }else sign=cast.x<(left+right)/2?1:-1;
   const center=(top+bottom)/2;
   // The outer runs occupy opposite rows with a diagonal return between them.
   const highLane=top+43,lowLane=bottom-38;
   const first=cast.landings.length===1,final=cast.landings.length===3;
-  const defaultY=final?p.y+(p.y<center?18:-18):
-    first?(p.y<center-44?highLane:lowLane):(p.y<center?lowLane:highLane);
+  const defaultY=final?cast.y+(cast.y<center?18:-18):
+    first?(cast.y<center-44?highLane:lowLane):(cast.y<center?lowLane:highLane);
   const aim=Math.min(1,Math.abs(input.y));
-  const desiredY=p.y+input.y*240;
+  const desiredY=cast.y+input.y*240;
   const edge=sign>0?right:left;
   const pullIn=clamp(-sign*input.x,0,1)*130;
   return {x:edge-sign*pullIn,y:clamp(defaultY*(1-aim)+desiredY*aim,top,bottom)};
 }
 
-/** Called in the ordinary movement slot, preserving continuous world-space segments for collisions and pickups. */
-export function moveExpress(s:GameState,input:Vec,dt:number):boolean {
-  const cast=expressCast(s),p=s.player;
-  if(!cast||s.time+1e-9<cast.bornAt+EXPRESS.windup||cast.landings.length>=4)return false;
+function updateExpress(s:GameState,cast:ExpressCast,input:Vec,dt:number,ctx:CombatContext):void {
+  cast.px=cast.x;cast.py=cast.y;
+  if(s.time+1e-9<cast.bornAt+EXPRESS.windup||cast.landings.length>=4)return;
   if(!cast.onLeg){
-    if(!cast.landings.length)cast.landings.push({x:p.x,y:p.y});
+    if(!cast.landings.length)cast.landings.push({x:cast.x,y:cast.y});
     cast.legStart=s.time-dt;
     cast.target=nextStop(s,cast,input);
     cast.hitIds=[];
     cast.onLeg=true;
   }
   const start=cast.landings[cast.landings.length-1],progress=clamp((s.time-cast.legStart)/EXPRESS.leg,0,1);
-  // Raised cosine keeps starts and exits rounded; a small linear term gives instant input response.
+  // Use the same moving parcel for the projected trail and the swept hit volume.
   const t=.30*progress+.70*(.5-.5*Math.cos(Math.PI*progress));
-  p.x=start.x+(cast.target.x-start.x)*t;
-  p.y=start.y+(cast.target.y-start.y)*t;
-  p.vx=(p.x-p.px)/dt;p.vy=(p.y-p.py)/dt;
-  const distance=Math.hypot(cast.target.x-start.x,cast.target.y-start.y)||1;
-  p.moveDirection={x:(cast.target.x-start.x)/distance,y:(cast.target.y-start.y)/distance};
-  p.facing=p.moveDirection.x<0?-1:1;
-  cast.lastMovedAt=s.time;
-  p.dashUntil=0;p.sprintTime=0;p.sprintMultiplier=1;
-  return true;
-}
-
-function updateExpress(s:GameState,cast:ExpressCast,ctx:CombatContext):void {
-  if(!cast.onLeg||cast.lastMovedAt!==s.time)return;
-  const p=s.player,start=cast.landings[cast.landings.length-1],dir=p.moveDirection;
+  const dx=cast.target.x-start.x,dy=cast.target.y-start.y,distance=Math.hypot(dx,dy)||1;
+  cast.x=start.x+dx*t;
+  cast.y=start.y+dy*t;
   const arrived=s.time+1e-9>=cast.legStart+EXPRESS.leg,leg=cast.landings.length;
   const heavy=arrived&&leg===3;
   for(const e of s.enemies){
     if(!ctx.active(e)||cast.hitIds.includes(e.id))continue;
     // Hold damage inside the final seal for touchdown so the lane cannot spend its heavier hit early.
     if(leg===3&&!arrived && Math.hypot(e.x-cast.target.x,e.y-cast.target.y)<=EXPRESS.landingRadius+e.radius)continue;
-    const touches=relativeSweep({x:p.px,y:p.py},p,{x:e.px,y:e.py},e,EXPRESS.radius+e.radius)!==null;
-    const inLanding=heavy && Math.hypot(e.x-p.x,e.y-p.y)<=EXPRESS.landingRadius+e.radius;
+    const touches=relativeSweep({x:cast.px,y:cast.py},cast,{x:e.px,y:e.py},e,EXPRESS.radius+e.radius)!==null;
+    const inLanding=heavy && Math.hypot(e.x-cast.x,e.y-cast.y)<=EXPRESS.landingRadius+e.radius;
     if(!touches&&!inLanding)continue;
-    const side=(e.y-start.y)*dir.x-(e.x-start.x)*dir.y>=0?1:-1;
-    const outward=inLanding?p:{x:e.x+side*dir.y,y:e.y-side*dir.x};
+    const side=(e.y-start.y)*dx-(e.x-start.x)*dy>=0?1:-1;
+    const outward=inLanding?cast:{x:e.x+side*dy/distance,y:e.y-side*dx/distance};
     if(ctx.damage(e,inLanding?EXPRESS.landingDamage:EXPRESS.damage,'express',Math.atan2(e.y-outward.y,e.x-outward.x))){
       cast.hitIds.push(e.id);
       if(e.hp>0){
@@ -178,20 +159,16 @@ function updateExpress(s:GameState,cast:ExpressCast,ctx:CombatContext):void {
     }
   }
   if(arrived){
-    ctx.emit({type:'ultimateBeat',kind:'express',beat:leg,x:p.x,y:p.y});
-    cast.landings.push({x:p.x,y:p.y});cast.onLeg=false;
-    if(heavy){
-      cast.expiresAt=s.time+EXPRESS.fade;
-      // Drop the leap's velocity so a held stick or an immediate stop controls the very next step.
-      p.vx=0;p.vy=0;
-    }
+    ctx.emit({type:'ultimateBeat',kind:'express',beat:leg,x:cast.x,y:cast.y});
+    cast.landings.push({x:cast.x,y:cast.y});cast.onLeg=false;
+    if(heavy)cast.expiresAt=s.time+EXPRESS.fade;
   }
 }
 
-export function updateUltimates(s:GameState,dt:number,ctx:CombatContext):void {
+export function updateUltimates(s:GameState,dt:number,ctx:CombatContext,input:Vec):void {
   if(!s.ultimates?.length)return;
   for(const cast of s.ultimates){
-    if(cast.kind==='express')updateExpress(s,cast,ctx);
+    if(cast.kind==='express')updateExpress(s,cast,input,dt,ctx);
     else updateWave(s,cast,dt,ctx);
   }
   s.ultimates=s.ultimates.filter(c=>c.expiresAt>s.time);

@@ -18,7 +18,7 @@ export function stunEnemy(e:Enemy,until:number):void {
   }
 }
 
-function wander(e:Enemy,time:number,ctx:CombatContext):{x:number;y:number} {
+function wander(e:Enemy,time:number,dt:number,ctx:CombatContext):{x:number;y:number} {
   if(e.wanderAngle===undefined || time>=(e.wanderUntil??0)){
     e.wanderAngle=e.wanderAngle===undefined?ctx.random()*Math.PI*2:e.wanderAngle+(ctx.random()-.5)*Math.PI*1.25;
     e.wanderUntil=time+1.3+ctx.random()*1.8;
@@ -28,7 +28,11 @@ function wander(e:Enemy,time:number,ctx:CombatContext):{x:number;y:number} {
   if((x<0&&e.x<b.left+margin)||(x>0&&e.x>b.right-margin))x=-x;
   if((y<0&&e.y<b.top+margin)||(y>0&&e.y>b.bottom-margin))y=-y;
   e.wanderAngle=Math.atan2(y,x);
-  return {x,y};
+  const heading=e.wanderHeading??e.wanderAngle;
+  const delta=e.wanderAngle-heading;
+  const turn=Math.atan2(Math.sin(delta),Math.cos(delta));
+  e.wanderHeading=heading+clamp(turn,-2.8*dt,2.8*dt);
+  return {x:Math.cos(e.wanderHeading),y:Math.sin(e.wanderHeading)};
 }
 
 function fireSoupShot(s:GameState, e:Enemy, ctx:CombatContext):boolean {
@@ -49,13 +53,17 @@ export function updateEnemies(s:GameState,dt:number,speedScale:number,ctx:Combat
   let reservations=s.enemies.filter(e=>e.kind==='box'&&(e.phase==='warn'||e.phase==='dash')).length;
   let shotReservations=s.enemies.filter(e=>e.kind==='bowl'&&((e.shotWarnUntil??0)>0||(e.volleyRemaining??0)>0)).length;
   for(const e of s.enemies){
+    const lastDx=e.x-e.px,lastDy=e.y-e.py;
     e.px=e.x;e.py=e.y;damage.set(e.id,CONFIG.enemies[e.kind].damage);
     if(e.kind==='giantBun'){updateGiant(s,e,ctx);continue;}
     if(!ctx.active(e))continue;
     const playerDistance=Math.hypot(p.x-e.x,p.y-e.y),awareness=CONFIG.awareness[e.kind];
     const previousAlert=e.alerted;
     e.alerted=playerDistance<=(previousAlert?awareness.release:awareness.notice);
-    if(previousAlert&&!e.alerted)delete e.wanderAngle;
+    if(previousAlert&&!e.alerted){
+      delete e.wanderAngle;
+      if(lastDx||lastDy)e.wanderHeading=Math.atan2(lastDy,lastDx);
+    }
     const lured=e.lureX!==undefined&&e.lureY!==undefined;
     const pursuing=e.alerted&&!lured;
     if(e.kind==='bowl'&&(!pursuing||e.stunUntil>s.time)){
@@ -76,9 +84,15 @@ export function updateEnemies(s:GameState,dt:number,speedScale:number,ctx:Combat
       dx=march.x;dy=march.y;
     }else if(pursuing){
       if(playerDistance>0){dx=(p.x-e.x)/playerDistance;dy=(p.y-e.y)/playerDistance;}
-      if(e.kind==='bun'&&e.id%3!==0)speed*=1.38;
+      if(e.kind==='bun'&&e.id%3!==0){
+        const beat=s.time*(2.8+e.id%4*.21)+e.id*2.4;
+        const arc=clamp((playerDistance-30)/90,0,1)*Math.sin(beat)*.40;
+        const cos=Math.cos(arc),sin=Math.sin(arc);
+        [dx,dy]=[dx*cos-dy*sin,dx*sin+dy*cos];
+        speed*=1.38*(1+.09*Math.cos(beat*2));
+      }
     }else{
-      const direction=wander(e,s.time,ctx);dx=direction.x;dy=direction.y;speed*=.55;
+      const direction=wander(e,s.time,dt,ctx);dx=direction.x;dy=direction.y;speed*=.55;
     }
     if(e.kind==='box'){
       if(e.phase==='warn'&&!pursuing){e.phase='chase';e.phaseUntil=s.time+CONFIG.dash.approach;reservations--;}

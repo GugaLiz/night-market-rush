@@ -39,7 +39,9 @@ export class WebInput {
     listen(surface,'pointermove',this.pointerMove as EventListener,{passive:false});
     listen(surface,'pointerup',this.pointerEnd as EventListener);
     listen(surface,'pointercancel',this.pointerEnd as EventListener);
-    listen(surface,'lostpointercapture',this.pointerEnd as EventListener);
+    listen(surface,'lostpointercapture',this.captureLost as EventListener);
+    listen(window,'pointerup',this.pointerEnd as EventListener,{capture:true});
+    listen(window,'pointercancel',this.pointerEnd as EventListener,{capture:true});
     listen(surface,'pointerleave',this.pointerLeave as EventListener);
     listen(window,'deviceorientation',this.orientation as EventListener);
     listen(window,'orientationchange',this.screenChanged);
@@ -65,7 +67,8 @@ export class WebInput {
     const now=performance.now();const dt=Math.min(0.1,Math.max(0,(now-this.filterAt)/1000));this.filterAt=now;
     const dx=this.raw.x-this.neutral.x,dy=this.raw.y-this.neutral.y,angle=Math.hypot(dx,dy);
     const strength=Math.min(1,Math.max(0,angle-2)/13*SENSITIVITY[this.settings.sensitivity]);
-    const target=angle?{x:dx/angle*strength,y:dy/angle*strength}:{x:0,y:0};
+    if(strength===0){this.filtered={x:0,y:0};return {...this.filtered};}
+    const target={x:dx/angle*strength,y:dy/angle*strength};
     const reversing=this.filtered.x*target.x+this.filtered.y*target.y<0;
     const alpha=1-Math.exp(-dt/(reversing?.020:.045));
     this.filtered.x+=(target.x-this.filtered.x)*alpha;this.filtered.y+=(target.y-this.filtered.y)*alpha;
@@ -103,7 +106,7 @@ export class WebInput {
     if(['Space','ShiftLeft','ShiftRight'].includes(e.code)){
       e.preventDefault();if(!e.repeat&&!this.keys.has(e.code)){this.keys.add(e.code);this.onDash?.();}return;
     }
-    if(KEY_DIRECTIONS[e.code]){e.preventDefault();this.keys.add(e.code);}
+    if(KEY_DIRECTIONS[e.code]){e.preventDefault();if(!e.repeat)this.keys.add(e.code);}
   };
   private keyUp=(e:KeyboardEvent)=>{this.keys.delete(e.code);};
   private pointerDown=(e:PointerEvent)=>{
@@ -115,7 +118,9 @@ export class WebInput {
     this.onJoystick?.({active:true,x,y,dx:0,dy:0});
   };
   private pointerMove=(e:PointerEvent)=>{
-    if(e.pointerId!==this.pointer||!this.enabled)return;e.preventDefault();
+    if(e.pointerId!==this.pointer||!this.enabled)return;
+    if(e.pointerType==='mouse'&&(e.buttons&1)===0){this.releaseJoystick();return;}
+    e.preventDefault();
     const rect=this.surface.getBoundingClientRect();
     const radius=RADII[this.settings.joystickSize]*.62;
     const x=e.clientX-rect.left,y=e.clientY-rect.top;
@@ -130,6 +135,7 @@ export class WebInput {
     this.onJoystick?.({active:true,x:this.origin.x,y:this.origin.y,dx:knobX,dy:knobY});
   };
   private pointerEnd=(e:PointerEvent)=>{if(e.pointerId===this.pointer)this.releaseJoystick();};
+  private captureLost=(e:PointerEvent)=>{if(e.target===this.surface)this.pointerEnd(e);};
   private pointerLeave=(e:PointerEvent)=>{if(e.pointerId===this.pointer&&!this.surface.hasPointerCapture(e.pointerId))this.releaseJoystick();};
   private loseFocus=()=>{this.clear();if(this.enabled)this.onPause();};
   private visibility=()=>{if(document.hidden)this.loseFocus();};

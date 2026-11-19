@@ -22,7 +22,7 @@ try {
     window.paintedNumbers = [];
     ctx.clearRect = (...args) => {window.paintedNumbers.length=0; return clear(...args);};
     ctx.fillText = (str,...args) => {
-      if (/^(54|108|120|\d+段)$/.test(str)) window.paintedNumbers.push({text:str,alpha:ctx.globalAlpha});
+      if (/^(−54|−108|−120|\d+段)$/.test(str)) window.paintedNumbers.push({text:str,alpha:ctx.globalAlpha});
       return fill(str,...args);
     };
   });
@@ -38,7 +38,7 @@ try {
     for(let i=0;i<90;i++){
       await page.clock.runFor(32);
       const state=await sample();
-      if(!state.labels.some(label=>label.text===String(amount)))continue;
+      if(!state.labels.some(label=>label.text==='−'+amount))continue;
       hit=state;break;
     }
     assert.ok(hit, 'Missing painted total '+amount);
@@ -50,7 +50,7 @@ try {
   }
   await page.clock.runFor(1824);
   const linger=await sample(), killed=readings.at(-1);
-  const getAlpha = state => state.labels.find(label=>label.text==='120')?.alpha;
+  const getAlpha = state => state.labels.find(label=>label.text==='−120')?.alpha;
   assert.ok(getAlpha(linger)>.70 && getAlpha(linger)<1);
   frames.push({shot:(await capture()).toString('base64'),caption:'击败后 '+(linger.time-killed.time).toFixed(2)+' 秒'});
   await page.clock.runFor(464);

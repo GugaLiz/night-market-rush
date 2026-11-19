@@ -48,6 +48,35 @@ test('Space and Shift dash uses last direction, respects cooldown, and freezes i
 
 test.describe('touch dash',()=>{
   test.use({viewport:{width:844,height:390},hasTouch:true,isMobile:true});
+  test('canceling a touch stops the rider while their parcel keeps delivering, and the next touch can reverse',async({page,context})=>{
+    const start=new Date('2026-01-01T00:00:00Z');
+    await page.clock.install({time:start});
+    await page.clock.pauseAt(new Date(+start+1000));
+    await page.goto('/');
+    await page.getByRole('button',{name:'配送试验场',exact:true}).click({force:true});
+    await page.getByRole('button',{name:'加急三连送',exact:true}).click({force:true});
+    const rect=(await page.locator('#game-shell').boundingBox())!;
+    const cdp=await context.newCDPSession(page);
+    const origin={x:rect.x+rect.width*.25,y:rect.y+rect.height*.70,id:1};
+    await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[origin]});
+    await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{...origin,x:origin.x+75}]});
+    await page.clock.runFor(224);
+    const moving=await state(page);
+    expect(moving.ultimates?.some(c=>c.kind==='express')).toBe(true);
+    await cdp.send('Input.dispatchTouchEvent',{type:'touchCancel',touchPoints:[]});
+    await page.clock.runFor(64);
+    const stopped=(await state(page)).player;
+    expect(stopped.x-moving.player.x).toBeLessThan(2);
+    await page.clock.runFor(176);
+    const inFlight=await state(page);
+    expect(inFlight.player.x).toBe(stopped.x);
+    expect(inFlight.ultimates?.some(c=>c.kind==='express'&&c.landings.length>=2)).toBe(true);
+    await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{...origin,id:2}]});
+    await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{...origin,id:2,x:origin.x-65}]});
+    await page.clock.runFor(112);
+    expect((await state(page)).player.x).toBeLessThan(stopped.x-20);
+    await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});await cdp.detach();
+  });
   test('second finger dashes without releasing joystick and portrait blocks dash',async({page,context},info)=>{
     await practice(page);
     const rect=(await page.locator('#game-shell').boundingBox())!,button=(await page.locator('#dash-button').boundingBox())!;

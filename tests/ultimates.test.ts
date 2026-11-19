@@ -101,23 +101,23 @@ describe('clay delivery ultimates',()=>{
     ticks(g,15);expect(e.hp).toBe(400-WAVES.berry.damage-WAVES.steamer.damage);
   });
 
-  it('moves the rider along three swept lanes, collects items en route, lets each bend receive input and hands control back immediately',()=>{
+  it('sends the parcel along three steered lanes while the rider can turn, stop and leave distant pickups alone',()=>{
     const g=lab(),s=g.state,p=s.player;
     const onRoute=target(g,895,370),outside=target(g,640,190);
-    s.pickups.push({id:700,kind:'stamp',x:984,y:370,radius:CONFIG.pickup.radius,bornAt:0});
+    onRoute.y=onRoute.py=444;
+    s.pickups.push({id:700,kind:'stamp',x:984,y:472,radius:CONFIG.pickup.radius,bornAt:0});
     g.triggerSkill('express');
     const route=expressCast(s)!;
     const beats:number[]=[];
     for(let i=0;i<68;i++){
-      let input:Vec={x:0,y:0};
-      // First leg uses the natural arc. Move the two waypoints by steering at the next takeoff.
-      if(route.landings.length===1 || !route.landings.length)input={x:1,y:0};
+      let input:Vec=still;
+      if(route.landings.length===1 && i<12)input={x:1,y:0};
       else if(route.landings.length===2)input={x:0,y:1};
-      else input={x:0,y:-1};
-      if(!route.landings.length){onRoute.y=onRoute.py=444;s.pickups[0].y=472;}
+      else if(route.landings.length===3)input={x:0,y:-1};
       const last={x:p.x,y:p.y};
       ticks(g,1,input);
-      expect(Math.hypot(last.x-p.x,last.y-p.y)).toBeLessThan(135);
+      expect(Math.hypot(last.x-p.x,last.y-p.y)).toBeLessThan(6.1);
+      if(i===15)expect([p.vx,p.vy]).toEqual([0,0]);
       for(const event of g.drainEvents())if(event.type==='ultimateBeat')beats.push(event.beat);
       if(beats.length===3)break;
     }
@@ -129,7 +129,7 @@ describe('clay delivery ultimates',()=>{
     expect(route.landings[2].y).toBeGreaterThan(route.landings[1].y);
     expect(route.landings[3].y).toBeLessThan(route.landings[2].y);
     expect(onRoute.hp).toBeLessThan(400);
-    expect(p.stampUntil).toBeGreaterThan(s.time);
+    expect(p.stampUntil).toBe(0);expect(s.pickups.map(q=>q.id)).toContain(700);
     expect(outside.hp).toBe(400);
     expect(p.hp).toBe(100);
     const lastX=p.x;
@@ -137,23 +137,24 @@ describe('clay delivery ultimates',()=>{
     expect(g.dash({x:-1,y:0})).toBe(true);
   });
 
-  it('damages every enemy swept in a crossed tick and suppresses contact only during the jump',()=>{
+  it('sweeps enemies at the parcel and accepts a manual dash in the middle of its flight',()=>{
     const g=lab(),s=g.state,p=s.player;
     p.x=200;p.y=280;p.moveDirection={x:1,y:0};
     g.triggerSkill('express');
-    expect(g.dash()).toBe(false);
     ticks(g,10);
+    expect({x:p.x,y:p.y}).toEqual({x:200,y:280});
+    expect(g.dash({x:0,y:-1})).toBe(true);
     const route=expressCast(s)!,start=route.landings[0];
     const at={x:start.x+(route.target.x-start.x)*.57,y:start.y+(route.target.y-start.y)*.57};
     const e=target(g,at.x,at.y);
-    for(let i=0;i<8;i++)ticks(g,1);
+    for(let i=0;i<8;i++)ticks(g,1,{x:0,y:-1});
     expect(e.hp).toBe(400-EXPRESS.damage);
-    expect(p.hp).toBe(100);
+    expect(p.x).toBe(200);expect(p.y).toBeLessThan(230);
     while(route.landings.length<4)ticks(g,1);
     target(g,p.x,p.y);ticks(g,1);expect(p.hp).toBeLessThan(100);
   });
 
-  it('preserves contact protection along a jump that picks up another express ticket, then exposes its new windup',()=>{
+  it('keeps normal contact at the rider while a fresh ticket replaces a flying parcel',()=>{
     const g=lab(),s=g.state,p=s.player;
     const shot=()=>({id:9001,ownerId:42,x:p.x,y:p.y,px:p.x,py:p.y,vx:0,vy:0,
       radius:6,damage:8,bornAt:s.time,expiresAt:s.time+2});
@@ -161,9 +162,9 @@ describe('clay delivery ultimates',()=>{
     const previous=expressCast(s)!;expect(previous.onLeg).toBe(true);
     s.pickups.push({id:9000,kind:'express',x:p.x,y:p.y,radius:CONFIG.pickup.radius,bornAt:s.time});
     s.enemyShots=[shot()];ticks(g,1);
-    expect(p.hp).toBe(100);expect(s.enemyShots).toHaveLength(0);
+    expect(p.hp).toBe(92);expect(s.enemyShots).toHaveLength(0);
     expect(expressCast(s)!.bornAt).toBe(s.time);expect(expressCast(s)!.onLeg).toBe(false);
-    s.enemyShots=[shot()];ticks(g,1);expect(p.hp).toBe(92);
+    expect(p.x).toBe(WORLD.start.x);expect(p.y).toBe(WORLD.start.y);
   });
 
   it.each(ULTIMATE_KINDS)('%s strikes a grounded elite while the same hit passes below an airborne giant',kind=>{
@@ -200,7 +201,7 @@ describe('clay delivery ultimates',()=>{
     expect(e.hp).toBe(400-EXPRESS.landingDamage);
   });
 
-  it('lets the rider pull back a landing before the second takeoff without rerouting midair',()=>{
+  it('lets the rider steer the next parcel landing while their own midair inputs still change walking direction',()=>{
     const secondStop=(stickX:number)=>{
       const game=lab();game.triggerSkill('express');const route=expressCast(game.state)!;
       while(route.landings.length<2)ticks(game,1);
@@ -246,7 +247,10 @@ describe('clay delivery ultimates',()=>{
       items.sort((a,b)=>Number(isUltimate(b.kind))-Number(isUltimate(a.kind))||range(a)-range(b));
       const goal=items[0]??{x:640+380*Math.cos(s.time*.43),y:390+150*Math.sin(s.time*.64)};
       const distance=range(goal)||1;
-      ticks(g,1,{x:(goal.x-p.x)/distance,y:(goal.y-p.y)/distance});
+      const direction={x:(goal.x-p.x)/distance,y:(goal.y-p.y)/distance};
+      const threatened=s.enemies.some(e=>range(e)<e.radius+35)||s.enemyShots?.some(q=>range(q)<q.radius+35);
+      if(threatened&&p.invulnerableUntil<=s.time)g.dash(direction);
+      ticks(g,1,direction);
       for(const ev of g.drainEvents())if(ev.type==='pickup'&&isUltimate(ev.kind))found.push(ev.kind);
       if(s.wave===2&&s.enemies.some(e=>e.kind==='giantBun'))sawElite=true;
       if(s.ended)g.revive();

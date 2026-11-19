@@ -14,7 +14,7 @@ function swingTravel(t:number):number {
 }
 // Time before the fixed support shoe leaves the pelvis's reachable stride ellipse.
 function supportTime(foot:Vec,home:Vec,p:Player,scale:number):number {
-  const horizontal=21*scale,vertical=(p.vy<0?9:19)*scale;
+  const horizontal=24*scale,vertical=(p.vy<0?19:22)*scale;
   const x=(foot.x-home.x)/horizontal,y=(foot.y-home.y)/vertical;
   const vx=-p.vx/horizontal,vy=-p.vy/vertical,speed=vx*vx+vy*vy;
   if(speed<1e-6)return Infinity;
@@ -81,7 +81,7 @@ export class CourierGait {
     const depth=walking?Math.abs(p.vy)/speed:0;
     // A depth step appears shorter in the overhead view. Shift its centre slightly
     // up-screen, keeping the near-side knee clear of full extension at touchdown.
-    const depthOffset=depth*running*5.2*scale;
+    const depthOffset=depth*running*2.1*scale;
     rightHome.y-=depthOffset;leftHome.y-=depthOffset;
     // Reverse from the airborne shoe's current position and finish a short pivot
     // step. Landing at the old forward target would strand both legs behind the turn.
@@ -106,7 +106,7 @@ export class CourierGait {
         const foot=side===1?this.right:this.left;
         const home=side===1?rightHome:leftHome;
         const support=side===1?this.left:this.right,supportHome=side===1?leftHome:rightHome;
-        const duration=walking?Math.min(pivot?.064:clamp(scale*(10+20*running)*(1-.16*depth)/speed,.075,.29),
+        const duration=walking?Math.min(pivot?.083:clamp(scale*(11+25*running)*(1-.10*depth)/speed,.10,.29),
           Math.max(.047,supportTime(support,supportHome,p,scale)+dt)):.14;
         // The game position is already at the end of this frame. Predict a
         // world-space touchdown half a support phase ahead of the body.
@@ -114,7 +114,7 @@ export class CourierGait {
         const lead=walking?Math.max(0,1.5*duration-age-dt):0;
         this.swing={side,start:{...foot},end:{x:home.x+p.vx*lead,y:home.y+p.vy*lead},age,duration,
           heading:walking?{x:p.vx/speed,y:p.vy/speed}:{x:0,y:0},
-          height:pivot?3.5:walking?2.3+9.5*Math.sqrt(running):Math.min(4.6,error/scale*.32)};
+          height:pivot?3:walking?2.2+7.5*Math.sqrt(running)*(1-.12*depth):Math.min(3.6,error/scale*.28)};
         this.next=side===1?-1:1;
       }else this.carry=0;
     }
@@ -147,10 +147,10 @@ export class CourierGait {
     foot.y=swing.start.y+(swing.end.y-swing.start.y)*step;
     const arc=Math.sin(Math.PI*t);
     foot.lift=(1-step)*swing.start.lift+arc**1.35*swing.height*(1+.16*Math.cos(Math.PI*t));
-    foot.pitch=(1-step)*swing.start.pitch+Math.sin(Math.PI*2*t)*arc*(.16+.36*this.drive);
+    foot.pitch=(1-step)*swing.start.pitch+Math.sin(Math.PI*2*t)*arc*(.14+.22*this.drive);
     stance.lift=follow(stance.lift,0,dt,.028);stance.pitch=follow(stance.pitch,0,dt,.035);
     this.weight=follow(this.weight,-swing.side*arc*Math.max(.32,this.drive),dt,.043);
-    this.rise=follow(this.rise,(1.8-4.3*arc)*this.drive,dt,.035);
+    this.rise=follow(this.rise,(1.1-3.3*arc)*this.drive,dt,.04);
     if(t===1){this.swing=null;this.carry=Math.min(dt,swing.age-swing.duration);}
   }
 }

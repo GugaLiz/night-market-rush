@@ -410,3 +410,56 @@
 - **实现/结果**：角色骨架、十款武器、十七种道具、两张夜市场景接入软陶资源。四招沿真实波前和落点扣血，向前半屏冰封、全场蒸汽、可调整落点的三连送、汽水冲击均有同步音效。三种普通怪各有可读攻击线，巨包在偶数波次出现，第三跳保留可穿的缺口和落地反击窗。首页和配送试验场提供正式挑战、四招与巨包试打。
 - **验证**：237项Vitest、16项桌面Chrome端到端、7项服务测试、tsc和Vite通过。正式4173资源哈希与dist一致，操作走通且无控制台或HTTP错误。844×390 Chrome模拟触控拾齐四招，验证专属音效、暂停和转屏。另验跑动接盘、累计伤害、冰铃相互作用、空中精英免伤、重复拾单和十分钟百怪上限。截图位于docs/verification/clay。
 - **风险/后续**：移动端使用Chrome触控模拟；传感器与真机性能仍需在设备上体验。
+## 2026-11-19 16:00:35 +08:00 — fix
+
+- **摘要**：修正骑手步态与移动失控，扩大拾取距离，给三种小怪加入表情和清晰的软陶血条。
+- **涉及文件**：
+  - `agentchanges/CHANGELOG.md`
+  - `docs/art-directions/chibi/combat-fx/README.md`
+  - `docs/ASSET_PROVENANCE.md`
+  - `docs/verification/clay/courier-gait.webp`
+  - `docs/verification/clay/enemy-expressions.webp`
+  - `docs/verification/clay/enemy-health.webp`
+  - `docs/verification/clay/enemy-opening.webp`
+  - `docs/verification/clay/enemy-sweep.webp`
+  - `docs/verification/clay/ultimates.webp`
+  - `public/assets/clay-enemy-faces.webp`
+  - `public/assets/clay-shoe-views.webp`
+  - `scripts/verify-clay-actors.mjs`
+  - `scripts/verify-clay-footwork.mjs`
+  - `scripts/verify-clay-ultimates.mjs`
+  - `scripts/verify-damage-stack.mjs`
+  - `scripts/verify-enemy-vitals.mjs`
+  - `src/core/config.ts`
+  - `src/core/enemies.ts`
+  - `src/core/game.ts`
+  - `src/core/rewards.ts`
+  - `src/core/skills.ts`
+  - `src/core/ultimates.ts`
+  - `src/main.ts`
+  - `src/platform/input.ts`
+  - `src/render/assets.ts`
+  - `src/render/battle-frame.ts`
+  - `src/render/character.ts`
+  - `src/render/clay-frames.ts`
+  - `src/render/courier-gait.ts`
+  - `src/render/damage-labels.ts`
+  - `src/render/delivery-skills.ts`
+  - `src/render/enemy-clay-fx.ts`
+  - `src/render/enemy-vitals.ts`
+  - `src/render/renderer.ts`
+  - `src/render/ultimate-fx.ts`
+  - `src/shared/types.ts`
+  - `src/ui/catalog.ts`
+  - `tests/damage-labels.test.ts`
+  - `tests/e2e/game.spec.ts`
+  - `tests/e2e/v3-movement.spec.ts`
+  - `tests/enemy-awareness.test.ts`
+  - `tests/pickup-reach.test.ts`
+  - `tests/platform.test.ts`
+  - `tests/ultimates.test.ts`
+  - `tests/v4-core.test.ts`
+- **原因/目标**：试玩中鞋尖和小腿断开，拾单可能突然拉动角色，近距离漏捡道具，怪物动作单一且余血难以辨认。
+- **实现/结果**：修复小腿旋转与鞋口铰接并抬高手中取餐夹。三连送改为快递包独立折返，方向冲刺可松手刹车，触摸取消、失焦和倾斜回正清除旧输入。道具拾取距离56，补给和换装42，金币吸附110。游荡逐渐转向，包子差异化弧线追击。包子、盒怪与碗怪各有三种表情，余血胶囊持续显示，群杀时仅预留一个空血条和最多三组累计伤害。
+- **验证**：244项Vitest、17项Chrome端到端、7项HTTP、TypeScript和Vite通过。修正端到端复活测试受到残留火场击退干扰的布置后全套重跑通过。384次实机画布采样的鞋口与小腿末端均对齐；普通挑战横屏触控距道具42单位擦过仍拾取，松手余移1.60后停稳，反打成功。绘制验证九种脸、10/30与−20、同帧30击杀；四大招横屏实测触发，正式4173页面加载的脚本与两份新图集均逐字节匹配dist。
+- **风险/后续**：移动端基于Chrome触控和模拟传感器验收，未验证实体手机。

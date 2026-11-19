@@ -78,6 +78,20 @@ export function drawEnemyAttackGround(c:Canvas,e:Enemy,time:number,settings:Sett
   }
 }
 
+export function enemyExpression(e:Enemy,time:number):string {
+  const hurt=time-e.hurtAt<.16,low=e.hp<=e.maxHp*.35;
+  if(e.kind==='giantBun'||e.kind==='bun'){
+    if(hurt)return 'bunHurt';
+    if(low)return 'bunLow';
+    if(e.kind==='giantBun')return 'giantBun';
+  }
+  if(e.stunUntil>time||hurt||e.phase==='recover')return e.kind+'Curious';
+  if(e.phase==='warn'||e.phase==='dash'||(e.shotWarnUntil??0)>time||(e.volleyRemaining??0)>0)return e.kind;
+  if(e.lureX!==undefined)return e.kind+'Grin';
+  const mood=e.id%3;
+  return mood===0?e.kind:mood===1?e.kind+'Grin':e.kind+'Curious';
+}
+
 export function getEnemyAttackPose(e:Enemy,time:number,settings:Settings){
   const pose={lift:0,scaleX:1,scaleY:1,tilt:0};
   const j=e.jump,amount=settings.reduceMotion?.38:1;
@@ -98,6 +112,22 @@ export function getEnemyAttackPose(e:Enemy,time:number,settings:Settings){
   }else if(e.kind==='bowl' && (e.shotWarnUntil??0)>time){
     const u=clamp(1-((e.shotWarnUntil??time)-time)/CONFIG.ranged.warning,0,1);
     pose.tilt=-e.facing*.13*u*amount;pose.scaleY+=.05*u*amount;
+  }else if(!settings.reduceMotion && e.kind!=='giantBun' && e.stunUntil<=time && (e.chilledUntil??0)<=time &&
+    e.phase!=='recover' && (e.volleyRemaining??0)===0){
+    const pace=e.alerted?1.42:1;
+    const phase=(time-e.spawnAt)*(e.kind==='bun'?7.6:e.kind==='box'?8.9:5.6)*pace+e.id*2.4;
+    const wave=Math.sin(phase);
+    const resting=(e.march && !e.march.x && !e.march.y) ||
+      (e.lureX!==undefined && Math.hypot(e.lureX-e.x,(e.lureY??e.y)-e.y)<24);
+    if(resting){
+      pose.scaleY+=.016*Math.sin(time*2.8+e.id);
+    }else{
+      const hop=Math.max(0,wave);
+      pose.lift=hop*(e.kind==='bun'?5.4:e.kind==='box'?2.0:1.6)*pace;
+      const squash=e.kind==='bun'?.055:.021;
+      pose.scaleX-=wave*squash;pose.scaleY+=wave*squash;
+      pose.tilt=e.facing*Math.cos(phase)*(e.kind==='box'?.077:e.kind==='bowl'?.048:.038);
+    }
   }
   return pose;
 }
@@ -194,24 +224,6 @@ export function drawSoupShot(c:Canvas,q:EnemyShot){
   c.beginPath();c.moveTo(-19,0);c.bezierCurveTo(-6,-3,-1,-10,6,-7);
   c.bezierCurveTo(16,-2,10,10,2,7);c.bezierCurveTo(-5,6,-8,2,-19,0);c.closePath();c.fill();c.stroke();
   c.fillStyle='#fff5bf';c.beginPath();c.ellipse(3,-3,4,1.9,-.24,0,turn);c.fill();c.restore();
-}
-
-export function drawEnemyVitals(c:Canvas,e:Enemy,headY:number,numbered:boolean){
-  const giant=e.kind==='giantBun',width=giant?102:numbered?64:36,height=numbered?15:6;
-  const left=e.x-width/2,y=Math.max(WORLD.bounds.top-30,headY-height/2);
-  const fill=(width-4)*clamp(e.hp/e.maxHp,0,1);
-  c.save();c.lineWidth=numbered?1.8:1;c.fillStyle='#583b35';c.strokeStyle='#eac296';
-  c.beginPath();c.roundRect(left,y,width,height,height/2);c.fill();c.stroke();
-  if(fill>.15){
-    c.fillStyle='#fa9764';c.beginPath();c.roundRect(left+2,y+2,fill,height-4,Math.min(fill/2,(height-4)/2));c.fill();
-  }
-  if(numbered){
-    c.textAlign='center';c.textBaseline='middle';c.font='bold 11px system-ui,sans-serif';
-    const readout=Math.ceil(e.hp)+'/'+e.maxHp;
-    c.lineWidth=2;c.strokeStyle='#4c322c';c.strokeText(readout,e.x,y+height*.52);
-    c.fillStyle='#fff6dc';c.fillText(readout,e.x,y+height*.52);
-  }
-  c.restore();
 }
 
 export function drawIceShell(c:Canvas,x:number,feet:number,height:number){

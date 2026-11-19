@@ -13,11 +13,14 @@ page.on('pageerror',e=>errors.push(e.message));
 await page.routeWebSocket(url=>url.searchParams.has('token'),socket=>socket.onMessage(()=>{}));
 await page.addInitScript(()=>{
   window.renderedUltimateTiles=new Set();
+  window.flyingParcelX=[];
   const original=CanvasRenderingContext2D.prototype.drawImage;
   CanvasRenderingContext2D.prototype.drawImage=function(image,...args){
     if(this.canvas.id==='game-canvas' && image instanceof HTMLImageElement && image.src.endsWith('clay-ultimate-fx.webp') && args.length===8){
       window.renderedUltimateTiles.add(Math.round(args[0]/args[2])+2*Math.round(args[1]/args[3]));
     }
+    if(this.canvas.id==='game-canvas' && image instanceof HTMLImageElement && image.src.endsWith('clay-courier-rig.webp') &&
+      args.length===8 && args[0]===789 && args[1]===779 && args[7]===48)window.flyingParcelX.push(this.getTransform().e/this.canvas.width);
     return original.call(this,image,...args);
   };
 });
@@ -30,7 +33,7 @@ try{
   await button('配送试验场');
   for(const [kind,label,delay,tiles] of [
     ['icebox','保冷箱冰浪',426,[0,4]],['steamer','蒸笼开席',532,[1,5]],
-    ['express','加急三连送',858,[2]],['berry','杨梅汽水炸屏',432,[3,6,7]],
+    ['express','加急三连送',736,[2]],['berry','杨梅汽水炸屏',432,[3,6,7]],
   ]){
     // Place the same material targets every run, then activate through the real laboratory control.
     const starting=await page.evaluate(kind=>{
@@ -45,7 +48,8 @@ try{
         e.shotReadyAt=s.time+6;e.phaseUntil=s.time+6;
       }
       window.renderedUltimateTiles.clear();
-      return {kills:s.kills,health:s.enemies.reduce((sum,e)=>sum+e.hp,0)};
+      window.flyingParcelX=[];
+      return {kills:s.kills,health:s.enemies.reduce((sum,e)=>sum+e.hp,0),rider:{x:s.player.x,y:s.player.y}};
     },kind);
     await page.getByLabel('试验技能',{exact:true}).selectOption(kind);
     await button('触发并体验');
@@ -53,13 +57,20 @@ try{
     const data=await page.evaluate(kind=>{
       const s=window.__gameTest.snapshot(),cast=s.ultimates?.find(c=>c.kind===kind);
       return {active:!!cast,time:s.time,kills:s.kills,health:s.enemies.reduce((sum,e)=>sum+e.hp,0),
-        stamps:[...window.renderedUltimateTiles],landings:cast?.landings?.length,
+        stamps:[...window.renderedUltimateTiles],landings:cast?.landings?.length,parcelX:window.flyingParcelX,rider:{x:s.player.x,y:s.player.y},
         image:document.querySelector('#game-canvas').toDataURL('image/webp',.94)};
     },kind);
     assert.ok(data.active,kind+' is active in this frame');
     assert.ok(tiles.every(tile=>data.stamps.includes(tile)),kind+' drew its clay textures');
     assert.ok(data.health<starting.health,kind+' caused real HP damage');
-    if(kind==='express')assert.equal(data.landings,4,'all three landings completed before the sample');
+    if(kind==='express'){
+      assert.equal(data.landings,3,'the final delivery is in flight in the captured frame');
+      assert.ok(Math.min(...data.parcelX)<.25&&Math.max(...data.parcelX)>.75,'the visible parcel crosses the street');
+      assert.deepEqual(data.rider,starting.rider,'an idle rider remains at the chosen spot');
+      await page.clock.runFor(144);
+      const landed=await page.evaluate(()=>window.__gameTest.snapshot().ultimates.find(c=>c.kind==='express').landings.length);
+      assert.equal(landed,4,'all three landings completed');
+    }
     reports.push({kind,kills:data.kills-starting.kills,hpRemoved:starting.health-data.health,tiles:data.stamps});
     captures.push({label,image:data.image});
     await page.clock.runFor(3456);

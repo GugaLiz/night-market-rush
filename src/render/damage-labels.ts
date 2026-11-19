@@ -1,9 +1,10 @@
-import {WORLD} from '../core/config';
+import {CONFIG, WORLD} from '../core/config';
 import {giantJumpHeight} from '../core/giant-bun';
 import {clamp} from '../core/geometry';
 import type {DamageSource, EnemyKind, GameEvent, GameState} from '../shared/types';
 import type {Assets} from './assets';
 import {drawSprite} from './sprite';
+import {drawEnemyVitals, layoutEnemyVitals, type EnemyVitals, type FallenEnemy} from './enemy-vitals';
 
 export const DAMAGE_LABEL_LAYOUT = {
   detailTtl: 3.2, deathTtl: 2.4, playerTtl: 1.05,
@@ -36,6 +37,8 @@ export class DamageLabels {
   private playerDamage: Hit | null = null;
   private playerHeal: Hit | null = null;
   private visible: DamageLabelGroup[] = [];
+  private fallen: (Omit<FallenEnemy,'age'> & {at:number})[] = [];
+  private vitals: EnemyVitals[] = [];
 
   reset(): void {
     this.clock = 0;
@@ -44,6 +47,8 @@ export class DamageLabels {
     this.highestId = -1;
     this.playerDamage = this.playerHeal = null;
     this.visible = [];
+    this.vitals = [];
+    this.fallen = [];
   }
 
   add(event: GameEvent): void {
@@ -54,6 +59,8 @@ export class DamageLabels {
         group.anchorX = event.x;
         group.anchorY = event.y - enemyHeight(event.kind);
         group.bodyY = event.y-28;
+        this.fallen.push({id:group.id,x:event.x,y:event.y,kind:event.kind,
+          maxHp:event.maxHp??CONFIG.enemies[event.kind].hp,at:this.clock});
       }
       return;
     }
@@ -118,6 +125,8 @@ export class DamageLabels {
         heal, amount: hit.amount, count: 1, recent: [], alpha: clamp((DAMAGE_LABEL_LAYOUT.playerTtl-age)/.25,0,1), age, compact: false, source: hit.source});
     }
     occupied.push({x: p.x-39, y: p.y-122, w: 78, h: 130});
+    this.fallen=this.fallen.filter(e=>this.clock-e.at<.72);
+    this.vitals=layoutEnemyVitals(state,reduceMotion,this.fallen.map(e=>({...e,age:this.clock-e.at})),occupied);
     for (const e of state.enemies) if (e.phase === 'warn' || e.phase === 'dash') {
       const endX = e.x+e.dashX*150, endY = e.y+e.dashY*150;
       occupied.push({x: Math.min(e.x,endX)-18, y: Math.min(e.y,endY)-18, w: Math.abs(endX-e.x)+36, h: Math.abs(endY-e.y)+36});
@@ -131,8 +140,10 @@ export class DamageLabels {
       occupied.push({x: g.anchorX-22, y: g.bodyY-18, w: 44, h: 36});
     }
     let budget: number = DAMAGE_LABEL_LAYOUT.budget;
+    let fallenVisible=0;
     for (const group of groups) {
       if (!budget) break;
+      if (group.deathAt!==null && fallenVisible>=3) continue;
       const age = this.clock-group.lastHit;
       const recent = group.recent.filter(hit => this.clock-hit.bornAt <= DAMAGE_LABEL_LAYOUT.detailTtl);
       const compact = groups.length >= 4 && group.id !== state.weapon.targetId;
@@ -153,6 +164,7 @@ export class DamageLabels {
           this.visible.push({victimId: group.id, x, y: rect.y, height: h, anchorX: group.anchorX, anchorY: group.anchorY,
             player: false, heal: false, amount: group.total, count: group.count, recent: h>HEIGHT ? recent : [],
             alpha, age, compact, source: group.recent.at(-1)?.source ?? null});
+          if(group.deathAt!==null)fallenVisible++;
           budget -= h>HEIGHT ? 2 : 1;
           placed = true;
           break;
@@ -165,6 +177,10 @@ export class DamageLabels {
 
   snapshot(): DamageLabelGroup[] {
     return this.visible.map(g => ({...g, recent: g.recent.map(hit => ({...hit}))}));
+  }
+
+  drawVitals(c:CanvasRenderingContext2D):void {
+    drawEnemyVitals(c,this.vitals);
   }
 
   draw(ctx: CanvasRenderingContext2D, assets: Assets, _state: GameState, reduceMotion = false): void {
@@ -189,13 +205,13 @@ export class DamageLabels {
         ctx.strokeText(value,x,cy,max); ctx.fillText(value,x,cy,max);
       };
       const pulse = reduceMotion ? 0 : Math.max(0,1-g.age/.22);
-      const color = g.player ? (g.heal ? '#a3ffcb' : '#ffabbc') : (g.count>=6 ? '#ffcf69' : '#fff5d1');
+      const color = g.player ? (g.heal ? '#a3ffcb' : '#ff9980') : '#ffbd57';
       const center = g.x-(stacked ? 16 : 0);
       if (g.player && g.source && g.source in assets.sprites) {
         const sprite = assets.sprites[g.source], height = Math.min(17,17*sprite.height/sprite.width);
         drawSprite(ctx,assets,g.source,g.x-37,y+height/2,height);
       }
-      drawText((g.heal ? '+' : g.player ? '−' : '')+format(g.amount),center,y,stacked ? 63 : 76,(g.compact ? 22 : 26)+5*pulse,color);
+      drawText((g.heal ? '+' : '−')+format(g.amount),center,y,stacked ? 63 : 76,(g.compact ? 22 : 26)+5*pulse,color);
       if (stacked) drawText(`${g.count}段`,g.x+30,y+2,37,14,'#ffe49f');
       if (g.recent.length) {
         const line = g.recent.map(hit => '+'+format(hit.amount)).join(' ');

@@ -154,7 +154,10 @@ test('one revival preserves the run and saves the final kill count only after th
     await page.evaluate(()=>{
       const game=window.__gameTest.game(),s=game.state;
       s.player.hp=1;s.player.invulnerableUntil=0;
-      game.spawnEnemy('bowl',s.player).spawnAt=s.time-2;
+      // The fan is still burning. An incoming soup shot reaches the rider even if the bowl is pushed away.
+      const bowl=game.spawnEnemy('bowl',{x:s.player.x+160,y:s.player.y});
+      const x=s.player.x+10,y=s.player.y;
+      s.enemyShots!.push({id:-1,ownerId:bowl.id,x,y,px:x,py:y,vx:-145,vy:0,radius:6,damage:8,bornAt:s.time,expiresAt:s.time+1});
     });
   }
   await lethalContact();await view(page,'revive');

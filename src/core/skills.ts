@@ -1,6 +1,6 @@
 import type {Enemy, GameState, Pickup, SkillKind, Vec, Zone} from '../shared/types';
 import type {CombatContext} from './contracts';
-import {CONFIG, WORLD} from './config';
+import {CONFIG, WORLD, pickupReach} from './config';
 import {clamp, distanceSquared, segmentDistanceSquared, sweepContact} from './geometry';
 import {igniteFan, spillSoda, updateSkillFields} from './skill-fields';
 import {castUltimate,updateUltimates} from './ultimates';
@@ -178,8 +178,9 @@ function deliverSupply(s:GameState,origin:Vec,ctx:CombatContext):boolean {
   for(let i=0;i<12&&positions.length<capacity;i++){
     const a=angle+i*Math.PI/6,candidate={x:origin.x+Math.cos(a)*105,y:origin.y+Math.sin(a)*105};
     if(!inside(candidate,20)||candidate.y<CONFIG.player.minY||s.enemies.some(e=>e.hp>0&&distanceSquared(candidate,e)<(e.radius+40)**2)||
-      s.pickups.some(p=>!p.retiringUntil&&distanceSquared(candidate,p)<45**2)||
-      s.weaponDrops.some(w=>distanceSquared(candidate,w)<45**2)||positions.some(p=>distanceSquared(candidate,p)<70**2))continue;
+      s.pickups.some(p=>!p.retiringUntil&&distanceSquared(candidate,p)<(pickupReach(p)+CONFIG.pickup.choiceReach)**2)||
+      s.weaponDrops.some(w=>distanceSquared(candidate,w)<(CONFIG.weapons.pickupReach+CONFIG.pickup.choiceReach)**2)||
+      positions.some(p=>distanceSquared(candidate,p)<(2*CONFIG.pickup.choiceReach)**2))continue;
     positions.push(candidate);
   }
   if(!positions.length)return false;
@@ -191,9 +192,9 @@ function deliverSupply(s:GameState,origin:Vec,ctx:CombatContext):boolean {
   zone(s,ctx,'supply',origin,6.35,{radius:105,groupId});return true;
 }
 
-export function updateSkills(s:GameState,dt:number,ctx:CombatContext):void {
+export function updateSkills(s:GameState,dt:number,ctx:CombatContext,input:Vec={x:0,y:0}):void {
   const now=s.time,previous=now-dt;
-  updateUltimates(s,dt,ctx);
+  updateUltimates(s,dt,ctx,input);
   updateSkillFields(s,ctx);
   for(const [kind,until] of [['skate',s.player.skateUntil],['bubble',s.player.bubbleUntil],['heat',s.player.heatUntil],['stamp',s.player.stampUntil]] as const){
     if(until>previous&&until<=now)ctx.emit({type:'skillEnd',kind});

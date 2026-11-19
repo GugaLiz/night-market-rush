@@ -1,4 +1,5 @@
 import {clamp} from '../core/geometry';
+import {pickupReach} from '../core/config';
 import {isUltimate, SKILL_NAMES, type GameEvent, type Pickup, type SkillKind, type Vec} from '../shared/types';
 import {drawSprite} from './sprite';
 import type {Assets} from './assets';
@@ -16,12 +17,26 @@ const unit = (x:number) => clamp(x,0,1);
 const ease = (x:number) => {const t=unit(x);return t*t*(3-2*t);};
 const lerp = (a:number,b:number,t:number) => a+(b-a)*t;
 
+/** A short cream stitch on the side the rider is approaching marks the pickup threshold. */
+export function drawPickupReach(c:CanvasRenderingContext2D, item:Vec, player:Vec, radius:number):void {
+  const dx=player.x-item.x,dy=player.y-item.y;
+  const proximity=unit(1-(Math.hypot(dx,dy)-radius)/44);
+  if(!proximity)return;
+  const angle=Math.atan2(dy,dx);
+  c.save();c.globalAlpha*=proximity*.85;c.lineCap='round';
+  c.beginPath();c.arc(item.x,item.y,radius,angle-.22,angle+.22);
+  c.strokeStyle=ink;c.lineWidth=3.5;c.stroke();
+  c.strokeStyle='#ffeab5';c.lineWidth=1.7;c.stroke();c.restore();
+}
+
 /** The loose tool sits on a short tear-off order tag, with its shadow at the pickup location. */
 export function drawDeliveryPickup(c:CanvasRenderingContext2D, assets:Assets, pickup:Pickup, player:Vec, time:number, quiet:boolean):void {
   const p=pickup, color=trim[p.kind];
-  const near = quiet ? 0 : ease((86-Math.hypot(p.x-player.x,p.y-player.y))/62);
+  const reach=pickupReach(p);
+  const near = quiet ? 0 : ease(1-(Math.hypot(p.x-player.x,p.y-player.y)-reach)/44);
   const loose = quiet ? 0 : Math.sin(time*3.5+p.id)*1.9;
   const height=p.kind==='fan'?45:39;
+  if(!p.retiringUntil&&(p.disabledUntil??0)<=time&&(p.readyAt??0)<=time)drawPickupReach(c,p,player,reach);
   c.save();c.translate(p.x,p.y);
   if((p.disabledUntil??0)>time || (p.readyAt??0)>time)c.globalAlpha=.46;
   if(p.retiringUntil)c.globalAlpha*=unit((p.retiringUntil-time)/.4);

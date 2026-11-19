@@ -164,6 +164,20 @@ describe('V4 continuous play', () => {
     expect(stopped.vx).toBe(0);
   });
 
+  it('brakes an active directional dash on release and responds to an opposite input on the same step',()=>{
+    for(const stop of [still,{x:-1,y:0}]){
+      const game=new Game(404);game.reset(404,true);
+      const p=game.state.player,east={x:1,y:0};
+      game.dash(east);game.update(1/60,east);
+      const x=p.x,readyAt=p.dashReadyAt;
+      expect(x-WORLD.start.x).toBeGreaterThan(10);
+      game.update(1/60,stop);
+      expect(p.dashUntil).toBe(0);expect(p.dashReadyAt).toBe(readyAt);
+      if(stop===still){expect(p.x).toBe(x);expect(p.vx).toBe(0);}
+      else{expect(p.x).toBeLessThan(x);expect(p.moveDirection.x).toBe(-1);}
+    }
+  });
+
   it('opens with two optional routes and varies both the fan position and the skills across seeds', () => {
     const firstSkills=new Set<string>(),supports=new Set<string>(),fireSides=new Set<number>();
     for(let seed=1;seed<=24;seed++){

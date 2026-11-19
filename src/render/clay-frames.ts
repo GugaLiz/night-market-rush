@@ -1,5 +1,13 @@
 // Trimmed source rectangles of the packed soft-clay WebP atlases (x, y, width, height).
 export const clayFrames = {
+  enemyFaces: {
+    bunGrin: [17, 10, 221, 236],
+    boxGrin: [282, 10, 203, 236],
+    bowlGrin: [527, 10, 226, 236],
+    bunCurious: [17, 266, 222, 236],
+    boxCurious: [282, 266, 203, 236],
+    bowlCurious: [527, 266, 226, 236],
+  },
   actors: {
     bun: [17, 10, 220, 236],
     bunHurt: [269, 10, 232, 235],
@@ -48,6 +56,11 @@ export const clayFrames = {
     cone: [278, 782, 213, 233],
     lureBox: [526, 796, 231, 202],
     supplyBox: [780, 801, 233, 192],
+  },
+  footwear: {
+    rigShoeToe: [18, 8, 91, 128],
+    rigShoeHeel: [143, 8, 97, 128],
+    rigShoeHeelSide: [261, 11, 118, 121],
   },
   rig: {
     rigHeadFront: [12, 22, 231, 211],

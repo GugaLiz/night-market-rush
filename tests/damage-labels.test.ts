@@ -137,7 +137,7 @@ describe('each monster keeps its own actual damage total',()=>{
     const context=new Proxy(target,{get:(o,k)=>k in o?o[k as string]:(()=>{}),set:(o,k,v)=>{o[k as string]=v;return true;}}) as unknown as CanvasRenderingContext2D;
     const assets={sprites:{}} as Assets;
     add(1,9);add(2,11);step();labels.draw(context,assets,game.state,true);
-    expect(texts.map(t=>t.text)).toEqual(['20','2段','+9 +11']);const large=texts[0].font;
+    expect(texts.map(t=>t.text)).toEqual(['−20','2段','+9 +11']);const large=texts[0].font;
     texts.length=0;step(.1);labels.draw(context,assets,game.state,true);expect(texts[0].font).toBe(large);
     texts.length=0;labels.draw(context,assets,game.state);expect(texts[0].font).not.toBe(large);
   });

@@ -1,21 +1,22 @@
 import {CONFIG, WORLD} from '../core/config';
 import {DEFAULT_SETTINGS, ULTIMATE_KINDS, WEAPON_NAMES} from '../shared/types';
-import {expressLift,TOSS_DURATION} from '../core/ultimates';
+import {TOSS_DURATION} from '../core/ultimates';
 import type {Enemy, GameEvent, GameState, Settings, Vec, WeaponKind} from '../shared/types';
 import type {Assets, SpriteName} from './assets';
 import {drawSprite} from './sprite';
 import {CourierRig} from './character';
 import {drawPackingWrap,drawPaperRoute} from './courier-equipment';
 import {DamageLabels} from './damage-labels';
-import {drawDeliveryPickup, drawDeliveryUse, drawUseRipple, useLifetime} from './delivery-skills';
+import {drawDeliveryPickup, drawDeliveryUse, drawPickupReach, drawUseRipple, useLifetime} from './delivery-skills';
 import {WEAPONS} from '../core/weapons';
 import {drawChainLink, drawFlightWake, drawWeaponContact, type WeaponContact} from './weapon-effects';
 import {drawMeleeWaves} from './melee-waves';
 import {drawUltimateGround,drawUltimateAir} from './ultimate-fx';
-import {drawEnemyAttackGround,drawEnemyAttackDetail,drawGiantPulses,drawSoupShot,getEnemyAttackPose,drawEnemyVitals,drawIceShell} from './enemy-clay-fx';
+import {drawEnemyAttackGround,drawEnemyAttackDetail,drawGiantPulses,drawSoupShot,getEnemyAttackPose,enemyExpression,drawIceShell} from './enemy-clay-fx';
+import {enemyHeight} from './enemy-vitals';
 import {drawGroundCoins, drawMarketBackground, drawSkillFields} from './market-floor';
 
-type Effect = {kind: string; x: number; y: number; age: number; duration: number; label?: string; angle?:number; sprite?:string; power?:number; from?:Vec};
+type Effect = {kind: string; x: number; y: number; age: number; duration: number; label?: string; angle?:number; sprite?:Enemy['kind']; facing?:number; power?:number; from?:Vec};
 type Particle = {x: number; y: number; vx: number; vy: number; age: number; duration: number; size: number; color: string};
 const COLORS: Record<string, string> = {fan:'#b6f8ec',skate:'#ffd56c',soda:'#79f3ce',lure:'#ffd891',bubble:'#c2eeff',cones:'#ffb466',bell:'#fff2b0',route:'#82ecd2',hook:'#a1dfde',heat:'#ffb378',dispatch:'#b5c7ff',stamp:'#ffcc9e',supply:'#ffe8b4'};
 const TAU=Math.PI*2;
@@ -94,7 +95,7 @@ export class Renderer {
         const angle=event.impactAngle??strike?.angle??(launched?Math.atan2(event.y-originY,event.x-originX)+Math.sin(seed)*.24:seed*2.40);
         const power=ultimate?(event.source==='berry'?65:48)+seed%23:launched?42+seed%29:strike?22:12;
         this.burst(event.x,event.y-16,launched?'#ffdb86':'#ffe6a0',launched?5:4);
-        this.effects.push({kind:'defeat',x:event.x,y:event.y,age:0,duration:ultimate?.46:launched?.41:.25,sprite:event.kind,angle,power});
+        this.effects.push({kind:'defeat',x:event.x,y:event.y,age:0,duration:ultimate?.46:launched?.41:.25,sprite:event.kind,facing:event.facing,angle,power});
       } else if(event.type==='damage') {
         if((event.burstIndex??1)!==1)continue;
         if(event.victimId===0){
@@ -213,18 +214,20 @@ export class Renderer {
     }
     drawGiantPulses(c,s,this.settings,this.assets);
     for(const drop of s.weaponDrops){
+      const locked=drop.readyAt>s.time || (drop.returnDrop&&!drop.leftPickupCircle);
+      if(!locked)drawPickupReach(c,drop,s.player,CONFIG.weapons.pickupReach);
       this.shadow(drop.x,drop.y,27,.25);
       c.save();c.strokeStyle=drop.returnDrop?'#a6d4c1':'#ffe39d';c.fillStyle='#ffd88718';c.lineWidth=3;c.beginPath();c.ellipse(drop.x,drop.y,31,13,0,0,Math.PI*2);c.fill();c.stroke();
       if(!drop.returnDrop){const beam=c.createLinearGradient(drop.x,drop.y-90,drop.x,drop.y);beam.addColorStop(0,'#ffe1a000');beam.addColorStop(1,'#ffe1a050');c.fillStyle=beam;c.fillRect(drop.x-19,drop.y-90,38,84);}
-      this.sprite('weaponCrate',drop.x,drop.y+3,30);c.globalAlpha=drop.readyAt>s.time?.5:1;
+      this.sprite('weaponCrate',drop.x,drop.y+3,30);c.globalAlpha=locked?.5:1;
       const src=this.assets.sprites[drop.kind],h=Math.min(39,55*src.height/src.width);this.sprite(drop.kind,drop.x,drop.y-14+Math.sin(t*3)*2,h);c.restore();
-      this.caption(drop.readyAt>s.time?'退换锁定':`${drop.returnDrop?'退换':'武器'} · ${WEAPON_NAMES[drop.kind]}`,drop.x,drop.y+21,14,'#ffe3a6');
+      this.caption(locked?(drop.readyAt>s.time?'退换锁定':'离开后可退换'):`${drop.returnDrop?'退换':'武器'} · ${WEAPON_NAMES[drop.kind]}`,drop.x,drop.y+21,14,'#ffe3a6');
     }
     drawMeleeWaves(c,s,this.settings);
     this.drawEffects(false);
     if (s.player.skateUntil > s.time) this.skateRing(s, false);
     const enemies=[...s.enemies].sort((a,b)=>a.y-b.y);
-    for(const e of enemies)this.enemy(e,s,e.id===s.weapon.targetId);
+    for(const e of enemies)this.enemy(e,s);
     this.drawEffects(true);
     for(const hit of this.contacts)drawWeaponContact(c,hit,this.settings,this.assets.strikes);
     for (const p of this.particles) {
@@ -242,6 +245,7 @@ export class Renderer {
     this.projectiles(s);
     this.playerStatus(s);
     if (s.player.skateUntil > s.time) this.skateRing(s, true);
+    this.labels.drawVitals(c);
     this.labels.draw(c,this.assets,s,this.settings.reduceMotion);
     for(const shot of s.enemyShots??[])drawSoupShot(c,shot);
   }
@@ -281,8 +285,7 @@ export class Renderer {
     const useAge=use?Math.max(0,s.time-use.time):Infinity;
     const trayInFlight=s.weapon.kind==='tray'&&s.projectiles.some(q=>q.kind==='tray');
     const movingGhosts=!this.settings.reduceMotion&&this.settings.quality==='standard';
-    const lift=expressLift(s)*(this.settings.reduceMotion?.32:1);
-    this.shadow(p.x,p.y,24-lift*.12,.28-lift*.002);
+    this.shadow(p.x,p.y,24,.28);
     // Keep the ground marker below the planted shoes so the soles read against the floor.
     c.save();c.globalAlpha*=.55;c.strokeStyle='#fff1bc';c.lineWidth=1.45;
     c.beginPath();c.ellipse(p.x,p.y,p.radius+2,4,0,0,TAU);c.stroke();c.restore();
@@ -310,42 +313,30 @@ export class Renderer {
       stamp.restore();c.drawImage(image,x,y);
       this.ghosts.push({image,x,y,time:s.time});
     }else{
-      const previousLaunch=this.rig.launch?.id;
-      c.save();c.translate(0,-lift);
-      this.rig.draw(c,p,s.weapon,s.time,this.frameDt,this.settings,1.35,s.ended,trayInFlight,useAge,lift/49);
-      c.restore();
-      if(lift){
-        if(this.rig.supplyHand)this.rig.supplyHand.y-=lift;
-        if(this.rig.bagPoint)this.rig.bagPoint.y-=lift;
-        if(this.rig.trayCatch)this.rig.trayCatch.y-=lift;
-        if(this.rig.launch&&this.rig.launch.id!==previousLaunch)this.rig.launch.point.y-=lift;
-      }
+      this.rig.draw(c,p,s.weapon,s.time,this.frameDt,this.settings,1.35,s.ended,trayInFlight,useAge);
     }
   }
 
-  private enemy(e:Enemy,s:GameState,target:boolean):void {
+  private enemy(e:Enemy,s:GameState):void {
     const c=this.ctx,time=s.time,reduced=this.settings.reduceMotion;
     const t=reduced?0:time,age=time-e.spawnAt,giant=e.kind==='giantBun';
     const bun=giant||e.kind==='bun',low=e.hp<=e.maxHp*.35;
     const hurt=bun&&time-e.hurtAt<.16,frozen=(e.chilledUntil??0)>time;
-    const sprite=hurt?'bunHurt':bun&&low?'bunLow':e.kind;
-    const baseHeight=giant?152:e.kind==='bowl'?75:e.kind==='box'?65:55;
-    const height=baseHeight*(bun&&low&&!hurt?.84:1);
+    const sprite=enemyExpression(e,time);
+    const height=enemyHeight(e.kind)*(bun&&low&&!hurt?.84:1);
     const posed=getEnemyAttackPose(e,time,this.settings);
-    const stride=reduced||giant||frozen||e.stunUntil>time||e.phase==='warn'||e.phase==='recover'?0:
-      Math.abs(Math.sin(t*(e.phase==='dash'?24:9)+e.id))*3;
     const strike=time-e.hurtAt<.21?this.contacts.find(hit=>hit.seed===e.id&&hit.age<=.21):undefined;
     const recoil=strike&&!reduced?Math.sin(Math.PI*strike.age/.21)*(1-strike.age/.21):0;
     const launchAge=time-(e.tossAt??-Infinity);
     const toss=launchAge>=0&&launchAge<TOSS_DURATION&&!reduced?Math.sin(Math.PI*launchAge/TOSS_DURATION)*(e.tossHeight??0):0;
-    const dir=strike?.angle??0,foot=e.y-stride-posed.lift-toss;
+    const dir=strike?.angle??0,foot=e.y-posed.lift-toss;
     c.save();
     if(age<CONFIG.spawn.warning)c.globalAlpha=.2+.6*Math.max(0,age)/CONFIG.spawn.warning;
     const shade=giant?38:e.kind==='bowl'?26:18;
     this.shadow(e.x,e.y,shade*(1-.003*(posed.lift+toss)),.24-.0014*(posed.lift+toss));
     c.save();c.translate(e.x+Math.cos(dir)*recoil*13,foot+Math.sin(dir)*recoil*9);
     c.scale((1+.08*recoil)*posed.scaleX,(1-.08*recoil)*posed.scaleY);
-    const tilt=posed.tilt+Math.cos(dir)*recoil*.18+(stride?Math.sin(t*7+e.id)*.035:0);
+    const tilt=posed.tilt+Math.cos(dir)*recoil*.18;
     this.sprite(sprite,0,0,height,e.facing,tilt);
     c.restore();
     if(age>=CONFIG.spawn.warning)drawEnemyAttackDetail(c,e,time,this.settings,s.player);
@@ -359,9 +350,6 @@ export class Renderer {
         c.strokeStyle='#9af8e3';c.fillStyle='#8af2d825';c.lineWidth=2;
         c.beginPath();c.ellipse(e.x,foot-height*.45,height*.43,height*.54,0,0,Math.PI*2);c.fill();c.stroke();
       }
-    }
-    if(e.hp<e.maxHp&&(giant||target||time-e.hurtAt<(this.denseScene?.6:2)||(low&&s.enemies.length<8))){
-      drawEnemyVitals(c,e,headY-12,giant||target||s.enemies.length<8);
     }
     c.restore();
   }
@@ -416,7 +404,8 @@ export class Renderer {
       if(front&&e.kind==='defeat'&&e.sprite){
         const motion=this.settings.reduceMotion?0:progress;
         const distance=e.power??12, angle=e.angle??0, push=1-(1-motion)**2;
-        const height=e.sprite==='giantBun'?152:e.sprite==='bowl'?75:e.sprite==='box'?65:55;
+        const height=enemyHeight(e.sprite);
+        const face=e.sprite==='bun'||e.sprite==='giantBun'?'bunHurt':e.sprite+'Curious';
         const hop=Math.sin(motion*Math.PI)*distance*.82;
         const x=e.x+Math.cos(angle)*distance*push, groundY=e.y+Math.sin(angle)*distance*push*.6;
         const spin=Math.cos(angle)*motion*(distance>35?1.25:.45);
@@ -424,9 +413,9 @@ export class Renderer {
         if(distance>35&&motion>0&&this.settings.quality==='standard'){
           this.shadow(x,groundY,12*alpha,.21);
           c.globalAlpha=alpha*.25;
-          this.sprite(e.sprite,x-(x-e.x)*.22,groundY-hop*.70,size*.94,1,spin*.8);
+          this.sprite(face,x-(x-e.x)*.22,groundY-hop*.70,size*.94,e.facing,spin*.8);
         }
-        c.globalAlpha=alpha*.96;this.sprite(e.sprite,x,groundY-hop,size,1,spin);
+        c.globalAlpha=alpha*.96;this.sprite(face,x,groundY-hop,size,e.facing,spin);
       }
       if(!front&&e.kind==='skid'&&!this.settings.reduceMotion){
         c.translate(e.x,e.y);c.rotate(e.angle??0);c.lineCap='round';
