@@ -116,7 +116,7 @@ describe('clay delivery ultimates',()=>{
       else if(route.landings.length===3)input={x:0,y:-1};
       const last={x:p.x,y:p.y};
       ticks(g,1,input);
-      expect(Math.hypot(last.x-p.x,last.y-p.y)).toBeLessThanOrEqual(CONFIG.player.speed*CONFIG.step+1e-9);
+      expect(Math.hypot(last.x-p.x,last.y-p.y)).toBeLessThanOrEqual(CONFIG.player.speed*p.sprintMultiplier!*CONFIG.step+1e-9);
       if(i===15)expect([p.vx,p.vy]).toEqual([0,0]);
       for(const event of g.drainEvents())if(event.type==='ultimateBeat')beats.push(event.beat);
       if(beats.length===3)break;

@@ -15,10 +15,17 @@ function fixture(kind:WeaponKind){
   const release=()=>{for(let i=0;i<40;i++){tick(1/60);if(events.some(e=>e.type==='attack')){s.weapon.readyAt=Infinity;return;}}throw Error('did not attack');};
   return {game,s,ctx,events,hits,tick,enemy,release};
 }
+// Gameplay limits for continuous fire, checked against actual releases at 60 Hz.
+const rangedVolleys:Partial<Record<WeaponKind,{lanes:number;maxInterval:number}>>={
+  bag:{lanes:9,maxInterval:.4},chopsticks:{lanes:5,maxInterval:.35},
+  spirit:{lanes:3,maxInterval:.57},tray:{lanes:3,maxInterval:.57},
+  lunchbox:{lanes:3,maxInterval:.74},talisman:{lanes:3,maxInterval:.52},
+};
 describe('V3 continuous directional weapons',()=>{
   for(const kind of WEAPON_KINDS)it(`${kind} maintains its release cadence in an empty arena, including under heat`,()=>{
     for(const heated of [false,true]){
       const {s,events,tick}=fixture(kind);
+      const volley=rangedVolleys[kind];
       if(heated)s.player.heatUntil=10;
       const releases:number[]=[];
       for(let frame=0;frame<6*60;frame++){
@@ -26,6 +33,10 @@ describe('V3 continuous directional weapons',()=>{
         const attack=events.splice(0).find(e=>e.type==='attack');
         if(attack?.type==='attack'){
           expect(attack.angle).toBe(0);releases.push(s.time);
+          if(volley){
+            expect(s.projectiles.filter(shot=>shot.attackId===attack.id)).toHaveLength(volley.lanes);
+            expect(s.projectiles.length).toBeLessThanOrEqual(CONFIG.weapons.projectileCap);
+          }
         }
       }
       expect(s.weapon.targetId).toBeNull();
@@ -34,8 +45,10 @@ describe('V3 continuous directional weapons',()=>{
       const interval=windup+cooldown*(heated?.8:1);
       for(let i=1;i<releases.length;i++){
         // Windup and cooldown each start on a simulation tick.
-        expect(releases[i]-releases[i-1]).toBeGreaterThanOrEqual(interval-1e-9);
-        expect(releases[i]-releases[i-1]).toBeLessThan(interval+2*CONFIG.step);
+        const elapsed=releases[i]-releases[i-1];
+        expect(elapsed).toBeGreaterThanOrEqual(interval-1e-9);
+        expect(elapsed).toBeLessThan(interval+2*CONFIG.step);
+        if(volley)expect(elapsed).toBeLessThanOrEqual(volley.maxInterval+1e-9);
       }
     }
   });

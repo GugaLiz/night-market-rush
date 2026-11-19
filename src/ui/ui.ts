@@ -23,6 +23,7 @@ export const formatTime=(seconds:number)=>`${Math.floor(Math.max(0,seconds)/60).
 const score=(value:number)=>Math.floor(Math.max(0,value)).toString();
 const bag=`<svg class="bag-art" viewBox="0 0 120 110" aria-hidden="true"><path d="M36 35V24c0-21 48-21 48 0v11" fill="none" stroke="#583b29" stroke-width="9"/><path d="M25 32h70l14 61q-47 18-98 0z" fill="#397e77" stroke="#523929" stroke-width="4"/><path d="M23 31h76l-3 26H22z" fill="#65a69a" stroke="#523929" stroke-width="4"/><path d="M35 53v14m50-14v14" stroke="#f2cf8e" stroke-width="8"/><path d="M47 80h27m-34 9h35m-15-19 8 15" stroke="#fff1d6" stroke-width="5" stroke-linecap="round"/></svg>`;
 const icon=(name:string)=>{
+  if(name==='health')return `<span class="atlas-icon" aria-hidden="true" style="background:center/contain no-repeat url('${import.meta.env.BASE_URL}assets/clay-soup-dumpling.webp')"></span>`;
   const ultimateIndex=ULTIMATE_KINDS.indexOf(name as UltimateKind);
   if(ultimateIndex>=0)return `<span class="atlas-icon" aria-hidden="true" style="background-image:url('${import.meta.env.BASE_URL}assets/clay-actors.webp');background-size:400% 300%;background-position:${ultimateIndex*100/3}% 100%"></span>`;
   const weaponIndex=WEAPON_KINDS.indexOf(name as WeaponKind),skillIndex=SKILL_KINDS.indexOf(name as SkillKind);
@@ -122,7 +123,7 @@ export class UI {
         <div id="status-strip" class="status-strip" aria-label="持续状态"></div>
         <div id="weapon-state" class="weapon-state" aria-label="当前武器"></div>
         <button id="dash-button" class="dash-button" data-action="dash" aria-label="冲刺"><span class="dash-arrow" aria-hidden="true">➜</span><strong>冲刺</strong><small id="dash-status">空格</small></button>
-        <div id="sprint-label" class="sprint-label" hidden>顺势加速</div>
+        <div id="sprint-label" class="sprint-label" hidden>连续跑动</div>
         <div id="opening-hint" role="status" hidden></div>
       </div>
       <div id="joystick" class="joystick" aria-hidden="true" hidden><div class="joystick-ring"></div><div class="joystick-knob"></div></div>
@@ -214,7 +215,7 @@ export class UI {
     const dashText=dashing?'冲刺中':dashRemaining>0?`${dashRemaining.toFixed(1)}秒`:this.pointerIsCoarse.matches?'就绪':'空格';
     if(this.dashStatus.textContent!==dashText)this.dashStatus.textContent=dashText;
     this.dashButton.setAttribute('aria-label',dashRemaining>0?`冲刺冷却 ${dashRemaining.toFixed(1)}秒`:'冲刺');
-    const sprint=state.player.sprintMultiplier??1,sprintText=`顺势加速 +${Math.round((sprint-1)*100)}%`;
+    const sprint=state.player.sprintMultiplier??1,sprintText=`${sprint>=CONFIG.player.sprintMax?'最高跑速':'连续跑动'} +${Math.round((sprint-1)*100)}%`;
     this.sprintLabel.hidden=sprint<1.01;
     if(this.sprintLabel.textContent!==sprintText)this.sprintLabel.textContent=sprintText;
     this.labButton.hidden=!state.practice;this._shell.dataset.practice=String(state.practice);
@@ -329,14 +330,14 @@ export class UI {
       }
       case 'tutorial':
         this.overlay.innerHTML=this.paper(`<h2 id="dialog-title">走位取道具，清出路线收金币</h2>
-          <p class="muted">靠近游荡的小妖，它们才会追你。边走边转身，取餐夹会自动横扫。看见碗怪瞄准的虚线，往侧面闪开。</p>
+          <p class="muted">连续跑动会逐渐提速，转弯和掉头都能保持跑速。停下来，再起步会重新加速。</p>
           <div class="guide-grid">
             <article><div class="guide-icon fan">${icon('fan')}</div><h3>迎上技能泡</h3><p>青色闪电泡碰到街边会反弹。<br>迎上它，立即发动里面的技能。</p></article>
             <article><div class="guide-icon skate">${icon('coin')}</div><h3>走过金币</h3><p>怪物倒下后留下金币。<br>靠近收取，金币才入账。</p></article>
             <article><div class="guide-icon soda">${icon('wave')}</div><h3>靠近武器箱</h3><p>金色方箱停在原地。<br>走近换装，旧武器可回来取。</p></article>
           </div>
           <div class="guide-controls"><span><b>电脑</b> WASD / 方向键移动 · Space / Shift 冲刺</span><span><b>手机</b> 摇杆 / 倾斜移动 · 点按冲刺</span></div>
-          <p class="warning-note">击败数是本局成绩。生命耗尽后可免费复活一次，也可直接查看成绩。</p>
+          <p class="warning-note">受伤时，迎上带红心的暖心汤包可恢复最多 ${CONFIG.skills.health.amount} 点生命。生命耗尽后可免费复活一次。</p>
           <div class="paper-actions">${this.button('查看全部图鉴','catalog','secondary')}${this.button('返回首页','home','secondary')}${this.button('开始挑战','start','primary','data-primary')}</div>`,'guide-card');break;
       case 'countdown':
         this.overlay.innerHTML=`<div class="countdown" aria-live="assertive"><span>准备出发</span><strong>${this.data.count??1}</strong><p>${this.settings.mode==='tilt'?'保持舒适姿势，倾斜手机移动':'移动躲避，触碰道具反击'}</p></div>`;break;

@@ -96,7 +96,7 @@ describe('V4 continuous play', () => {
     expect(p.sprintMultiplier).toBeCloseTo(CONFIG.player.sprintMax);
     const heading=Math.atan2(p.moveDirection.y,p.moveDirection.x);
     for(const offset of [.7,1.4])game.update(1/60,{x:Math.cos(heading+offset),y:Math.sin(heading+offset)});
-    expect(p.sprintMultiplier).toBe(1);
+    expect(p.sprintMultiplier).toBeCloseTo(CONFIG.player.sprintMax);
     game.update(1/60,still);
     expect(p.sprintTime).toBe(0);
   });
@@ -107,7 +107,7 @@ describe('V4 continuous play', () => {
     const cornerX=p.x;
     for(let frame=0;frame<3;frame++){
       game.update(1/60,{x:0,y:1});
-      expect(Math.hypot(p.vx,p.vy)).toBeCloseTo(CONFIG.player.speed);
+      expect(Math.hypot(p.vx,p.vy)).toBeCloseTo(CONFIG.player.speed*p.sprintMultiplier!);
     }
     expect(p.vx).toBeCloseTo(0);
     expect(p.x-cornerX).toBeLessThan(5);
@@ -129,11 +129,11 @@ describe('V4 continuous play', () => {
     game.update(step,{x:1,y:0});
     expect(p.vx).toBeGreaterThan(220);
     game.update(step,{x:1,y:0});
-    expect(p.vx).toBeCloseTo(405);
-    const fullSpeed=p.vx,corner=p.x;
+    expect(p.vx).toBeCloseTo(405,0);
+    const corner=p.x;
     for(let i=0;i<2;i++){
       game.update(step,{x:0,y:1});
-      expect(Math.hypot(p.vx,p.vy)).toBeCloseTo(fullSpeed);
+      expect(Math.hypot(p.vx,p.vy)).toBeCloseTo(CONFIG.player.speed*p.sprintMultiplier!);
     }
     expect(p.vx).toBeCloseTo(0);
     expect(p.x-corner).toBeLessThan(4);

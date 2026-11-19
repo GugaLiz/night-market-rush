@@ -16,7 +16,7 @@ export const CONFIG = {
   player: {
     speed: .75 * S, precisionSpeed: .46 * S, accelerationTime: .030, decelerationTime: .022,
     turnRate: 18 * Math.PI, aimThreshold: .075,
-    radius: .018 * S, minY:180, hp:100, protection:.75, sprintAfter:1.8, sprintMax:1.12,
+    radius: .018 * S, minY:180, hp:100, protection:.75, sprintRampTime:1.6, sprintMax:1.4,
     dashDuration:.18, dashCooldown:3, dashSpeed:1.42*S, dashExitTime:.055,
   },
   enemies: {
@@ -45,6 +45,7 @@ export const CONFIG = {
   },
   ranged: {warning:.9,interval:5,speed:145,damage:8,radius:6,cap:12,lifetime:6.5,range:soupRange,concurrent:2},
   skills: {
+    health: {amount:25, cooldown:15},
     fan: {radius:130, fullRadius:250, damage:90},
     skate: {duration:4, inner:38, outer:140, damage:20, interval:.5},
     soda: {radius:260, duration:3, factor:.35, poolRadius:108, sidePoolRadius:78},

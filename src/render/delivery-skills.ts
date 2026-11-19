@@ -11,7 +11,7 @@ const ink = '#563c36';
 const trim: Record<SkillKind,string> = {
   fan:'#df8841', soda:'#479b87', skate:'#bd5b46', lure:'#a76536', bubble:'#5993a1',
   cones:'#bc6239', bell:'#b38a38', route:'#438479', hook:'#487986', heat:'#b35d39',
-  dispatch:'#566d81', stamp:'#b44b42', supply:'#798650',
+  dispatch:'#566d81', stamp:'#b44b42', supply:'#798650', health:'#b74c51',
   icebox:'#428eb3',steamer:'#c58a41',express:'#319080',berry:'#b63565',
 };
 const unit = (x:number) => clamp(x,0,1);
@@ -36,10 +36,11 @@ export function drawPickupReach(c:CanvasRenderingContext2D, item:Vec, player:Vec
 }
 
 /** Only the nearest available order gets a prompt, including when choosing from a supply box. */
-export function nearestPickupHint(items:Pickup[],player:Vec,time:number):Pickup|undefined {
+export function nearestPickupHint(items:Pickup[],player:Vec,time:number,needsHealth=true):Pickup|undefined {
   let closest:Pickup|undefined;
   let nearest=Infinity;
   for(const p of items){
+    if(p.kind==='health'&&!needsHealth)continue;
     if(p.retiringUntil||(p.disabledUntil??0)>time||(p.readyAt??0)>time||(p.expiresAt??Infinity)<=time)continue;
     const distance=Math.hypot(p.x-player.x,p.y-player.y);
     if(distance<nearest&&distance<=pickupReach(p)+145){closest=p;nearest=distance;}
@@ -62,12 +63,19 @@ function drawSkillShell(c:CanvasRenderingContext2D,r:number):void {
   c.beginPath();c.arc(0,0,r-4,.17,1.0);c.stroke();
 }
 
-function drawSkillBadge(c:CanvasRenderingContext2D,r:number):void {
+function drawSkillBadge(c:CanvasRenderingContext2D,r:number,healing:boolean):void {
   c.save();c.translate(-r*.62,r*.73);
-  c.fillStyle='#207771';c.strokeStyle='#c4ffe0';c.lineWidth=1.7;
+  c.fillStyle=healing?'#a43d4b':'#207771';c.strokeStyle=healing?'#ffebe3':'#c4ffe0';c.lineWidth=1.7;
   c.beginPath();c.arc(0,0,10,0,tau);c.fill();c.stroke();
-  c.fillStyle='#fff1a1';c.beginPath();c.moveTo(1,-7);c.lineTo(-5.5,1.3);
-  c.lineTo(-.8,1.3);c.lineTo(-2,7.3);c.lineTo(5.8,-1.8);c.lineTo(1.1,-1.8);c.closePath();c.fill();
+  c.beginPath();
+  if(healing){
+    c.fillStyle='#fff1e4';c.moveTo(0,6);
+    c.bezierCurveTo(-10,-1,-6,-9,0,-4);c.bezierCurveTo(6,-9,10,-1,0,6);
+  }else{
+    c.fillStyle='#fff1a1';c.moveTo(1,-7);c.lineTo(-5.5,1.3);c.lineTo(-.8,1.3);
+    c.lineTo(-2,7.3);c.lineTo(5.8,-1.8);c.lineTo(1.1,-1.8);
+  }
+  c.closePath();c.fill();
   c.restore();
 }
 
@@ -90,12 +98,12 @@ function drawSkillWake(c:CanvasRenderingContext2D,r:number,vx:number,vy:number):
 }
 
 /** All loose skills travel in the same bubble, with a ground shadow marking contact position. */
-export function drawDeliveryPickup(c:CanvasRenderingContext2D, assets:Assets, pickup:Pickup, player:Vec, time:number, quiet:boolean):void {
+export function drawDeliveryPickup(c:CanvasRenderingContext2D, assets:Assets, pickup:Pickup, player:Vec, time:number, quiet:boolean, needsHealth=true):void {
   const p=pickup,r=shellRadius(p.kind);
   const reach=pickupReach(p);
   const near = quiet ? 0 : ease(1-(Math.hypot(p.x-player.x,p.y-player.y)-reach)/44);
   const loose = quiet ? 0 : Math.sin(time*3.5+p.id)*1.9;
-  if(!p.retiringUntil&&(p.disabledUntil??0)<=time&&(p.readyAt??0)<=time)drawPickupReach(c,p,player,reach);
+  if(!p.retiringUntil&&(p.disabledUntil??0)<=time&&(p.readyAt??0)<=time&&(p.kind!=='health'||needsHealth))drawPickupReach(c,p,player,reach);
   c.save();c.translate(p.x,p.y);
   if((p.disabledUntil??0)>time || (p.readyAt??0)>time)c.globalAlpha=.46;
   if(p.retiringUntil)c.globalAlpha*=unit((p.retiringUntil-time)/.4);
@@ -108,7 +116,7 @@ export function drawDeliveryPickup(c:CanvasRenderingContext2D, assets:Assets, pi
   drawSkillShell(c,r);
   const spr=assets.sprites[p.kind];
   if(spr)drawSprite(c,assets,p.kind,2,0,groundIconHeight(p.kind,spr.width,spr.height),-.035+near*.08,1,.5);
-  drawSkillBadge(c,r);
+  drawSkillBadge(c,r,p.kind==='health');
   c.restore();
 }
 

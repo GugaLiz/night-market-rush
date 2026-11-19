@@ -187,12 +187,13 @@ test('practice pickup and wave samples reset independently and do not carry rewa
   expect(initial.pickups.some(p=>p.kind==='fan')).toBe(true);
   await page.keyboard.down('ArrowRight');
   try {
-    await expect.poll(async()=>(await snapshot(page)).fields.some(f=>f.kind==='fire')).toBe(true);
-    await expect(page.locator('.combo-count')).toBeVisible();
-    await expect(page.locator('#burst-value')).toBeVisible();
-    await expect(page.locator('#burst-value')).toHaveText(/瞬间击败 \d+/);
-    await expect.poll(async()=>(await snapshot(page)).collectedCoins).toBeGreaterThan(0);
+    // Stop at the fan so automatic fire cannot reach the distant queue while the HUD is checked.
+    await page.waitForFunction(()=>window.__gameTest.game().state.fields.some(f=>f.kind==='fire'));
   } finally { await page.keyboard.up('ArrowRight'); }
+  await expect(page.locator('.combo-count')).toBeVisible();
+  await expect(page.locator('#burst-value')).toBeVisible();
+  await expect(page.locator('#burst-value')).toHaveText(/瞬间击败 \d+/);
+  await expect.poll(async()=>(await snapshot(page)).collectedCoins).toBeGreaterThan(0);
   const cleared=await snapshot(page);
   expect(cleared.kills).toBeGreaterThan(0);expect(cleared.enemies.length).toBeGreaterThan(0);
   await page.getByRole('button',{name:'试验工具',exact:true}).click();

@@ -246,9 +246,13 @@ export class Renderer {
     c.globalAlpha = 1;
     drawUltimateAir(c,s,this.settings,this.assets);
     // Route choices and the courier stay legible even when a full row erupts at once.
-    for(const pickup of s.pickups)drawDeliveryPickup(c,this.assets,pickup,s.player,s.time,this.settings.reduceMotion);
-    const near=nearestPickupHint(s.pickups,s.player,s.time);
-    if(near)this.caption('技能 · '+SKILL_NAMES[near.kind],near.x,near.y+20,15,'#c0ffe2');
+    const needsHealth=s.player.hp<s.player.maxHp;
+    for(const pickup of s.pickups)drawDeliveryPickup(c,this.assets,pickup,s.player,s.time,this.settings.reduceMotion,needsHealth);
+    const near=nearestPickupHint(s.pickups,s.player,s.time,needsHealth);
+    if(near){
+      const healing=near.kind==='health';
+      this.caption((healing?'回血 · ':'技能 · ')+SKILL_NAMES[near.kind],near.x,near.y+20,15,healing?'#ffdad5':'#c0ffe2');
+    }
     if(onRoute)drawRouteStride(c,s.player,s.time,this.settings.reduceMotion);
     this.drawCourier(s);
     if(this.rig.bagPoint && this.rig.supplyHand)for(const use of this.skillUses){

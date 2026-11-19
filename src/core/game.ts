@@ -3,7 +3,7 @@ import {CONFIG,WORLD,difficultyAt,pickupReach} from './config';
 import {clamp,distanceSquared,isOnPaperRoute,relativeSweep,sweepContact,segmentDistanceSquared} from './geometry';
 import type {CombatContext} from './contracts';
 import {updateWeapons} from './weapons';
-import {activateSkill,updateSkills} from './skills';
+import {activateSkill,canCollectPickup,restorePlayerHealth,updateSkills} from './skills';
 import {updateEnemies,updateEnemyShots} from './enemies';
 import {collectCoins,dropCoins} from './rewards';
 import {advanceWave,spawnMarketEnemies} from './waves';
@@ -28,6 +28,7 @@ export class Game {
   private emptySince=0;private events:GameEvent[]=[];private weaponBag:WeaponKind[]=[];
   private batch=0;private openingPlaced=false;private dropsSinceFan=0;private waveDemo=false;
   private nextUltimateAt=8;private ultimateIndex=0;
+  private nextHealthAt=0;
   private dispatchWasActive=false;private contactDamage=new Map<number,number>();
   private ctx:CombatContext={damage:(e,a,source,impactAngle)=>this.damage(e,a,source,impactAngle),emit:e=>this.emit(e),id:()=>this.nextId++,random:()=>this.random(),push:(e,o,d)=>this.push(e,o,d),active:e=>this.active(e),spawnPickup:(k,p,extra)=>this.addPickup(k,p,extra)};
   constructor(seed=Date.now()){this.reset(seed);}
@@ -37,8 +38,9 @@ export class Game {
     this.emptySince=0;this.events=[];this.weaponBag=[];this.dispatchWasActive=false;
     this.batch=0;this.openingPlaced=false;this.dropsSinceFan=0;this.waveDemo=false;
     this.nextUltimateAt=8;this.ultimateIndex=0;
+    this.nextHealthAt=0;
     this.state={ultimates:[],seed:stableSeed,time:0,score:0,kills:0,stage:1,wave:1,waveStartedAt:0,coins:[],collectedCoins:0,combo:0,comboUntil:0,revivesUsed:0,fields:[],ended:false,cause:null,practice,
-      player:{...WORLD.start,px:WORLD.start.x,py:WORLD.start.y,vx:0,vy:0,facing:1,radius:CONFIG.player.radius,skateUntil:0,hp:100,maxHp:100,invulnerableUntil:0,hurtAt:-100,bubbleUntil:0,heatUntil:0,stampUntil:0,moveDirection:{x:1,y:0},sprintTime:0,sprintMultiplier:1,sprintDirection:{x:1,y:0},dashUntil:0,dashReadyAt:0,dashDirection:{x:1,y:0}},
+      player:{...WORLD.start,px:WORLD.start.x,py:WORLD.start.y,vx:0,vy:0,facing:1,radius:CONFIG.player.radius,skateUntil:0,hp:100,maxHp:100,invulnerableUntil:0,hurtAt:-100,bubbleUntil:0,heatUntil:0,stampUntil:0,moveDirection:{x:1,y:0},sprintTime:0,sprintMultiplier:1,dashUntil:0,dashReadyAt:0,dashDirection:{x:1,y:0}},
       enemies:[],pickups:[],weapon:{kind:'tongs',readyAt:0,equippedAt:0,targetId:null,attack:null},meleeWaves:[],projectiles:[],enemyShots:[],weaponDrops:[],zones:[],
       effects:{dispatchUntil:0,dispatchStartedAt:0,dispatchCooldownUntil:0,pendingSupplyAt:0,pendingSupplyUntil:0,supplyGroupId:0},lastDamage:null,lastDamageAmount:0};
   }
@@ -59,6 +61,7 @@ export class Game {
     s.revivesUsed++;
     s.ended=false;s.cause=null;s.lastDamage=null;s.lastDamageAmount=0;
     s.player.hp=s.player.maxHp;s.player.hurtAt=-100;s.player.invulnerableUntil=s.time+CONFIG.reviveProtection;
+    this.nextHealthAt=0;
     return true;
   }
   setupPickupDemo():void {
@@ -114,12 +117,11 @@ export class Game {
     p.dashDirection={...d};
     p.moveDirection={...d};
     p.dashUntil=s.time+CONFIG.player.dashDuration;p.dashReadyAt=s.time+CONFIG.player.dashCooldown;
-    p.sprintTime=0;p.sprintMultiplier=1;
     this.emit({type:'dash',x:p.x,y:p.y,angle:Math.atan2(d.y,d.x)});return true;
   }
   healPlayer():void {
-    if(this.state.ended)return;const p=this.state.player,amount=p.maxHp-p.hp;p.hp=p.maxHp;
-    if(amount>0)this.emit({type:'heal',id:this.nextId++,amount,x:p.x,y:p.y});
+    const s=this.state;
+    if(!s.ended)restorePlayerHealth(s,s.player.maxHp,s.player,this.ctx);
   }
   clearArena():void{const s=this.state;s.giantPulses=[];s.ultimates=[];s.enemies=[];s.pickups=[];s.weaponDrops=[];s.projectiles=[];s.meleeWaves=[];s.enemyShots=[];s.zones=[];s.coins=[];s.fields=[];s.combo=0;s.comboUntil=0;this.waveDemo=false;s.player.dashUntil=0;s.player.dashReadyAt=0;s.player.sprintTime=0;s.player.sprintMultiplier=1;s.weapon.attack=null;s.weapon.targetId=null;}
   spawnEnemy(kind:EnemyKind,position?:Vec):Enemy {
@@ -151,7 +153,7 @@ export class Game {
         this.batch++;
         this.nextEnemyAt=s.time+batchInterval;
       }
-      this.schedulePickups();this.scheduleWeapon();
+      this.schedulePickups();this.scheduleWeapon();this.scheduleHealth();
     }
     this.contactDamage=updateEnemies(s,dt,difficulty.speedScale,this.ctx);
     updateEnemyShots(s,dt);
@@ -182,26 +184,16 @@ export class Game {
     const p=this.state.player;p.px=p.x;p.py=p.y;
     const length=Math.hypot(input.x,input.y);
     const direction=length>.001?{x:input.x/length,y:input.y/length}:p.moveDirection;
-    const previous=p.sprintDirection??direction;
-    const turn=direction.x*previous.x+direction.y*previous.y;
-    if(length<.15||turn<.50){
-      p.sprintTime=0;
-      p.sprintDirection=direction;
-    }else{
-      p.sprintTime=(p.sprintTime??0)+dt;
-      // Track the recent heading so a wide curve keeps its speed but a quick swipe around a corner resets it.
-      const blend=1-Math.exp(-dt/.12);
-      const x=previous.x+(direction.x-previous.x)*blend,y=previous.y+(direction.y-previous.y)*blend;
-      const n=Math.hypot(x,y)||1;
-      p.sprintDirection={x:x/n,y:y/n};
-    }
-    p.sprintMultiplier=1+(CONFIG.player.sprintMax-1)*clamp(((p.sprintTime??0)-CONFIG.player.sprintAfter)/.6,0,1);
+    const tuning=CONFIG.player;
+    const strength=Math.min(1,length);
+    p.sprintTime=length>.001?Math.min(tuning.sprintRampTime,(p.sprintTime??0)+dt):0;
+    const progress=p.sprintTime/tuning.sprintRampTime;
+    // Ease into the run without accelerating fine stick adjustments to full-throw pace.
+    p.sprintMultiplier=1+(tuning.sprintMax-1)*progress**2*(3-2*progress)*strength**2;
     const onRoute=this.state.zones.some(z=>isOnPaperRoute(p,z,this.state.time));
     const multiplier=onRoute ? CONFIG.skills.route.speedMultiplier : 1;
-    const tuning=CONFIG.player;
-    const pace=multiplier*(p.sprintMultiplier??1);
+    const pace=multiplier*p.sprintMultiplier;
     const maxSpeed=tuning.speed*pace;
-    const strength=Math.min(1,length);
     // Keep fine stick movements at walking pace and give a full throw the whole running speed.
     const targetSpeed=pace*strength*(tuning.precisionSpeed+(tuning.speed-tuning.precisionSpeed)*strength**2);
     if(length>=tuning.aimThreshold)p.moveDirection=direction;
@@ -228,14 +220,13 @@ export class Game {
         const angle=Math.atan2(direction.y*p.vx-direction.x*p.vy,direction.x*p.vx+direction.y*p.vy);
         if(speed<1e-6||Math.abs(angle)>=Math.PI*.75){
           heading=desired;
-          speed=0;
         }else{
           const step=tuning.turnRate*dt;
           heading+=clamp(angle,-step,step);
         }
       }
       const response=targetSpeed>speed?tuning.accelerationTime:tuning.decelerationTime;
-      const speedStep=maxSpeed*dt/response;
+      const speedStep=Math.max(speed,maxSpeed)*dt/response;
       speed+=clamp(targetSpeed-speed,-speedStep,speedStep);
       p.vx=Math.cos(heading)*speed;
       p.vy=Math.sin(heading)*speed;
@@ -246,7 +237,7 @@ export class Game {
     p.y=clamp(y,Math.max(WORLD.bounds.top+p.radius,tuning.minY),WORLD.bounds.bottom-p.radius);
     if(p.x!==x)p.vx=0;
     if(p.y!==y)p.vy=0;
-    if(length>.001&&Math.hypot(p.x-p.px,p.y-p.py)<CONFIG.player.speed*dt*.1){p.sprintTime=0;p.sprintMultiplier=1;}
+    if(p.x===p.px&&p.y===p.py){p.sprintTime=0;p.sprintMultiplier=1;}
   }
   private contactPlayer(dt:number){
     const s=this.state,p=s.player;
@@ -269,7 +260,7 @@ export class Game {
     if(p.bubbleUntil>s.time){p.bubbleUntil=0;p.invulnerableUntil=s.time+CONFIG.player.protection;for(const e of s.enemies)if(distanceSquared(e,p)<=48**2)this.push(e,p,24);this.emit({type:'defend',kind:'bubble',x:p.x,y:p.y,victimId:hit.id});return;}
     const amount=Math.min(p.hp,hit.amount);p.hp-=amount;p.hurtAt=s.time;p.invulnerableUntil=s.time+CONFIG.player.protection;s.lastDamage=hit.source;s.lastDamageAmount=amount;
     this.emit({type:'damage',id:this.nextId++,victimId:0,source:hit.source,amount,nominal:hit.amount,x:p.x,y:p.y,time:s.time});
-    if(p.hp<=0){s.ended=true;s.cause=hit.kind;p.vx=0;p.vy=0;this.emit({type:'fail',kind:hit.kind,x:p.x,y:p.y,source:hit.source,amount});}
+    if(p.hp<=0){s.ended=true;s.cause=hit.kind;p.vx=0;p.vy=0;p.sprintTime=0;p.sprintMultiplier=1;this.emit({type:'fail',kind:hit.kind,x:p.x,y:p.y,source:hit.source,amount});}
   }
   private damage(enemy:Enemy,amount:number,source:DamageSource,impactAngle?:number):number {
     if(this.state.ended||!this.active(enemy)||!Number.isFinite(amount)||amount<=0)return 0;
@@ -291,7 +282,8 @@ export class Game {
   }
   private push(e:Enemy,origin:Vec,distance:number){const dx=e.x-origin.x,dy=e.y-origin.y,n=Math.hypot(dx,dy);const ux=n?dx/n:(e.id%2?1:-1),uy=n?dy/n:0;e.x=clamp(e.x+ux*distance,WORLD.bounds.left+e.radius,WORLD.bounds.right-e.radius);e.y=clamp(e.y+uy*distance,WORLD.bounds.top+e.radius,WORLD.bounds.bottom-e.radius);}
   private addPickup(kind:SkillKind,position:Vec,extra:Partial<Pickup>={}):Pickup|null {
-    if(this.state.pickups.filter(p=>!p.retiringUntil).length>=CONFIG.pickup.cap)return null;
+    const active=this.state.pickups.filter(p=>!p.retiringUntil);
+    if(kind==='health' ? active.some(p=>p.kind==='health') : active.filter(p=>p.kind!=='health').length>=CONFIG.pickup.cap)return null;
     const radius=CONFIG.pickup.radius,p:Pickup={id:this.nextId++,kind,x:clamp(position.x,WORLD.bounds.left+radius,WORLD.bounds.right-radius),y:clamp(position.y,Math.max(WORLD.bounds.top+radius,CONFIG.player.minY),WORLD.bounds.bottom-radius),radius,bornAt:this.state.time,...extra};
     launchPickup(p,this.state.seed);
     this.state.pickups.push(p);return p;
@@ -313,7 +305,7 @@ export class Game {
     }
     for(let i=0;i<48;i++){
       let x:number,y:number;
-      if(openingFan){
+      if(openingFan||kind==='health'){
         const angle=this.random()*Math.PI*2,distance=135+this.random()*110;
         x=clamp(s.player.x+Math.cos(angle)*distance,b.left+32,b.right-32);
         y=clamp(s.player.y+Math.sin(angle)*distance,CONFIG.player.minY+12,b.bottom-32);
@@ -331,6 +323,7 @@ export class Game {
         s.pickups.some(p=>distanceSquared(p,position)<(pickupReach(p)+CONFIG.pickup.reach)**2) ||
         s.weaponDrops.some(p=>distanceSquared(p,position)<(CONFIG.weapons.pickupReach+CONFIG.pickup.reach)**2))continue;
       if(isUltimate(kind)&&distanceSquared(position,s.player)>325**2)continue;
+      if(kind==='health'&&s.enemies.some(e=>e.hp>0&&distanceSquared(e,position)<(e.radius+42)**2))continue;
       if(other){
         const dx=x-s.player.x,dy=y-s.player.y,ox=other.x-s.player.x,oy=other.y-s.player.y;
         if(distanceSquared(position,other)<145**2||dx*ox+dy*oy>.72*Math.hypot(dx,dy)*Math.hypot(ox,oy))continue;
@@ -345,13 +338,22 @@ export class Game {
     }
     return best;
   }
+  /** A single recovery slot remains available even when all skill choices are on the street. */
+  private scheduleHealth(){
+    const s=this.state;
+    if(s.player.hp>=s.player.maxHp||s.time<this.nextHealthAt||s.pickups.some(p=>p.kind==='health'))return;
+    const position=this.pickupPosition('health');
+    if(position)this.addPickup('health',position);
+    else this.nextHealthAt=s.time+.5;
+  }
   private schedulePickups(){
     const s=this.state;
     s.pickups=s.pickups.filter(p=>(!p.expiresAt||p.expiresAt>s.time)&&(!p.retiringUntil||p.retiringUntil>s.time));
-    if(s.pickups.length)this.emptySince=s.time;
-    if(s.time<this.nextPickupAt&&!(s.pickups.length===0&&s.time-this.emptySince>=CONFIG.pickup.emptyGrace))return;
+    const ordinaryCount=s.pickups.filter(p=>p.kind!=='health').length;
+    if(ordinaryCount)this.emptySince=s.time;
+    if(s.time<this.nextPickupAt&&!(ordinaryCount===0&&s.time-this.emptySince>=CONFIG.pickup.emptyGrace))return;
     const support:SkillKind[]=['skate','soda','bubble','lure','bell'];
-    if(!this.openingPlaced&&s.pickups.length+2<=CONFIG.pickup.cap){
+    if(!this.openingPlaced&&ordinaryCount+2<=CONFIG.pickup.cap){
       const kind=support[Math.floor(this.random()*support.length)];
       const fan=this.pickupPosition('fan');
       const alternate=fan&&this.pickupPosition(kind,fan);
@@ -361,7 +363,7 @@ export class Game {
         for(const [skill,position] of pair)this.addPickup(skill,position);
         this.openingPlaced=true;
       }
-    }else if(this.openingPlaced&&s.pickups.length<CONFIG.pickup.cap){
+    }else if(this.openingPlaced&&ordinaryCount<CONFIG.pickup.cap){
       const kinds:SkillKind[]=['fan','fan',...support];
       if(s.time>=30)kinds.push('route','cones','hook','supply');
       if(s.time>=90)kinds.push('heat','dispatch','stamp');
@@ -382,7 +384,7 @@ export class Game {
   private collectPickups(dt:number){
     const s=this.state,p=s.player;
     s.pickups=s.pickups.filter(p=>(!p.expiresAt||p.expiresAt>s.time)&&(!p.retiringUntil||p.retiringUntil>s.time));
-    const available=s.pickups.filter(q=>!q.retiringUntil&&(q.readyAt??0)<=s.time&&(q.disabledUntil??0)<=s.time&&!(q.kind==='dispatch'&&s.effects.dispatchCooldownUntil>s.time));
+    const available=s.pickups.filter(q=>canCollectPickup(s,q));
     const start={x:p.px,y:p.py};
     const groups=new Set<number>();
     const contacts=available.map(item=>skillContact(item,start,p,s.time,dt)).filter(hit=>hit!==null)
@@ -393,8 +395,9 @@ export class Game {
       s.pickups=s.pickups.filter(v=>v.id!==q.id);
       const origin={x:p.px+(p.x-p.px)*time,y:p.py+(p.y-p.py)*time};
       this.emit({type:'pickup',kind:q.kind,...origin});activateSkill(s,q.kind,origin,this.ctx,at);
+      if(q.kind==='health')this.nextHealthAt=s.time+CONFIG.skills.health.cooldown;
     }
-    if(!s.pickups.length)this.emptySince=s.time;
+    if(!s.pickups.some(q=>q.kind!=='health'))this.emptySince=s.time;
   }
   private equip(kind:WeaponKind,drop:boolean){
     const s=this.state,w=s.weapon;if(w.kind===kind)return;const previous=w.kind;

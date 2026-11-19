@@ -3,7 +3,7 @@ export type WeaponKind='tongs'|'bag'|'chopsticks'|'spirit'|'knife'|'tray'|'umbre
 export type MeleeKind=Extract<WeaponKind,'tongs'|'knife'|'umbrella'|'sword'>;
 export const ULTIMATE_KINDS = ['icebox','steamer','express','berry'] as const;
 export type UltimateKind = typeof ULTIMATE_KINDS[number];
-export type SkillKind='fan'|'skate'|'soda'|'lure'|'bubble'|'cones'|'bell'|'route'|'hook'|'heat'|'dispatch'|'stamp'|'supply'|UltimateKind;
+export type SkillKind='fan'|'skate'|'soda'|'lure'|'bubble'|'cones'|'bell'|'route'|'hook'|'heat'|'dispatch'|'stamp'|'supply'|'health'|UltimateKind;
 export function isUltimate(kind:SkillKind):kind is UltimateKind {return ULTIMATE_KINDS.some(k=>k===kind);}
 export type DamageSource=WeaponKind|SkillKind|EnemyKind|'dash';
 export interface Vec {x:number;y:number}
@@ -24,7 +24,7 @@ export type UltimateCast=WaveCast|ExpressCast;
 export interface Player extends Vec {
   px:number;py:number;vx:number;vy:number;facing:number;radius:number;skateUntil:number;
   dashFromMovement?:boolean;
-  hp:number;maxHp:number;invulnerableUntil:number;hurtAt:number;bubbleUntil:number;heatUntil:number;stampUntil:number;moveDirection:Vec;sprintTime?:number;sprintMultiplier?:number;sprintDirection?:Vec;dashUntil?:number;dashReadyAt?:number;dashDirection?:Vec;
+  hp:number;maxHp:number;invulnerableUntil:number;hurtAt:number;bubbleUntil:number;heatUntil:number;stampUntil:number;moveDirection:Vec;sprintTime?:number;sprintMultiplier?:number;dashUntil?:number;dashReadyAt?:number;dashDirection?:Vec;
 }
 export interface Enemy extends Vec {
   jump?:GiantJump;
@@ -75,7 +75,7 @@ export interface SaveData {version:1;settings:Settings;best:BestRecord|null;tuto
 export const RULES_VERSION='night-market-4.0';
 export const ENEMY_NAMES:Record<EnemyKind,string>={bun:'包子怪',onigiri:'三角饭团',siumai:'金黄烧卖',zongzi:'青叶粽',box:'外卖盒怪',bowl:'大碗面怪',giantBun:'巨包三连坐'};
 export const WEAPON_NAMES:Record<WeaponKind,string>={tongs:'伸缩取餐夹',bag:'纸袋气炮',chopsticks:'飞筷匣',spirit:'汤灵保温壶',knife:'拆箱快刀',tray:'回旋餐盘',umbrella:'折叠配送伞',sword:'签收尺剑',lunchbox:'弹射餐盒',talisman:'派单符册'};
-export const SKILL_NAMES:Record<SkillKind,string>={fan:'旋风电扇',skate:'滑板环绕',soda:'汽水缓速',lure:'试吃保温盒',bubble:'气泡缓冲卷',cones:'三联反光路锥',bell:'到站手铃',route:'导航纸地图',hook:'伸缩取餐钩',heat:'加热餐包',dispatch:'派单终端',stamp:'加急印章',supply:'补给扫码券',icebox:'保冷箱冰浪',steamer:'蒸笼开席',express:'加急三连送',berry:'杨梅汽水炸屏'};
+export const SKILL_NAMES:Record<SkillKind,string>={fan:'旋风电扇',skate:'滑板环绕',soda:'汽水缓速',lure:'试吃保温盒',bubble:'气泡缓冲卷',cones:'三联反光路锥',bell:'到站手铃',route:'导航纸地图',hook:'伸缩取餐钩',heat:'加热餐包',dispatch:'派单终端',stamp:'加急印章',supply:'补给扫码券',icebox:'保冷箱冰浪',steamer:'蒸笼开席',express:'加急三连送',berry:'杨梅汽水炸屏',health:'暖心汤包'};
 export const WEAPON_KINDS=Object.keys(WEAPON_NAMES) as WeaponKind[];
 export const SKILL_KINDS=Object.keys(SKILL_NAMES) as SkillKind[];
 

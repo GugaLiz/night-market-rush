@@ -642,3 +642,33 @@
 - **实现/结果**：十七种技能共用闪电泡，按局种子和物品标识确定漂移轨迹，碰边分段反射，滤除等待补给、吸取和退场时的自然漂移。骑手与技能按相对运动判定接触，骑手移动和技能弹射均有帧间插值。金色武器箱保留原位与退换机制。同步更新教程、图鉴、验收录像追踪和实战四帧图。
 - **验证**：TypeScript、Vite、252 项单元测试和 17 项浏览器回归通过。1280×720 与 844×390 横屏模拟均实测撞壁折返、暂停、迎面拾扇放出风场、原地换装与旧武器掉回。减少动态保留闪电徽记。4173 正式普通局风扇在 1.6 秒漂移 178.63 单位，武器箱 4.16 至 8.48 秒固定。四款大招触控验收与静态包浏览器检查通过，服务主包和 dist 字节一致。
 - **风险/后续**：当前 GitHub 凭据对仓库的推送权限检查返回 403。横屏触控为 Chrome 模拟。
+## 2026-11-20 00:22:27 +08:00 — feature
+
+- **摘要**：加快六把远程武器的实际齐射节奏，连续跑动提速至 +40%，普通挑战加入可拾取的暖心汤包。
+- **涉及文件**：
+  - `docs/verification/clay/soup-pickup.webp`
+  - `public/assets/clay-soup-dumpling.webp`
+  - `tests/health-pickup.test.ts`
+  - `README.md`
+  - `docs/ASSET_PROVENANCE.md`
+  - `docs/V4_PLAYTEST.md`
+  - `src/core/config.ts`
+  - `src/core/game.ts`
+  - `src/core/skills.ts`
+  - `src/core/weapons.ts`
+  - `src/render/assets.ts`
+  - `src/render/delivery-skills.ts`
+  - `src/render/renderer.ts`
+  - `src/shared/types.ts`
+  - `src/ui/catalog.ts`
+  - `src/ui/ui.ts`
+  - `tests/e2e/game.spec.ts`
+  - `tests/ultimates.test.ts`
+  - `tests/v3-core.test.ts`
+  - `tests/v3-weapons.test.ts`
+  - `tests/v4-core.test.ts`
+  - `agentchanges/CHANGELOG.md`
+- **原因/目标**：远程出手间隔长，原先同向 1.8 秒才开始的加速在街上很难感觉到，普通挑战受伤后缺少回血道具。
+- **实现/结果**：六把远程普通连发间隔缩至 0.35–0.73 秒，纸袋风弹加快飞行以腾出完整九路齐射的空间。满杆或键盘连续 1.6 秒从基础 405 提至 567，转弯和掉头保持跑速，停下和顶墙归零。受伤后在附近空地投递单枚带红心的软陶汤包，实际接触最多回复 25 点，满血时保留，拾取后等待 15 秒。新的美术、回血徽记、图鉴、实拍与玩法说明均已接入。
+- **验证**：TypeScript、Vite 和 258 项 Vitest 全部通过。首轮 E2E 中，旧演示脚本一直按住方向键，在读取 HUD 时玩家已跑到远队并用武器清场。改为在触碰风扇时松手，保留原有拾币与远队生存断言，复跑 17 项全部通过。桌面 Chrome 分别验证六把远程弹道与真实命中，连续 6 秒检验常态及加热时每一轮的路数和出手间隔。生产构建 844×390 模拟触控保持方向并两次折返，HUD +12% → +30% → +40%，松手后新起跑到 +4%。普通挑战受伤后自然投递，仅键盘追泡即由 68/100 到 93/100；另测 92/100 到 100/100。4173 正式包和 WebP 与 dist 字节一致，静态构建及四款大招移动端浏览器验收通过。
+- **风险/后续**：GitHub 以当前账号检查推送返回 403，Pages 仍需有写权限的账号触发部署。横屏触控为 Chrome 模拟。

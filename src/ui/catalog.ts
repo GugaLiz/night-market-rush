@@ -18,6 +18,7 @@ export const WEAPON_GUIDE:Record<WeaponKind,CatalogEntry>={
   talisman:{short:'派单符册',role:'分单接力',description:'三张派单纸向不同方向飞出，碰到怪物才开始逐跳传递。各路共享已派名单，单轮最多打十只。',detail:weaponDetail('talisman',`首段射程 ${WEAPONS.talisman.range} · 张角 108° · 跳转距离 ${WEAPONS.talisman.width} · 后续 ${RANGED_HITS.talisman.slice(1).join(" / ")}`)},
 };
 export const SKILL_GUIDE:Record<SkillKind,CatalogEntry>={
+  health:{short:'暖心汤包',role:'恢复生命',description:'受伤后，附近的空地会飘来带红心的汤包。迎上它就能回血，满血经过会留在街上。',detail:`每个最多恢复 ${CONFIG.skills.health.amount} 点生命 · 拾取 ${CONFIG.skills.health.cooldown} 秒后可再次投递`},
   icebox:{short:'保冷箱',role:'定向冰浪',description:'开箱前转身对准怪群，碎冰分三层向前涌出。浪头触到的敌人受伤并短暂冻结。',detail:'前方 180° · 蓄力 0.20 秒 · 命中 85 · 冻结 0.75 秒'},
   steamer:{short:'蒸笼开席',role:'全场扩散',description:'揭盖后热汽从脚边向场外推开。近处的怪先被掀起，可以跟着浪头往外跑。',detail:'波前用时 0.65 秒 · 每只最多 100 伤害'},
   express:{short:'加急三连送',role:'跨场折返',description:'投出快递包，让它跨街折返三次。你可以自由跑动或冲刺，折返时的移动方向会引导下一站。',detail:'每跳 0.24 秒 · 沿途 58 · 末次盖章半径 110、伤害 92'},

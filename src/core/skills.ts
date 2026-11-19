@@ -17,12 +17,21 @@ function zone(s:GameState,ctx:CombatContext,kind:Zone['kind'],p:Vec,duration:num
   const z:Zone={id:ctx.id(),kind,...p,radius:0,bornAt:s.time,expiresAt:s.time+duration,angle:0,length:0,width:0,hp:1,...extra};
   s.zones.push(z);return z;
 }
-function eligible(s:GameState,p:Pickup):boolean {
-  return !p.retiringUntil&&(p.readyAt??0)<=s.time&&(p.expiresAt===undefined||p.expiresAt>s.time)&&(p.disabledUntil??0)<=s.time;
+export function canCollectPickup(s:GameState,p:Pickup):boolean {
+  if(p.retiringUntil||(p.readyAt??0)>s.time||(p.expiresAt??Infinity)<=s.time||(p.disabledUntil??0)>s.time)return false;
+  if(p.kind==='health')return s.player.hp<s.player.maxHp;
+  return p.kind!=='dispatch'||s.effects.dispatchCooldownUntil<=s.time;
 }
 function nearest(s:GameState,p:Vec,radius:number,ctx:CombatContext):Enemy[] {
   return s.enemies.filter(e=>ctx.active(e)&&distanceSquared(e,p)<=radius*radius)
     .sort((a,b)=>distanceSquared(a,p)-distanceSquared(b,p)||a.id-b.id);
+}
+
+export function restorePlayerHealth(s:GameState,amount:number,at:Vec,ctx:CombatContext):void {
+  const restored=Math.min(amount,s.player.maxHp-s.player.hp);
+  if(restored<=0)return;
+  s.player.hp+=restored;
+  ctx.emit({type:'heal',id:ctx.id(),amount:restored,x:at.x,y:at.y});
 }
 
 /** Skills are completely state-backed: resets and seeded replays do not retain module state. */
@@ -31,6 +40,7 @@ export function activateSkill(s:GameState,kind:SkillKind,origin:Vec,ctx:CombatCo
   if(kind==='dispatch'&&s.effects.dispatchCooldownUntil>now)return;
   ctx.emit({type:'skill',kind,...origin,time:now,facing:facing(s),...(pickupFrom && {pickupFrom:{x:pickupFrom.x,y:pickupFrom.y}})});
   switch(kind){
+    case 'health':restorePlayerHealth(s,CONFIG.skills.health.amount,origin,ctx);break;
     case 'icebox':case 'steamer':case 'express':case 'berry':
       castUltimate(s,kind,origin);
       break;
@@ -147,10 +157,10 @@ function ringBell(s:GameState,origin:Vec,ctx:CombatContext):void {
 }
 
 function startHook(s:GameState):void {
-  const travelling=s.pickups.filter(p=>(p.pulledUntil??0)>s.time&&eligible(s,p));
+  const travelling=s.pickups.filter(p=>(p.pulledUntil??0)>s.time&&canCollectPickup(s,p));
   const groups=new Set(travelling.filter(p=>p.groupId).map(p=>p.groupId));
   let slots=CONFIG.skills.hook.targets-travelling.length;
-  const candidates=s.pickups.filter(p=>p.kind!=='hook'&&eligible(s,p)&&(p.pulledUntil??0)<=s.time&&distanceSquared(p,s.player)<=CONFIG.skills.hook.radius**2)
+  const candidates=s.pickups.filter(p=>p.kind!=='hook'&&canCollectPickup(s,p)&&(p.pulledUntil??0)<=s.time&&distanceSquared(p,s.player)<=CONFIG.skills.hook.radius**2)
     .sort((a,b)=>distanceSquared(a,s.player)-distanceSquared(b,s.player)||a.id-b.id);
   for(const item of candidates){
     if(slots<=0)break;if(item.groupId&&groups.has(item.groupId))continue;
@@ -161,7 +171,7 @@ function startHook(s:GameState):void {
 function updateHook(s:GameState,dt:number):void {
   for(const item of s.pickups){
     if(!item.pulledUntil)continue;
-    if(item.pulledUntil<=s.time||!eligible(s,item)){delete item.pulledUntil;continue;}
+    if(item.pulledUntil<=s.time||!canCollectPickup(s,item)){delete item.pulledUntil;continue;}
     const dx=s.player.x-item.x,dy=s.player.y-item.y,length=Math.hypot(dx,dy);
     if(length<.01)continue;
     const step=Math.min(length,CONFIG.skills.hook.speed*dt);item.x+=dx/length*step;item.y+=dy/length*step;
@@ -172,7 +182,7 @@ function updateHook(s:GameState,dt:number):void {
 /** Reserve landing spots now so natural spawns cannot steal the supply capacity. */
 function deliverSupply(s:GameState,origin:Vec,ctx:CombatContext):boolean {
   if(s.pickups.some(p=>p.groupId&&!p.retiringUntil&&(p.expiresAt??Infinity)>s.time))return false;
-  const occupied=s.pickups.filter(p=>!p.retiringUntil&&(p.expiresAt??Infinity)>s.time).length;
+  const occupied=s.pickups.filter(p=>p.kind!=='health'&&!p.retiringUntil&&(p.expiresAt??Infinity)>s.time).length;
   const capacity=Math.min(3,CONFIG.pickup.cap-occupied);if(capacity<=0)return false;
   const positions:Vec[]=[];const d=facing(s),angle=Math.atan2(d.y,d.x);
   for(let i=0;i<12&&positions.length<capacity;i++){

@@ -20,17 +20,19 @@ export const RANGED_HITS={
   chopsticks:[74,64,56,50,44,38,32], spirit:[70,50], talisman:[70,60,52,46,40,36],
   spiritBounce:175, trayReturn:44, trayTargetsPerLeg:9,
 } as const;
-const FLIGHT_SPEED:Record<RangedKind,number>={bag:440,chopsticks:700,spirit:470,tray:560,lunchbox:440,talisman:440};
+// Nine paper puffs fire together. Let the earliest fan finish its range before
+// a third heated volley needs its slots, even on an empty street.
+const FLIGHT_SPEED:Record<RangedKind,number>={bag:700,chopsticks:700,spirit:470,tray:560,lunchbox:440,talisman:440};
 
 export interface WeaponConfig {range:number;windup:number;cooldown:number;active:number;damage:number;limit:number;width:number}
 export const WEAPONS:Record<WeaponKind,WeaponConfig>={
   ...MELEE_WEAPONS,
-  bag:{range:410,windup:.08,cooldown:.58,active:.12,damage:45,limit:VOLLEY_ANGLES.bag.length,width:30},
-  chopsticks:{range:540,windup:.08,cooldown:.76,active:.12,damage:RANGED_HITS.chopsticks[0],limit:14,width:24},
-  spirit:{range:470,windup:.13,cooldown:.96,active:.18,damage:RANGED_HITS.spirit[0],limit:6,width:34},
-  tray:{range:420,windup:.10,cooldown:.90,active:.16,damage:58,limit:2*RANGED_HITS.trayTargetsPerLeg,width:48},
-  lunchbox:{range:420,windup:.135,cooldown:1.24,active:.18,damage:116,limit:14,width:150},
-  talisman:{range:470,windup:.10,cooldown:.94,active:.18,damage:RANGED_HITS.talisman[0],limit:10,width:165},
+  bag:{range:410,windup:.05,cooldown:.34,active:.12,damage:45,limit:VOLLEY_ANGLES.bag.length,width:30},
+  chopsticks:{range:540,windup:.045,cooldown:.295,active:.12,damage:RANGED_HITS.chopsticks[0],limit:14,width:24},
+  spirit:{range:470,windup:.075,cooldown:.47,active:.18,damage:RANGED_HITS.spirit[0],limit:6,width:34},
+  tray:{range:420,windup:.06,cooldown:.49,active:.16,damage:58,limit:2*RANGED_HITS.trayTargetsPerLeg,width:48},
+  lunchbox:{range:420,windup:.095,cooldown:.63,active:.18,damage:116,limit:14,width:150},
+  talisman:{range:470,windup:.065,cooldown:.44,active:.18,damage:RANGED_HITS.talisman[0],limit:10,width:165},
 };
 const distance=(a:{x:number;y:number},b:{x:number;y:number})=>Math.hypot(a.x-b.x,a.y-b.y);
 const angleDelta=(a:number,b:number)=>Math.atan2(Math.sin(a-b),Math.cos(a-b));

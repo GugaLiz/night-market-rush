@@ -33,11 +33,35 @@ describe('V3 movement and hostile projectile rules',()=>{
     for(let frame=0;frame<900;frame++){g.update(1/60,zero);expect(warnings().length).toBeLessThanOrEqual(CONFIG.ranged.concurrent);if(g.state.enemyShots!.length)fired=true;}
     expect(fired).toBe(true);expect(g.state.enemyShots!.length).toBeLessThanOrEqual(12);
   });
-  it('sustained straight movement ramps gently and a turn or stop resets it',()=>{
-    const g=lab();g.state.player.x=120;run(g,1.8,{x:1,y:0});expect(g.state.player.sprintMultiplier).toBeCloseTo(1);
-    run(g,.6,{x:1,y:0});expect(g.state.player.sprintMultiplier).toBeCloseTo(1.12,2);
-    g.update(1/60,{x:0,y:1});expect(g.state.player.sprintMultiplier).toBe(1);expect(g.state.player.sprintTime).toBe(0);
-    g.update(1/60,zero);expect(g.state.player.sprintTime).toBe(0);
+  it('builds actual speed from the first stride to the cap, carries it through a reversal, and starts fresh after release',()=>{
+    const g=lab(),p=g.state.player,east={x:1,y:0},west={x:-1,y:0};
+    p.x=120;
+    let previous=CONFIG.player.speed;
+    for(const checkpoint of [.4,.8,1.2,1.6]){
+      run(g,.4,east);
+      const speed=(p.x-p.px)/CONFIG.step;
+      expect(speed).toBeGreaterThan(previous);previous=speed;
+      expect(p.sprintTime).toBeCloseTo(checkpoint);
+    }
+    const topSpeed=CONFIG.player.speed*CONFIG.player.sprintMax;
+    expect(previous).toBeCloseTo(topSpeed);
+    run(g,.2,east);g.update(CONFIG.step,west);
+    expect(p.vx).toBeCloseTo(-topSpeed);expect(p.sprintTime).toBe(CONFIG.player.sprintRampTime);
+    run(g,.05);
+    expect(p.sprintMultiplier).toBe(1);expect(p.sprintTime).toBe(0);expect(Math.hypot(p.vx,p.vy)).toBe(0);
+    run(g,2*CONFIG.step,west);expect(-p.vx).toBeCloseTo(CONFIG.player.speed,0);
+  });
+  it('keeps tiny stick adjustments precise, charges only on actual motion at a wall, and carries a moving dash into a run',()=>{
+    const g=lab(),p=g.state.player,east={x:1,y:0},west={x:-1,y:0};
+    run(g,1.7,{x:.04,y:0});
+    expect(p.vx).toBeGreaterThan(9);expect(p.vx).toBeLessThan(11);
+    p.x=WORLD.bounds.right-p.radius;
+    run(g,.5,east);expect(p.sprintTime).toBe(0);expect(p.sprintMultiplier).toBe(1);
+    run(g,.3,west);
+    const before=p.sprintTime!;
+    expect(g.dash(west)).toBe(true);
+    run(g,.2,west);expect(p.sprintTime).toBeCloseTo(before+.2);
+    g.clearArena();expect(p.sprintTime).toBe(0);expect(p.sprintMultiplier).toBe(1);
   });
   it('dash follows last input, is immune, respects cooldown and never leaves arena',()=>{
     const g=lab();g.update(1/60,{x:1,y:0});const x=g.state.player.x;const e=g.spawnEnemy('bowl',{x:x+45,y:370});e.stunUntil=100;
