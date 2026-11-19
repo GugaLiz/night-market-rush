@@ -26,40 +26,48 @@ function ripple(c:CanvasRenderingContext2D,x:number,y:number,r:number,color:stri
 }
 
 function paperTrail(c:CanvasRenderingContext2D,cast:ExpressCast,s:GameState,assets:Assets,settings:Settings):void {
-  if(!cast.landings.length)return;
-  const points=cast.onLeg?[...cast.landings,cast]:cast.landings;
-  const fade=unit((cast.expiresAt-s.time)/EXPRESS.fade),simple=thin(settings);
+  const completed=cast.landings.length-1;
+  if(completed<0)return;
+  const release=cast.bornAt+EXPRESS.windup,latest=completed+(cast.onLeg?1:0);
   c.save();c.lineCap='round';
-  for(let i=1;i<points.length;i++){
-    const a=points[i-1],b=points[i],dx=b.x-a.x,dy=b.y-a.y,distance=Math.hypot(dx,dy);
-    const active=i===points.length-1,alpha=fade*(active?.8:.38);
-    c.globalAlpha=alpha;
-    const grad=c.createLinearGradient(a.x,a.y,b.x+.001,b.y);
-    grad.addColorStop(0,'#119b8d22');grad.addColorStop(.74,'#49d9b890');grad.addColorStop(1,'#c7fff0');
-    c.beginPath();c.moveTo(a.x,a.y);c.lineTo(b.x,b.y);
-    c.strokeStyle='#51ddbc32';c.lineWidth=EXPRESS.radius*2;c.stroke();
-    c.strokeStyle=grad;c.lineWidth=active?30:17;c.stroke();
-    c.strokeStyle='#b9ffdf';c.lineWidth=2.5;c.stroke();
-    if(!simple)for(let d=90;d<distance-30;d+=130){
-      const fraction=d/distance;
-      const x=a.x+dx*fraction,y=a.y+dy*fraction,angle=Math.atan2(dy,dx);
-      c.save();c.translate(x,y);c.rotate(angle);
-      c.fillStyle='#d6ffe8';c.beginPath();c.ellipse(-7,-5,8,3,.23,0,tau);c.ellipse(7,5,7,3,-.23,0,tau);c.fill();
-      c.restore();
-      if(d%260===90)imprint(c,assets,2,x-14,y-14+6*Math.sin(s.time*12+d),34,33,Math.sin(d)*.42);
+  for(let leg=Math.max(1,latest-1);leg<=latest;leg++){
+    const from=cast.landings[leg-1],end=cast.landings[leg]??cast;
+    const dx=end.x-from.x,dy=end.y-from.y,distance=Math.hypot(dx,dy);
+    const fade=unit(1-Math.max(0,s.time-release-leg*EXPRESS.leg)/EXPRESS.fade);
+    if(distance<2||fade===0)continue;
+    // Only fresh tape follows the parcel. Earlier crossings clear before the next pass.
+    const length=Math.min(distance,thin(settings)?210:315),ux=dx/distance,uy=dy/distance;
+    const start={x:end.x-ux*length,y:end.y-uy*length};
+    const grad=c.createLinearGradient(start.x,start.y,end.x,end.y);
+    grad.addColorStop(0,'#21ab9800');grad.addColorStop(.58,'#54dcbb92');grad.addColorStop(1,'#c4ffdf');
+    c.globalAlpha=fade*.78;c.strokeStyle=grad;c.lineWidth=26;
+    c.beginPath();c.moveTo(start.x,start.y);c.lineTo(end.x,end.y);c.stroke();
+    c.lineWidth=4;c.strokeStyle='#c9ffe4';c.beginPath();
+    c.moveTo(end.x-ux*length*.27,end.y-uy*length*.27);c.lineTo(end.x,end.y);c.stroke();
+    if(!thin(settings)&&length>90){
+      c.globalAlpha=fade*.72;
+      for(let d=75;d<length;d+=115)imprint(c,assets,2,end.x-ux*d,end.y-uy*d-8,24,22,ux*.22);
     }
   }
-  for(const [i,mark] of cast.landings.entries()){
-    const last=i===3,r=last?EXPRESS.landingRadius:39;
-    c.globalAlpha=fade*(last?.85:.58);
-    ripple(c,mark.x,mark.y,r,last?'#e7ffcf':'#8af4ca',last?5:2.5);
-    imprint(c,assets,2,mark.x,mark.y,last?99:72,last?80:55,i%2?.28:-.19);
-    if(i>0)for(let ray=0;ray<3;ray++){
-      const a=-Math.PI/2+(ray-1)*.42;
-      c.strokeStyle='#fff3ac';c.lineWidth=last?6:4;c.beginPath();
-      c.moveTo(mark.x+Math.cos(a)*27,mark.y+Math.sin(a)*27);
-      c.lineTo(mark.x+Math.cos(a)*(last?51:41),mark.y+Math.sin(a)*(last?51:41));c.stroke();
+  // Announce a delivery seal as it approaches; the final circle matches the heavier hit.
+  if(cast.onLeg&&latest%EXPRESS.legsPerOrder===0){
+    const approach=unit(((s.time-cast.legStart)/EXPRESS.leg-.45)/.55);
+    if(approach>0){
+      const final=latest===EXPRESS.legs;
+      c.globalAlpha=.5*approach;c.setLineDash([10,9]);
+      ripple(c,cast.target.x,cast.target.y,final?EXPRESS.landingRadius:41,final?'#ffd48d':'#a6f3d0',3);
+      c.setLineDash([]);
     }
+  }
+  for(let i=Math.max(0,completed-1);i<=completed;i++){
+    const age=Math.max(0,s.time-release-i*EXPRESS.leg),final=i===EXPRESS.legs;
+    const fade=unit(1-age/(final?EXPRESS.fade:.55));
+    if(fade===0)continue;
+    const mark=cast.landings[i],order=i>0&&i%EXPRESS.legsPerOrder===0;
+    const r=final?EXPRESS.landingRadius:order?51:33,size=final?100:order?78:54;
+    c.globalAlpha=fade*.87;
+    ripple(c,mark.x,mark.y,r,final?'#ffd48d':order?'#d7ffbf':'#8af4ca',final?5:3);
+    imprint(c,assets,2,mark.x,mark.y,size,size*.76,i%2?.24:-.18);
   }
   c.restore();
 }
@@ -229,10 +237,11 @@ function castTool(c:CanvasRenderingContext2D,s:GameState,cast:WaveCast,assets:As
 export function drawUltimateAir(c:CanvasRenderingContext2D,s:GameState,settings:Settings,assets:Assets):void {
   for(const cast of s.ultimates??[]){
     if(cast.kind!=='express'){castTool(c,s,cast,assets,settings);continue;}
-    if(!cast.onLeg)continue;
+    if(!cast.landings.length||cast.landings.length>EXPRESS.legs)continue;
     const progress=unit((s.time-cast.legStart)/EXPRESS.leg);
     const arc=Math.sin(progress*Math.PI);
-    const side=cast.target.x>=cast.landings[cast.landings.length-1].x?1:-1;
+    const start=cast.landings[cast.landings.length-(cast.onLeg?1:2)];
+    const side=cast.target.x>=start.x?1:-1;
     const lift=arc*(settings.reduceMotion?11:45);
     c.save();
     c.fillStyle='#4f42385c';c.beginPath();c.ellipse(cast.x,cast.y,22-5*arc,6-arc,0,0,tau);c.fill();

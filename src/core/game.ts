@@ -242,7 +242,7 @@ export class Game {
   private contactPlayer(dt:number){
     const s=this.state,p=s.player;
     const contacts:Array<{id:number;kind:EnemyKind;t:number;amount:number;source:DamageSource;shot:boolean}>=[];
-    for(const e of s.enemies){if(e.kind==='giantBun'||!this.active(e)||e.contactSuppressedUntil>s.time)continue;const t=relativeSweep({x:p.px,y:p.py},p,{x:e.px,y:e.py},e,p.radius+e.radius);if(t!==null){const amount=this.contactDamage.get(e.id)??CONFIG.enemies[e.kind].damage;contacts.push({id:e.id,kind:e.kind,t,amount,source:e.kind==='box'&&amount===20?'dash':e.kind,shot:false});}}
+for(const e of s.enemies){if(e.kind==='giantBun'||!this.active(e)||e.contactSuppressedUntil>s.time)continue;const t=relativeSweep({x:p.px,y:p.py},p,{x:e.px,y:e.py},e,p.radius+e.radius);if(t!==null){const amount=this.contactDamage.get(e.id)??CONFIG.enemies[e.kind].damage;contacts.push({id:e.id,kind:e.kind,t,amount,source:e.kind==='box'&&amount===CONFIG.dash.damage?'dash':e.kind,shot:false});}}
     if(s.giantPulses?.length){
       s.giantPulses=s.giantPulses.filter(w=>s.time-dt<=w.bornAt+giantPulseLifetime(w));
       for(const w of s.giantPulses){

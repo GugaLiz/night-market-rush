@@ -28,6 +28,14 @@
 .clay-sample { display:inline-flex; align-items:center; justify-content:center; gap:4px; min-height:35px; padding:3px 9px; border:1px solid #77988c; border-radius:10px; background:#f5f6e6; box-shadow:0 2px 0 #9caf99; color:#2e5145; font-size:clamp(11px,1.05cqw,15px); font-weight:750; cursor:pointer; }
 .clay-sample>span { width:26px; height:26px; }
 .clay-sample.giant-sample { color:#773f30; background:#ffdebc; border-color:#c39671; }
+.guide-icon.guide-bubble {
+  border:2px solid #58ad9f;
+  background:radial-gradient(circle at 32% 24%,#f4ffeb 3%,#c3f0d8 50%,#7acdb6 90%);
+}
+.guide-icon .tally-coin {
+  width:58%; margin:0; border:2px solid #976021;
+  transform:rotate(-14deg); box-shadow:inset -2px -3px #d9973e, inset 2px 2px #ffec9e;
+}
 .clay-sample:active { transform:translateY(1px); box-shadow:none; }
 @media (max-height:510px) {
   .home-card {padding:clamp(10px,1.65cqw,20px); width:46%;}
@@ -35,4 +43,11 @@
   .home-card .home-footer {margin-top:5px;}
   .clay-samples {margin:8px 0;padding:8px;}
   .clay-sample {min-height:31px;padding:2px 7px;}
+}
+.catalog-enemies article { align-items:center; }
+.catalog-enemies .catalog-icon { width:clamp(54px,5.5cqw,76px); height:auto; aspect-ratio:1; }
+@media (max-height:510px) {
+  .catalog-enemies { grid-template-columns:1fr; }
+  .catalog-enemies p { font-size:13px; }
+  .catalog-enemies small { font-size:12px; }
 }

@@ -67,10 +67,11 @@ test.describe('touch dash',()=>{
     await page.clock.runFor(64);
     const stopped=(await state(page)).player;
     expect(stopped.x-moving.player.x).toBeLessThan(2);
-    await page.clock.runFor(176);
+    await page.clock.runFor(1440);
     const inFlight=await state(page);
     expect(inFlight.player.x).toBe(stopped.x);
     expect(inFlight.ultimates?.some(c=>c.kind==='express'&&c.landings.length>=2)).toBe(true);
+    await expect(page.locator('[data-status="express"]')).toContainText('急送第 1 单');
     await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{...origin,id:2}]});
     await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{...origin,id:2,x:origin.x-65}]});
     await page.clock.runFor(112);

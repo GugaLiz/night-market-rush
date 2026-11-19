@@ -39,7 +39,7 @@ try{
   await button('配送试验场');
   for(const [kind,label,delay,tiles] of [
     ['icebox','保冷箱冰浪',426,[0,4]],['steamer','蒸笼开席',532,[1,5]],
-    ['express','加急三连送',736,[2]],['berry','杨梅汽水炸屏',432,[3,6,7]],
+    ['express','加急三连送',7024,[2]],['berry','杨梅汽水炸屏',432,[3,6,7]],
   ]){
     // Place the same material targets every run, then activate through the real laboratory control.
     const starting=await page.evaluate(kind=>{
@@ -47,6 +47,8 @@ try{
       g.clearArena();s.weapon.readyAt=Infinity;
       Object.assign(s.player,{x:kind==='express'?240:640,y:kind==='express'?295:370,
         px:kind==='express'?240:640,py:kind==='express'?295:370,vx:0,vy:0,moveDirection:{x:1,y:0},facing:1});
+      // Keep the stationary observer alive while all twelve legs pass the target group.
+      if(kind==='express')s.player.invulnerableUntil=s.time+17;
       const positions=[[212,235],[282,420],[190,550],[358,310],[415,520],[515,270],[579,455],
         [711,375],[760,224],[790,515],[868,328],[930,590],[988,450],[1117,260],[1115,545]];
       for(const [i,[x,y]] of positions.entries()){
@@ -70,12 +72,17 @@ try{
     assert.ok(tiles.every(tile=>data.stamps.includes(tile)),kind+' drew its clay textures');
     assert.ok(data.health<starting.health,kind+' caused real HP damage');
     if(kind==='express'){
-      assert.equal(data.landings,3,'the final delivery is in flight in the captured frame');
+      assert.equal(data.landings,6,'the second order is still crossing the street seven seconds in');
       assert.ok(Math.min(...data.parcelX)<.25&&Math.max(...data.parcelX)>.75,'the visible parcel crosses the street');
       assert.deepEqual(data.rider,starting.rider,'an idle rider remains at the chosen spot');
-      await page.clock.runFor(144);
+      assert.match(await page.locator('[data-status="express"]').textContent(),/急送第 2 单/);
+      await page.clock.runFor(7350);
+      assert.match(await page.locator('[data-status="express"]').textContent(),/急送第 3 单/);
+      await page.clock.runFor(840);
       const landed=await page.evaluate(()=>window.__gameTest.snapshot().ultimates.find(c=>c.kind==='express').landings.length);
-      assert.equal(landed,4,'all three landings completed');
+      assert.equal(landed,13,'the twelfth leg delivered the final seal at fifteen seconds');
+      await page.clock.runFor(700);
+      assert.equal(await page.evaluate(()=>window.__gameTest.snapshot().ultimates.some(c=>c.kind==='express')),false);
     }
     reports.push({kind,kills:data.kills-starting.kills,hpRemoved:starting.health-data.health,tiles:data.stamps});
     captures.push({label,image:data.image});

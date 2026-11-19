@@ -1,5 +1,6 @@
-import type {SkillKind, WeaponKind} from '../shared/types';
+import {ENEMY_NAMES, SKILL_KINDS, SKILL_NAMES, WEAPON_KINDS, WEAPON_NAMES, type EnemyKind, type SkillKind, type WeaponKind} from '../shared/types';
 import {CONFIG} from '../core/config';
+import {EXPRESS} from '../core/ultimates';
 import {MELEE_WEAPONS} from '../core/melee';
 import {RANGED_HITS, WEAPONS} from '../core/weapons';
 
@@ -21,7 +22,7 @@ export const SKILL_GUIDE:Record<SkillKind,CatalogEntry>={
   health:{short:'暖心汤包',role:'恢复生命',description:'受伤后，附近的空地会飘来带红心的汤包。迎上它就能回血，满血经过会留在街上。',detail:`每个最多恢复 ${CONFIG.skills.health.amount} 点生命 · 拾取 ${CONFIG.skills.health.cooldown} 秒后可再次投递`},
   icebox:{short:'保冷箱',role:'定向冰浪',description:'开箱前转身对准怪群，碎冰分三层向前涌出。浪头触到的敌人受伤并短暂冻结。',detail:'前方 180° · 蓄力 0.20 秒 · 命中 85 · 冻结 0.75 秒'},
   steamer:{short:'蒸笼开席',role:'全场扩散',description:'揭盖后热汽从脚边向场外推开。近处的怪先被掀起，可以跟着浪头往外跑。',detail:'波前用时 0.65 秒 · 每只最多 100 伤害'},
-  express:{short:'加急三连送',role:'跨场折返',description:'投出快递包，让它跨街折返三次。你可以自由跑动或冲刺，折返时的移动方向会引导下一站。',detail:'每跳 0.24 秒 · 沿途 58 · 末次盖章半径 110、伤害 92'},
+  express:{short:'加急三连送',role:'跨场折返',description:'快递包连续送三单，每单横穿四程。折返时移动可引导下一程，最后一单落地时盖下重章。',detail:`持续约 ${Math.round(EXPRESS.windup+EXPRESS.legs*EXPRESS.leg)} 秒 · 每程对同一怪最多造成 ${EXPRESS.damage} 伤害 · 末次盖章半径 ${EXPRESS.landingRadius}、伤害 ${EXPRESS.landingDamage}`},
   berry:{short:'杨梅汽水',role:'开瓶炸屏',description:'气泡收紧，瓶盖弹起。莓红汽水从瓶口向全场溅开，近处的敌人先受击。',detail:'开瓶 0.18 秒 · 扩散 0.33 秒 · 每只最多 144 伤害'},
   fan:{short:'旋风电扇',role:'热风伤敌',description:'电扇卷起餐盒的热气，小票随风飘向外围，带出五处风卷。可以继续跑，把追来的怪引进热风。',detail:`主圈半径 ${CONFIG.skills.fan.fullRadius} · 留地 2.8 秒 · 每只最多 ${CONFIG.skills.fan.damage} 伤害`},
   skate:{short:'滑板环绕',role:'绕身打怪',description:'三块滑板绕着骑手行进，持续击打环带内的怪物。钻进内圈的怪需要走位躲开。',detail:`环带 ${CONFIG.skills.skate.inner}–${CONFIG.skills.skate.outer} · 持续 4 秒 · 每只每 0.5 秒 ${CONFIG.skills.skate.damage} 伤害`},
@@ -36,4 +37,59 @@ export const SKILL_GUIDE:Record<SkillKind,CatalogEntry>={
   dispatch:{short:'派单终端',role:'暂缓增援',description:'暂缓新的敌人入场；场内敌人、时间和攻击继续推进。',detail:'4 秒 · 连续最长 6 秒 · 之后调度冷却 2 秒'},
   stamp:{short:'加急印章',role:'额外金币',description:'生效期间击败的每只怪会多掉一枚金币。走过掉落处即可收取。',detail:'持续 6 秒 · 每次击败额外掉落 1 金币'},
   supply:{short:'补给扫码券',role:'三选一补给',description:'投出电扇、滑板、汽水供选择，取一件后同组其他物件收回。',detail:'最多 3 件 · 箱组存在 6 秒 · 满场最多等待 4 秒'},
+};
+
+function contactStats(kind:Exclude<EnemyKind,'giantBun'>):string {
+  const {hp,damage}=CONFIG.enemies[kind];
+  return `生命 ${hp} · 碰撞伤害 ${damage}`;
+}
+
+const enemyGuide:Record<EnemyKind,Omit<CatalogEntry,'short'>>={
+  bun:{
+    role:'近战 · 追赶', description:'靠近时会成群追上来，有些会沿小弧线绕向你。贴着怪群外沿跑，把它们引到武器前方。',
+    detail:contactStats('bun'),
+  },
+  onigiri:{
+    role:'近战 · 滚动', description:'发现你后会加紧追赶，滚动中拐弯较慢。迎面时突然横切，让它沿原来的方向滚过。',
+    detail:contactStats('onigiri'),
+  },
+  siumai:{
+    role:'近战 · 跳步', description:'起跳时追得快，落地时脚步放慢。趁它落地，从两只烧卖之间穿过去。',
+    detail:contactStats('siumai'),
+  },
+  zongzi:{
+    role:'近战 · 侧绕', description:'从侧面弯着靠近，贴身前才转向你的脚边。看住两翼，向还没合拢的一侧突围。',
+    detail:contactStats('zongzi'),
+  },
+  box:{
+    role:'突袭 · 直线冲撞', description:`盒怪停住蓄力，${CONFIG.dash.warning} 秒后沿锁定方向冲出。横移让过它，趁它停下喘息时回身攻击。`,
+    detail:`${contactStats('box')} · 冲撞伤害 ${CONFIG.dash.damage}`,
+  },
+  bowl:{
+    role:'远程 · 汤弹', description:`碗口瞄准时地面会出现虚线，${CONFIG.ranged.warning} 秒后打出汤弹。向侧面走开，第二波起要留意同一路线的三连发。`,
+    detail:`${contactStats('bowl')} · 每发汤弹 ${CONFIG.ranged.damage}`,
+  },
+  giantBun:{
+    role:'精英 · 三连坐', description:'前两跳躲开地上的落点圈。第三跳会掀起面粉浪，提前对准圈上标出的缺口，穿过去后回身反击。',
+    detail:`生命 ${CONFIG.enemies.giantBun.hp} · 前两跳各 ${CONFIG.enemies.giantBun.damage} · 末跳面粉浪 ${CONFIG.giant.finalDamage}`,
+  },
+};
+
+const enemyKinds=Object.keys(ENEMY_NAMES) as EnemyKind[];
+export const CATALOG={
+  weapons:{
+    label:`${WEAPON_KINDS.length} 款武器`,
+    note:'武器持续朝行进方向攻击。转身改变下一次攻击方向，靠近武器箱可换装。',
+    cards:WEAPON_KINDS.map(kind=>({kind,title:WEAPON_NAMES[kind],...WEAPON_GUIDE[kind]})),
+  },
+  skills:{
+    label:`${SKILL_KINDS.length} 种技能`,
+    note:'迎上漂浮的青色技能泡即可发动技能。在配送试验场可以反复体验四款大招，试转向和落点。',
+    cards:SKILL_KINDS.map(kind=>({kind,title:SKILL_NAMES[kind],...SKILL_GUIDE[kind]})),
+  },
+  enemies:{
+    label:`${enemyKinds.length} 种怪物`,
+    note:'留意追赶的方向、地面的瞄准线和落点圈。第二波起，偶数波次有机会遇到精英巨包。',
+    cards:enemyKinds.map(kind=>({kind,title:ENEMY_NAMES[kind],...enemyGuide[kind]})),
+  },
 };

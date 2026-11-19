@@ -1,17 +1,45 @@
 import {test,expect,type Page} from '@playwright/test';
-import {WEAPON_KINDS,SKILL_KINDS,type GameState} from '../../src/shared/types';
+import {ENEMY_NAMES,WEAPON_KINDS,SKILL_KINDS,type GameState} from '../../src/shared/types';
+import {CONFIG} from '../../src/core/config';
 import {SAVE_KEY} from '../../src/platform/storage';
+import {clayFrames} from '../../src/render/clay-frames';
 const state=(page:Page)=>page.evaluate(()=>(window as unknown as {__gameTest:{snapshot():GameState}}).__gameTest.snapshot());
 const view=(page:Page,name:string)=>expect(page.locator('#game-shell')).toHaveAttribute('data-view',name);
 const errors=new WeakMap<Page,string[]>();
 test.beforeEach(async({page})=>{const found:string[]=[];errors.set(page,found);page.on('pageerror',error=>found.push(error.message));await page.goto('/');await view(page,'home');});
 test.afterEach(async({page})=>{expect(errors.get(page),'uncaught browser exceptions').toEqual([]);});
 
-test('complete catalog and safe laboratory lifecycle with all weapons and skills',async({page},info)=>{
-  await page.getByRole('button',{name:'武器与道具图鉴',exact:true}).click();
+async function expectCatalogArt(page:Page,kinds:readonly string[],frames:Record<string,readonly number[]>){
+  const icons=await page.locator('.catalog-grid .atlas-icon').evaluateAll(nodes=>nodes.map(node=>{
+    if(node instanceof HTMLImageElement)return {kind:node.dataset.icon,src:node.src};
+    const crop=node.querySelector('svg')!;
+    const {x,y,width,height}=crop.viewBox.baseVal;
+    return {kind:node.getAttribute('data-icon'),frame:[x,y,width,height],viewport:[crop.width.baseVal.value,crop.height.baseVal.value]};
+  }));
+  expect(icons.map(item=>item.kind)).toEqual(kinds);
+  for(const [i,art] of icons.entries()){
+    if(kinds[i]==='health'){expect(art.src).toMatch(/\/clay-soup-dumpling\.webp$/);continue;}
+    expect(art.frame).toEqual(frames[kinds[i]]);
+    expect(art.viewport).toEqual(frames[kinds[i]].slice(2));
+  }
+}
+
+test('complete catalog and safe laboratory lifecycle with all weapons, skills and monsters',async({page},info)=>{
+  await page.getByRole('button',{name:'夜市图鉴',exact:true}).click();
   await expect(page.locator('.catalog-grid article')).toHaveCount(10);
+  await expectCatalogArt(page,WEAPON_KINDS,clayFrames.weapons);
   await page.getByRole('tab',{name:`${SKILL_KINDS.length} 种技能`}).click();await expect(page.locator('.catalog-grid article')).toHaveCount(SKILL_KINDS.length);
+  await expectCatalogArt(page,SKILL_KINDS,{...clayFrames.supplies,...clayFrames.ultimates});
   await page.screenshot({animations:'disabled',path:info.outputPath('v2-catalog.png')});
+  const enemyTab=page.getByRole('tab',{name:'7 种怪物'});
+  await enemyTab.click();
+  await expect(enemyTab).toHaveAttribute('aria-selected','true');
+  const enemies=page.getByRole('tabpanel',{name:'7 种怪物'});
+  await expect(enemies.getByRole('heading',{level:3})).toHaveText(Object.values(ENEMY_NAMES));
+  await expectCatalogArt(page,Object.keys(ENEMY_NAMES),{...clayFrames.streetSnacks,...clayFrames.mascots});
+  for(const [kind,{hp}] of Object.entries(CONFIG.enemies)){
+    await expect(enemies.locator('article').filter({has:page.locator(`[data-icon="${kind}"]`)}).locator('small')).toContainText(`生命 ${hp}`);
+  }
   await page.getByRole('button',{name:'返回',exact:true}).click();
   await page.getByRole('button',{name:'配送试验场',exact:true}).click();await view(page,'lab');
   expect((await state(page)).practice).toBe(true);await expect(page.locator('#hp-value')).toHaveText('100 / 100');

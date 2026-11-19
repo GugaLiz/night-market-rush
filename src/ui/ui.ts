@@ -1,8 +1,10 @@
 import {DEFAULT_SETTINGS, ENEMY_NAMES, WEAPON_NAMES, WEAPON_KINDS, SKILL_NAMES, SKILL_KINDS, ULTIMATE_KINDS, type UltimateKind, type WeaponKind, type SkillKind, type EnemyKind, type BestRecord, type GameState, type Settings} from '../shared/types';
-import {WEAPON_GUIDE, SKILL_GUIDE} from './catalog';
+import {CATALOG, WEAPON_GUIDE, SKILL_GUIDE} from './catalog';
+import {icon} from './game-icons';
 import {WEAPONS} from '../core/weapons';
 import {CONFIG} from '../core/config';
 import {isOnPaperRoute} from '../core/geometry';
+import {EXPRESS,expressCast} from '../core/ultimates';
 
 export type View = 'home'|'loading'|'tutorial'|'countdown'|'play'|'pause'|'settings'|'confirm'|'revive'|'result'|'rotate'|'lab'|'catalog';
 export interface UIActions {
@@ -21,22 +23,6 @@ const clone=(settings:Settings):Settings=>({...settings});
 const escape=(value:string)=>value.replace(/[&<>"']/g, char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]!));
 export const formatTime=(seconds:number)=>`${Math.floor(Math.max(0,seconds)/60).toString().padStart(2,'0')}:${Math.floor(Math.max(0,seconds)%60).toString().padStart(2,'0')}`;
 const score=(value:number)=>Math.floor(Math.max(0,value)).toString();
-const bag=`<svg class="bag-art" viewBox="0 0 120 110" aria-hidden="true"><path d="M36 35V24c0-21 48-21 48 0v11" fill="none" stroke="#583b29" stroke-width="9"/><path d="M25 32h70l14 61q-47 18-98 0z" fill="#397e77" stroke="#523929" stroke-width="4"/><path d="M23 31h76l-3 26H22z" fill="#65a69a" stroke="#523929" stroke-width="4"/><path d="M35 53v14m50-14v14" stroke="#f2cf8e" stroke-width="8"/><path d="M47 80h27m-34 9h35m-15-19 8 15" stroke="#fff1d6" stroke-width="5" stroke-linecap="round"/></svg>`;
-const icon=(name:string)=>{
-  if(name==='health')return `<span class="atlas-icon" aria-hidden="true" style="background:center/contain no-repeat url('${import.meta.env.BASE_URL}assets/clay-soup-dumpling.webp')"></span>`;
-  const ultimateIndex=ULTIMATE_KINDS.indexOf(name as UltimateKind);
-  if(ultimateIndex>=0)return `<span class="atlas-icon" aria-hidden="true" style="background-image:url('${import.meta.env.BASE_URL}assets/clay-actors.webp');background-size:400% 300%;background-position:${ultimateIndex*100/3}% 100%"></span>`;
-  const weaponIndex=WEAPON_KINDS.indexOf(name as WeaponKind),skillIndex=SKILL_KINDS.indexOf(name as SkillKind);
-  const index=weaponIndex>=0?weaponIndex:skillIndex;
-  if(index>=0)return `<span class="atlas-icon" aria-hidden="true" style="background-image:url('${import.meta.env.BASE_URL}assets/${weaponIndex>=0?'clay-weapons.webp':'clay-supplies.webp'}');background-position:${(index%4)*100/3}% ${Math.floor(index/4)*100/3}%"></span>`;
-  const content:Record<string,string>={pause:'<path d="M8 5v14M16 5v14"/>',play:'<path d="m8 5 11 7-11 7z"/>',fullscreen:'<path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/>',arrow:'<path d="M4 12h15m-6-6 6 6-6 6"/>',gear:'<circle cx="12" cy="12" r="4"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3M5 5l2 2m10 10 2 2M5 19l2-2M17 7l2-2"/>',fan:'<circle cx="12" cy="10" r="8"/><path d="M12 18v4m-5 0h10M12 10c-8-6 2-9 0 0m0 0c9-2 6 8 0 0m0 0c-2 9-10 1 0 0"/>',skate:'<path d="M3 9q9 5 18-2l-2 8H6z"/><circle cx="8" cy="19" r="1.5"/><circle cx="17" cy="18" r="1.5"/>',soda:'<path d="M9 2h6v5l3 5v9H6v-9l3-5zM6 14h12"/><path d="M10 17h4"/>',phone:'<rect x="6" y="2" width="12" height="20" rx="2"/><path d="M10 18h4"/>'};
-  Object.assign(content,{
-    coin:'<ellipse cx="12" cy="12" rx="8" ry="9"/><ellipse cx="12" cy="12" rx="5" ry="6"/><path d="M12 9v6"/>',
-    wave:'<path d="M5 21V3m0 1c5-4 8 5 15 0v9c-7 5-10-4-15 0"/>',
-    tongs:'<path d="m5 3 5 13-4 5m13-18-5 13 4 5M7 8h10"/>',bag:'<path d="M6 7h12l2 14H4zM9 7V3h6v4m-6 6h6"/>',chopsticks:'<path d="m8 3 5 18M13 3l4 18M5 14l3 7"/>',spirit:'<path d="M7 8h10v13H7zM9 5V2m5 3V2m3 8h4v6h-4M5 10H2l5 5"/>',knife:'<path d="m3 20 5-5m0 0L18 3l3 4-8 13z"/>',tray:'<ellipse cx="12" cy="11" rx="9" ry="6"/><ellipse cx="12" cy="11" rx="5" ry="3"/><path d="M3 11v4q9 9 18 0v-4"/>',umbrella:'<path d="M2 12q10-19 20 0H2m10-9v15q0 6 5 2M7 12q0-7 5-9 5 2 5 9"/>',sword:'<path d="m4 21 5-5m-3-3 6 6m-3-3 12-10V2h-4L7 14m7-4 2 2"/>',lunchbox:'<rect x="3" y="7" width="18" height="14" rx="3"/><path d="M2 10h20M9 7V3h6v4M9 15h6"/>',talisman:'<path d="M4 3h16v18H4zM8 6l8 4-8 4 8 4M8 3v18"/>',lure:'<path d="M3 9h18v12H3zM6 9V4h12v5m-9 5h6m-3-3v6"/>',bubble:'<path d="M5 4h14v16H5z"/><circle cx="9" cy="8" r="2"/><circle cx="15" cy="12" r="2"/><circle cx="9" cy="16" r="2"/>',cones:'<path d="M4 21h16L13 3h-2zM8 11h8M6 16h12"/>',bell:'<path d="M8 5h8l3 13H5zM10 5V2h4v3m-4 18h4"/>',route:'<path d="m2 5 6-3 8 3 6-3v17l-6 3-8-3-6 3zM8 2v17m8-14v17M5 14l6-5 8 5"/>',hook:'<path d="m3 3 12 10m0 0 4 4q3 6-3 5l-4-4m-5-11 3-3"/>',heat:'<path d="M4 9h16v12H4zM8 6q-3-3 0-5m4 5q-3-3 0-5m4 5q-3-3 0-5M8 14h8"/>',dispatch:'<rect x="5" y="5" width="14" height="17" rx="2"/><path d="M9 5V1h6v4M8 10h8m-8 4h5m-5 4h8"/>',stamp:'<path d="M5 17h14v5H5zM7 17l3-6V3h4v8l3 6M8 3h8"/>',supply:'<path d="M2 5h20v14H2zM7 5v14m4-10h2v2h-2zm5 0h2v2h-2zm-5 5h2v2h-2zm5 0h2v2h-2z"/>',
-  });
-  return `<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">${content[name]??content.arrow}</svg>`;
-};
 
 export class UI {
   private _shell:HTMLDivElement;
@@ -87,7 +73,7 @@ export class UI {
   private lastHp=-1;
   private lastStatus='';
   private lastWeapon='';
-  private catalogTab:'weapons'|'skills'='weapons';
+  private catalogTab:keyof typeof CATALOG='weapons';
   private selectedWeapon:WeaponKind='tongs';
   private selectedSkill:SkillKind='fan';
   private selectedEnemy:EnemyKind='bun';
@@ -100,12 +86,12 @@ export class UI {
         <div class="hud-top">
           <div class="battle-ledger">
             <div class="kill-tally" title="本局击败">
-              <span class="tally-monster" aria-hidden="true" style="background-image:url('${import.meta.env.BASE_URL}assets/clay-market-mascots.webp')"></span>
+              <span class="tally-monster" aria-hidden="true">${icon('bun')}</span>
               <div><span class="tally-caption">击败</span><strong id="score-value">0</strong></div>
             </div>
             <div class="battle-vitals">
               <div id="player-health" class="player-health" aria-label="生命值 100 / 100">
-                <span class="hp-heart" aria-hidden="true">♥</span>
+                <span class="hp-heart" aria-hidden="true">${icon('heart')}</span>
                 <div><div class="hp-caption"><strong id="hp-value">100 / 100</strong></div>
                   <div class="hp-track"><i id="hp-tail"></i><i id="hp-fill"></i></div></div>
               </div>
@@ -122,7 +108,7 @@ export class UI {
         <div id="stage-label" class="stage-label" hidden></div>
         <div id="status-strip" class="status-strip" aria-label="持续状态"></div>
         <div id="weapon-state" class="weapon-state" aria-label="当前武器"></div>
-        <button id="dash-button" class="dash-button" data-action="dash" aria-label="冲刺"><span class="dash-arrow" aria-hidden="true">➜</span><strong>冲刺</strong><small id="dash-status">空格</small></button>
+        <button id="dash-button" class="dash-button" data-action="dash" aria-label="冲刺"><span class="dash-arrow" aria-hidden="true">${icon('dash')}</span><strong>冲刺</strong><small id="dash-status">空格</small></button>
         <div id="sprint-label" class="sprint-label" hidden>连续跑动</div>
         <div id="opening-hint" role="status" hidden></div>
       </div>
@@ -231,6 +217,11 @@ export class UI {
     const inRoute=activeZones.some(z=>isOnPaperRoute(state.player,z,state.time));
     const statuses:Array<{kind:string;label:string;seconds:number;active:boolean}>=[];
     const add=(kind:string,label:string,seconds:number,active=true)=>{if(seconds>0)statuses.push({kind,label,seconds,active});};
+    const parcel=expressCast(state);
+    if(parcel){
+      const order=Math.min(EXPRESS.legs/EXPRESS.legsPerOrder,1+Math.floor(Math.max(0,parcel.landings.length-1)/EXPRESS.legsPerOrder));
+      add('express',`急送第 ${order} 单`,parcel.expiresAt-EXPRESS.fade-state.time);
+    }
     add('bubble','防撞×1',state.player.bubbleUntil-state.time);add('skate','滑板环绕',state.player.skateUntil-state.time);
     add('route',inRoute?`移速 +${Math.round((CONFIG.skills.route.speedMultiplier-1)*100)}%`:'踏上路线加速',duration('route'),inRoute);
     add('dispatch','增援暂缓',state.effects.dispatchUntil-state.time);add('stamp','额外掉币 +1',state.player.stampUntil-state.time);add('cones',`路锥×${activeZones.filter(z=>z.kind==='cone').length}`,duration('cone'));add('lure','诱饵',duration('lure'));
@@ -320,21 +311,21 @@ export class UI {
           <p class="home-description">穿过食物小妖，抢到外卖道具，给自己清出一条路。</p>
           <div class="best-card"><span>本地最佳击败</span><strong>${best?score(best.score)+' 只':'等待你的第一单'}</strong>${best?`<small>存活 ${formatTime(best.time)}</small>`:''}</div>
           ${this.button(`开始挑战 ${icon('arrow')}`,'start','primary start-button','data-primary')}
-          <div class="home-secondary home-tools">${this.button('配送试验场','practice','secondary')}${this.button('武器与道具图鉴','catalog','secondary')}</div>
+          <div class="home-secondary home-tools">${this.button('配送试验场','practice','secondary')}${this.button('夜市图鉴','catalog','secondary')}</div>
           <div class="home-footer"><button class="text-button" data-action="tutorial">玩法说明</button><button class="text-button" data-action="settings">操作设置</button><button class="text-button" data-action="fullscreen" aria-label="全屏游玩">${icon('fullscreen')}全屏</button></div>
         </section></div>`;break;
       }
       case 'loading':{
         const raw=this.data.progress??0;const progress=Math.max(0,Math.min(100,raw<=1?raw*100:raw));
-        this.overlay.innerHTML=this.paper(`<div class="loading-bag">${bag}</div><h2 id="dialog-title">夜市正在开张</h2><p class="muted">人物、道具和好心情，准备就绪就出发。</p><div class="load-track" role="progressbar" aria-label="加载进度" aria-valuenow="${Math.round(progress)}" aria-valuemin="0" aria-valuemax="100"><i style="width:${progress}%"></i></div><p class="loading-percent">${Math.round(progress)}%</p>${this.data.message?`<p class="error-text">${escape(this.data.message)}</p>${this.button('重试','retry')}`:''}`,'loading-card');break;
+        this.overlay.innerHTML=this.paper(`<div class="loading-bag">${icon('rigBagSide')}</div><h2 id="dialog-title">夜市正在开张</h2><p class="muted">人物、道具和好心情，准备就绪就出发。</p><div class="load-track" role="progressbar" aria-label="加载进度" aria-valuenow="${Math.round(progress)}" aria-valuemin="0" aria-valuemax="100"><i style="width:${progress}%"></i></div><p class="loading-percent">${Math.round(progress)}%</p>${this.data.message?`<p class="error-text">${escape(this.data.message)}</p>${this.button('重试','retry')}`:''}`,'loading-card');break;
       }
       case 'tutorial':
         this.overlay.innerHTML=this.paper(`<h2 id="dialog-title">走位取道具，清出路线收金币</h2>
           <p class="muted">连续跑动会逐渐提速，转弯和掉头都能保持跑速。停下来，再起步会重新加速。</p>
           <div class="guide-grid">
-            <article><div class="guide-icon fan">${icon('fan')}</div><h3>迎上技能泡</h3><p>青色闪电泡碰到街边会反弹。<br>迎上它，立即发动里面的技能。</p></article>
-            <article><div class="guide-icon skate">${icon('coin')}</div><h3>走过金币</h3><p>怪物倒下后留下金币。<br>靠近收取，金币才入账。</p></article>
-            <article><div class="guide-icon soda">${icon('wave')}</div><h3>靠近武器箱</h3><p>金色方箱停在原地。<br>走近换装，旧武器可回来取。</p></article>
+            <article><div class="guide-icon guide-bubble">${icon('fan')}</div><h3>迎上技能泡</h3><p>青色闪电泡碰到街边会反弹。<br>迎上它，立即发动里面的技能。</p></article>
+            <article><div class="guide-icon guide-coin"><i class="tally-coin" aria-hidden="true"></i></div><h3>走过金币</h3><p>怪物倒下后留下金币。<br>靠近收取，金币才入账。</p></article>
+            <article><div class="guide-icon guide-crate">${icon('weaponCrate')}</div><h3>靠近武器箱</h3><p>金色方箱停在原地。<br>走近换装，旧武器可回来取。</p></article>
           </div>
           <div class="guide-controls"><span><b>电脑</b> WASD / 方向键移动 · Space / Shift 冲刺</span><span><b>手机</b> 摇杆 / 倾斜移动 · 点按冲刺</span></div>
           <p class="warning-note">受伤时，迎上带红心的暖心汤包可恢复最多 ${CONFIG.skills.health.amount} 点生命。生命耗尽后可免费复活一次。</p>
@@ -342,7 +333,7 @@ export class UI {
       case 'countdown':
         this.overlay.innerHTML=`<div class="countdown" aria-live="assertive"><span>准备出发</span><strong>${this.data.count??1}</strong><p>${this.settings.mode==='tilt'?'保持舒适姿势，倾斜手机移动':'移动躲避，触碰道具反击'}</p></div>`;break;
       case 'pause':
-        this.overlay.innerHTML=this.paper(`<div class="tape" aria-hidden="true"></div><h2 id="dialog-title">已暂停</h2><div class="paper-divider"></div><p class="run-summary">第 ${s?.wave??1} 波<span>·</span>击败 ${s?.kills??0}<span>·</span>用时 ${formatTime(s?.time??0)}</p><div class="pause-bag">${bag}</div>${this.button('继续挑战','resume','primary wide','data-primary')}<div class="paper-actions">${this.button('设置','settings','secondary')}${this.button('返回首页','home','secondary')}</div>`,'pause-card');break;
+        this.overlay.innerHTML=this.paper(`<div class="tape" aria-hidden="true"></div><h2 id="dialog-title">已暂停</h2><div class="paper-divider"></div><p class="run-summary">第 ${s?.wave??1} 波<span>·</span>击败 ${s?.kills??0}<span>·</span>用时 ${formatTime(s?.time??0)}</p><div class="pause-bag">${icon('rigBagSide')}</div>${this.button('继续挑战','resume','primary wide','data-primary')}<div class="paper-actions">${this.button('设置','settings','secondary')}${this.button('返回首页','home','secondary')}</div>`,'pause-card');break;
       case 'settings':this.renderSettings();break;
       case 'revive':
         this.overlay.innerHTML=this.paper(`<h2 id="dialog-title">要继续这一单吗？</h2>
@@ -377,15 +368,22 @@ export class UI {
   private renderLab():void{
     const weapon=WEAPON_GUIDE[this.selectedWeapon],skill=SKILL_GUIDE[this.selectedSkill];
     const showcases=ULTIMATE_KINDS.map(kind=>`<button class="clay-sample" data-preview="${kind}"><span>${icon(kind)}</span>${SKILL_NAMES[kind]}</button>`).join('');
-    this.overlay.innerHTML=this.paper(`<div class="lab-title"><div><div class="paper-kicker">自由体验 · 不记入正式纪录</div><h2 id="dialog-title">配送试验场</h2></div>${this.button('继续试验','close-lab','primary compact','data-primary')}</div><div class="lab-grid"><section><h3>更换武器</h3><label class="sr-only" for="lab-weapon">试验武器</label><select id="lab-weapon" data-lab="weapon">${WEAPON_KINDS.map(k=>`<option value="${k}" ${k===this.selectedWeapon?'selected':''}>${WEAPON_NAMES[k]}</option>`).join('')}</select><p>${weapon.description}</p><small>${weapon.detail}</small>${this.button('装备并体验','choose-weapon','primary wide')}</section><section><h3>立即触发技能</h3><label class="sr-only" for="lab-skill">试验技能</label><select id="lab-skill" data-lab="skill">${SKILL_KINDS.map(k=>`<option value="${k}" ${k===this.selectedSkill?'selected':''}>${SKILL_NAMES[k]}</option>`).join('')}</select><p>${skill.description}</p><small>${skill.detail}</small>${this.button('触发并体验','trigger-skill','primary wide')}</section><section><h3>布置敌人</h3><label class="sr-only" for="lab-enemy">敌人类型</label><select id="lab-enemy" data-lab="enemy">${(Object.keys(ENEMY_NAMES) as EnemyKind[]).map(k=>`<option value="${k}" ${k===this.selectedEnemy?'selected':''}>${ENEMY_NAMES[k]}</option>`).join('')}</select><p>单只观察攻击判定，敌群体验贯穿、范围与防护。敌人会正常攻击。</p><div class="lab-spawns">${this.button('生成单只','spawn-single','secondary')}${this.button('生成敌群','spawn-group','secondary')}</div></section></div><section class="clay-samples" aria-label="大招与精英试打"><h3>实战试打</h3><div>${showcases}${this.button('巨包三连坐','demo-giant','clay-sample giant-sample')}</div></section><div class="lab-demos"><h3>基础练习</h3>${this.button('取卡清场','demo-pickup','secondary compact')}${this.button('连续换波','demo-wave','secondary compact')}</div><div class="lab-footer"><div class="lab-speed" role="group" aria-label="试验速度">${[.5,1].map(speed=>`<button class="segment ${speed===(this.data.speed??1)?'selected':''}" data-speed="${speed}" aria-pressed="${speed===(this.data.speed??1)}">${speed}× 速度</button>`).join('')}</div><div>${this.button('补满生命','heal','secondary compact')}${this.button('清空场地','clear','secondary compact')}${this.button('重置试验','reset-lab','secondary compact')}${this.button('查看图鉴','catalog','secondary compact')}</div></div><p class="lab-hint">操作面板打开时模拟暂停。按 Esc 或“继续试验”回到场地；顶部“试验工具”可再次打开。</p>`,'lab-card');
+    this.overlay.innerHTML=this.paper(`<div class="lab-title"><div><div class="paper-kicker">自由体验 · 不记入正式纪录</div><h2 id="dialog-title">配送试验场</h2></div>${this.button('继续试验','close-lab','primary compact','data-primary')}</div><div class="lab-grid"><section><h3>更换武器</h3><label class="sr-only" for="lab-weapon">试验武器</label><select id="lab-weapon" data-lab="weapon">${WEAPON_KINDS.map(k=>`<option value="${k}" ${k===this.selectedWeapon?'selected':''}>${WEAPON_NAMES[k]}</option>`).join('')}</select><p>${weapon.description}</p><small>${weapon.detail}</small>${this.button('装备并体验','choose-weapon','primary wide')}</section><section><h3>立即触发技能</h3><label class="sr-only" for="lab-skill">试验技能</label><select id="lab-skill" data-lab="skill">${SKILL_KINDS.map(k=>`<option value="${k}" ${k===this.selectedSkill?'selected':''}>${SKILL_NAMES[k]}</option>`).join('')}</select><p>${skill.description}</p><small>${skill.detail}</small>${this.button('触发并体验','trigger-skill','primary wide')}</section><section><h3>布置敌人</h3><label class="sr-only" for="lab-enemy">敌人类型</label><select id="lab-enemy" data-lab="enemy">${(Object.keys(ENEMY_NAMES) as EnemyKind[]).map(k=>`<option value="${k}" ${k===this.selectedEnemy?'selected':''}>${ENEMY_NAMES[k]}</option>`).join('')}</select><p>单只观察攻击判定，敌群体验贯穿、范围与防护。敌人会正常攻击。</p><div class="lab-spawns">${this.button('生成单只','spawn-single','secondary')}${this.button('生成敌群','spawn-group','secondary')}</div></section></div><section class="clay-samples" aria-label="大招与精英试打"><h3>实战试打</h3><div>${showcases}${this.button(`<span>${icon('giantBun')}</span>巨包三连坐`,'demo-giant','clay-sample giant-sample')}</div></section><div class="lab-demos"><h3>基础练习</h3>${this.button('取卡清场','demo-pickup','secondary compact')}${this.button('连续换波','demo-wave','secondary compact')}</div><div class="lab-footer"><div class="lab-speed" role="group" aria-label="试验速度">${[.5,1].map(speed=>`<button class="segment ${speed===(this.data.speed??1)?'selected':''}" data-speed="${speed}" aria-pressed="${speed===(this.data.speed??1)}">${speed}× 速度</button>`).join('')}</div><div>${this.button('补满生命','heal','secondary compact')}${this.button('清空场地','clear','secondary compact')}${this.button('重置试验','reset-lab','secondary compact')}${this.button('查看图鉴','catalog','secondary compact')}</div></div><p class="lab-hint">操作面板打开时模拟暂停。按 Esc 或“继续试验”回到场地；顶部“试验工具”可再次打开。</p>`,'lab-card');
   }
   private renderCatalog():void{
-    const weapons=this.catalogTab==='weapons';
-    const cards=weapons?WEAPON_KINDS.map((kind,i)=>({kind,title:WEAPON_NAMES[kind],id:`W${String(i+1).padStart(2,'0')}`,...WEAPON_GUIDE[kind]})):SKILL_KINDS.map((kind,i)=>({kind,title:SKILL_NAMES[kind],id:`S${String(i+1).padStart(2,'0')}`,...SKILL_GUIDE[kind]}));
-    this.overlay.innerHTML=this.paper(`<div class="catalog-title"><h2 id="dialog-title">武器与道具图鉴</h2>${this.button('返回','close-catalog','secondary compact','data-primary')}</div><div class="settings-tabs" role="tablist" aria-label="图鉴分类"><button class="tab ${weapons?'selected':''}" data-catalog="weapons" role="tab" aria-selected="${weapons}">${WEAPON_KINDS.length} 款武器</button><button class="tab ${weapons?'':'selected'}" data-catalog="skills" role="tab" aria-selected="${!weapons}">${SKILL_KINDS.length} 种技能</button></div><p class="catalog-note">${weapons?'武器持续朝行进方向攻击，没有目标也照常出手。转向改变下一次攻击方向；拾取武器箱换装。':'迎上漂浮的青色技能泡即可发动技能。在配送试验场可以反复体验四款大招，试转向和落点。'}</p><div class="catalog-grid">${cards.map(card=>`<article><div class="catalog-icon">${icon(card.kind)}</div><div><span class="catalog-id">${card.role}</span><h3>${card.title}</h3><p>${card.description}</p><small>${card.detail}</small></div></article>`).join('')}</div>`,'catalog-card');
+    const {cards,note}=CATALOG[this.catalogTab];
+    const tabs=Object.entries(CATALOG).map(([key,{label}])=>{
+      const selected=this.catalogTab===key;
+      return `<button class="tab ${selected?'selected':''}" data-catalog="${key}" id="tab-${key}" role="tab" aria-selected="${selected}" aria-controls="catalog-panel">${label}</button>`;
+    });
+    const entries=cards.map(card=>`<article><div class="catalog-icon">${icon(card.kind)}</div><div><span class="catalog-id">${card.role}</span><h3>${card.title}</h3><p>${card.description}</p><small>${card.detail}</small></div></article>`);
+    this.overlay.innerHTML=this.paper(`<div class="catalog-title"><h2 id="dialog-title">夜市图鉴</h2>${this.button('返回','close-catalog','secondary compact','data-primary')}</div>
+      <div class="settings-tabs" role="tablist" aria-label="图鉴分类">${tabs.join('')}</div>
+      <section id="catalog-panel" role="tabpanel" aria-labelledby="tab-${this.catalogTab}"><p class="catalog-note">${note}</p>
+      <div class="catalog-grid catalog-${this.catalogTab}">${entries.join('')}</div></section>`,'catalog-card');
   }
 
-  private segments<T extends string>(field:string,values:Array<[T,string]>,selected:T){return `<div class="segments" role="group" aria-label="${field==='mode'?'操作方式':field==='hand'?'操作手位':field==='quality'?'特效质量':field==='sensitivity'?'灵敏度':'摇杆大小'}">${values.map(([value,label])=>`<button class="segment ${selected===value?'selected':''}" data-setting="${field}" data-value="${value}" aria-pressed="${selected===value}">${selected===value?'<span aria-hidden="true">✓</span> ':''}${label}</button>`).join('')}</div>`;}
+  private segments<T extends string>(field:string,values:Array<[T,string]>,selected:T){return `<div class="segments" role="group" aria-label="${field==='mode'?'操作方式':field==='hand'?'操作手位':field==='quality'?'特效质量':field==='sensitivity'?'灵敏度':'摇杆大小'}">${values.map(([value,label])=>`<button class="segment ${selected===value?'selected':''}" data-setting="${field}" data-value="${value}" aria-pressed="${selected===value}">${selected===value?icon('check'):''}${label}</button>`).join('')}</div>`;}
   private toggle(field:'muted'|'reduceMotion'|'shake',label:string,disabled=false){const checked=this.draft[field];return `<div class="setting-row"><label for="setting-${field}">${label}</label><button id="setting-${field}" class="toggle ${checked?'on':''}" role="switch" aria-checked="${checked}" data-toggle="${field}" ${disabled?'disabled':''}><span>${checked?'开启':'关闭'}</span><i></i></button></div>`;}
   private renderSettings():void{
     let body='';const d=this.draft;
@@ -413,7 +411,12 @@ export class UI {
     const button=(event.target as Element).closest<HTMLButtonElement>('button');if(!button||button.disabled)return;
     const preview=ULTIMATE_KINDS.find(kind=>kind===button.dataset.preview);
     if(preview){this.actions.demo(preview);return;}
-    if(button.dataset.catalog){this.catalogTab=button.dataset.catalog as 'weapons'|'skills';this.renderCatalog();return;}
+    if(button.dataset.catalog&&Object.hasOwn(CATALOG,button.dataset.catalog)){
+      this.catalogTab=button.dataset.catalog as keyof typeof CATALOG;
+      this.renderCatalog();
+      this.overlay.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')?.focus({preventScroll:true});
+      return;
+    }
     if(button.dataset.speed){this.data.speed=Number(button.dataset.speed);this.actions.setSpeed(this.data.speed);this.renderLab();return;}
     if(button.dataset.tab){this.tab=button.dataset.tab as typeof this.tab;this.renderSettings();this.overlay.querySelector<HTMLElement>(`[data-tab="${this.tab}"]`)?.focus();return;}
     if(button.dataset.setting){void this.changeSetting(button.dataset.setting as keyof Settings,button.dataset.value!);return;}

@@ -1,4 +1,5 @@
 import {DEFAULT_SETTINGS,WEAPON_KINDS,type WeaponKind,type SkillKind,type GameEvent,type Settings} from '../shared/types';
+import {EXPRESS} from '../core/ultimates';
 
 type Scene='home'|'play'|'paused'|'silent';
 type SoundEvent=GameEvent|'ui'|'start'|'record';
@@ -103,8 +104,9 @@ export class GameAudio {
           this.note(470,now,.10,.17,'triangle',190);this.note(107,now,.28,.22,'sine',52);
           this.noiseBurst(now+.024,.42,.22,800,2200);break;
         case 'express':{
-          const last=event.beat===3;
-          this.note(last?130:260+event.beat*45,now,last?.23:.085,last?.25:.16,'triangle',last?55:155);
+          const last=event.beat===EXPRESS.legs;
+          const stamp=(event.beat-1)%EXPRESS.legsPerOrder+1;
+          this.note(last?130:260+stamp*45,now,last?.23:.085,last?.25:.16,'triangle',last?55:155);
           this.noiseBurst(now,last?.14:.055,.14,2300,610);break;
         }
         case 'berry':

@@ -69,7 +69,7 @@ const ui:UI=new UI(document.getElementById('app')!,{
     else game.setupCombatDemo(kind);
     renderer?.reset();beginPlay(false);deliverEvents();
     const hint=kind==='pickup'?'迎上电扇技能泡，再沿热风清出的路收金币':kind==='wave'?'换波后，技能泡继续飘动，金币仍可收取':
-      kind==='giantBun'?'看落点粉印，第三跳从缺口穿过':kind==='express'?'碰到急送技能泡后，快递包会来回三跳':'迎上大招的技能泡，然后用方向键或摇杆走位';
+      kind==='giantBun'?'看落点粉印，第三跳从缺口穿过':kind==='express'?'迎上技能泡，快递包会来回飞送 15 秒。折返时转向可以引导下一程。':'迎上大招的技能泡，然后用方向键或摇杆走位';
     ui.toast(hint,1600);
   },
   catalog:()=>{cancelPendingStart();gesture();catalogOrigin=ui.currentView;input.setEnabled(false);if(live)audio.setScene('paused');ui.show('catalog',{settings,state:game.state});},

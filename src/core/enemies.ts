@@ -119,7 +119,7 @@ export function updateEnemies(s:GameState,dt:number,speedScale:number,ctx:Combat
       else if(e.phase==='dash'&&s.time>=e.phaseUntil){e.phase='recover';e.phaseUntil=s.time+CONFIG.dash.recovery;reservations--;}
       else if(e.phase==='recover'&&s.time>=e.phaseUntil){e.phase='chase';e.phaseUntil=s.time+CONFIG.dash.approach;}
       if(e.phase==='warn'||e.phase==='recover')speed=0;
-      if(e.phase==='dash'){dx=e.dashX;dy=e.dashY;speed=CONFIG.dash.speed*slow;damage.set(e.id,20);}
+      if(e.phase==='dash'){dx=e.dashX;dy=e.dashY;speed=CONFIG.dash.speed*slow;damage.set(e.id,CONFIG.dash.damage);}
     }
     if(e.kind==='bowl'){
       const shots=s.enemyShots??(s.enemyShots=[]);

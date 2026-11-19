@@ -1,7 +1,7 @@
 import {CONFIG, WORLD} from '../core/config';
 import {DEFAULT_SETTINGS, SKILL_NAMES, ULTIMATE_KINDS, WEAPON_NAMES} from '../shared/types';
 import {isOnPaperRoute} from '../core/geometry';
-import {TOSS_DURATION} from '../core/ultimates';
+import {EXPRESS,TOSS_DURATION} from '../core/ultimates';
 import type {Enemy, GameEvent, GameState, Settings, Vec, WeaponKind} from '../shared/types';
 import type {Assets, SpriteName} from './assets';
 import {drawSprite} from './sprite';
@@ -87,7 +87,7 @@ export class Renderer {
       } else if (event.type === 'coin') {
         this.burst(event.x, event.y - 8, '#ffe49a', 5);
       } else if(event.type==='ultimateBeat') {
-        const force=event.kind==='berry'?.22:event.kind==='steamer'?.11:event.kind==='express'&&event.beat===3?.16:.065;
+        const force=event.kind==='berry'?.22:event.kind==='steamer'?.11:event.kind==='express'&&event.beat===EXPRESS.legs?.16:.065;
         this.shake=Math.max(this.shake,force);
       } else if (event.type === 'kill') {
         const seed=event.victimId??Math.round(event.x);

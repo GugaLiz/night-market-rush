@@ -37,7 +37,7 @@ export const CONFIG = {
     bowl: {notice:soupRange, release:920},
     giantBun: {notice:1400, release:1500},
   },
-  dash: {warning: 1.1, duration: .5, recovery: 1.5, speed: .38 * S, approach: 4, concurrent: 1},
+  dash: {warning: 1.1, duration: .5, recovery: 1.5, speed: .38 * S, damage:20, approach: 4, concurrent: 1},
   giant: {
     warning:.65, finalWarning:1, flight:.45, between:.32, recovery:2.35,
     stompRadius:65, localDuration:.20, printLifetime:3.15, pulseSpeed:690, pulseHalfWidth:14,

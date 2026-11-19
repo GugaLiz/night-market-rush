@@ -9,8 +9,8 @@ const output=process.env.MOBILE_CAPTURE||fileURLToPath(new URL('../docs/verifica
 const browser=await chromium.launch(process.env.CHROME_PATH?{executablePath:process.env.CHROME_PATH}:{channel:'chrome'});
 const labels=['保冷箱冰浪','蒸笼开席','加急三连送','杨梅汽水炸屏'];
 const tiles=[4,5,2,6],errors=[],reports=[],frames=[];
-// Opening glass, falling bamboo lid, three delivery stamps and a popping berry bottle.
-const impactNotes=[[1260,1640,2210],[470,107],[305,350,130],[970,142,520,790,630]];
+// Opening glass, falling bamboo lid, repeating delivery stamps with one final impact, and a popping berry bottle.
+const impactNotes=[[1260,1640,2210],[470,107],[305,350,395,440,130],[970,142,520,790,630]];
 const button=(page,name)=>page.getByRole('button',{name,exact:true});
 const view=(page,name)=>page.locator('[data-view="'+name+'"]').waitFor();
 
@@ -142,6 +142,16 @@ async function mobile(){
     const image=await page.screenshot();
     frames.push({label,url:'data:image/png;base64,'+image.toString('base64')});
     await page.clock.runFor(720);await send('touchEnd',[]);
+    if(i===2){
+      const delivery=page.locator('[data-status="express"]');
+      assert.match(await delivery.textContent(),/急送第 1 单/);
+      await page.clock.runFor(5200);
+      assert.match(await delivery.textContent(),/急送第 2 单/);
+      await page.clock.runFor(4900);
+      assert.match(await delivery.textContent(),/急送第 3 单/);
+      await page.clock.runFor(4000);
+      assert.equal(await delivery.count(),0);
+    }
     const kills=Number(await page.locator('#score-value').textContent());
     assert.ok(kills>0,label+' killed real demonstration targets');
     const tones=await page.evaluate(()=>window.mobileCheck.tones);

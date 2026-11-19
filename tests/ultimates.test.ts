@@ -101,28 +101,30 @@ describe('clay delivery ultimates',()=>{
     ticks(g,15);expect(e.hp).toBe(400-WAVES.berry.damage-WAVES.steamer.damage);
   });
 
-  it('sends the parcel along three steered lanes while the rider can turn, stop and leave distant pickups alone',()=>{
+  it('delivers three orders across twelve steered runs over fifteen seconds while the rider can stop or turn',()=>{
     const g=lab(),s=g.state,p=s.player;
     const onRoute=target(g,895,370),outside=target(g,640,190);
     onRoute.y=onRoute.py=444;
-    s.pickups.push({id:700,kind:'stamp',x:984,y:472,radius:CONFIG.pickup.radius,bornAt:0});
+    s.pickups.push({id:700,kind:'stamp',x:984,y:472,radius:CONFIG.pickup.radius,bornAt:0,vx:0,vy:0});
     g.triggerSkill('express');
     const route=expressCast(s)!;
-    const beats:number[]=[];
-    for(let i=0;i<68;i++){
+    const beats:number[]=[],times:number[]=[];
+    for(let i=0;i<Math.ceil(15.5/CONFIG.step);i++){
       let input:Vec=still;
       if(route.landings.length===1 && i<12)input={x:1,y:0};
-      else if(route.landings.length===2)input={x:0,y:1};
-      else if(route.landings.length===3)input={x:0,y:-1};
+      else if(route.landings.length===2&&!route.onLeg)input={x:0,y:1};
+      else if(route.landings.length===3&&!route.onLeg)input={x:0,y:-1};
       const last={x:p.x,y:p.y};
       ticks(g,1,input);
       expect(Math.hypot(last.x-p.x,last.y-p.y)).toBeLessThanOrEqual(CONFIG.player.speed*p.sprintMultiplier!*CONFIG.step+1e-9);
       if(i===15)expect([p.vx,p.vy]).toEqual([0,0]);
-      for(const event of g.drainEvents())if(event.type==='ultimateBeat')beats.push(event.beat);
-      if(beats.length===3)break;
+      for(const event of g.drainEvents())if(event.type==='ultimateBeat'){beats.push(event.beat);times.push(s.time);}
     }
-    expect(beats).toEqual([1,2,3]);
-    expect(route.landings.length).toBe(4);
+    expect(beats).toEqual(Array.from({length:12},(_,i)=>i+1));
+    times.forEach((t,i)=>expect(Math.abs(t-(EXPRESS.windup+(i+1)*EXPRESS.leg))).toBeLessThan(CONFIG.step+.000001));
+    expect(times[11]).toBeCloseTo(15);expect(expressCast(s)).toBeUndefined();
+    expect(route.landings).toHaveLength(13);
+    for(let i=2;i<=12;i++)expect(Math.abs(route.landings[i].x-route.landings[i-1].x)).toBeGreaterThan(800);
     expect(route.landings[1].x).toBeGreaterThan(1100);
     expect(route.landings[2].x).toBeLessThan(180);
     expect(route.landings[3].x).toBeGreaterThan(1100);
@@ -147,7 +149,7 @@ describe('clay delivery ultimates',()=>{
     const route=expressCast(s)!,start=route.landings[0];
     const at={x:start.x+(route.target.x-start.x)*.57,y:start.y+(route.target.y-start.y)*.57};
     const e=target(g,at.x,at.y);
-    for(let i=0;i<8;i++)ticks(g,1,{x:0,y:-1});
+    for(let i=0;i<50;i++)ticks(g,1,{x:0,y:-1});
     expect(e.hp).toBe(400-EXPRESS.damage);
     expect(p.x).toBe(200);expect(p.y).toBeLessThan(230);
     while(route.landings.length<4)ticks(g,1);
@@ -167,13 +169,38 @@ describe('clay delivery ultimates',()=>{
     expect(p.x).toBe(WORLD.start.x);expect(p.y).toBe(WORLD.start.y);
   });
 
+  it('can hit again on another pass, never deals contact damage every frame, and leaves ordinary attacks running',()=>{
+    const g=lab(),s=g.state,p=s.player;
+    const west=WORLD.bounds.left+52,east=WORLD.bounds.right-52,mid=(west+east)/2;
+    Object.assign(p,{x:west,y:CONFIG.player.minY+28,invulnerableUntil:30});
+    const enemy=target(g,mid,CONFIG.player.minY+71);
+    enemy.hp=enemy.maxHp=5000;
+    s.weapon.readyAt=0;g.triggerSkill('express');
+    const route=expressCast(s)!,hitLegs:number[]=[],ordinaryTimes:number[]=[];
+    for(let frame=0;frame<Math.ceil(15.5/CONFIG.step);frame++){
+      // Keep the target on the upper delivery route despite the parcel's knockback.
+      enemy.x=mid;enemy.y=CONFIG.player.minY+71;
+      const leg=Math.max(1,route.landings.length);
+      ticks(g,1,{x:0,y:-1});
+      for(const event of g.drainEvents()){
+        if(event.type==='attack')ordinaryTimes.push(s.time);
+        if(event.type==='damage'&&event.source==='express'&&event.victimId===enemy.id){
+          expect(event.amount).toBe(EXPRESS.damage);
+          hitLegs.push(leg);
+        }
+      }
+    }
+    expect(hitLegs.length).toBeGreaterThan(3);expect(new Set(hitLegs).size).toBe(hitLegs.length);
+    expect(ordinaryTimes[0]).toBeLessThan(1);expect(ordinaryTimes.at(-1)).toBeGreaterThan(14);
+  });
+
   it.each(ULTIMATE_KINDS)('%s strikes a grounded elite while the same hit passes below an airborne giant',kind=>{
     const g=lab(),s=g.state,p=s.player;
     g.triggerSkill(kind);
     let at={x:p.x+80,y:p.y};
     if(kind==='express'){
-      ticks(g,6);const route=expressCast(s)!,start=route.landings[0];
-      at={x:(start.x+route.target.x)/2,y:(start.y+route.target.y)/2};
+      ticks(g,Math.ceil(EXPRESS.windup/CONFIG.step));const route=expressCast(s)!,start=route.landings[0];
+      at={x:start.x+(route.target.x-start.x)*.25,y:start.y+(route.target.y-start.y)*.25};
     }
     const grounded=g.spawnEnemy('giantBun',at),airborne=g.spawnEnemy('giantBun',at);
     grounded.jump={phase:'rest',hop:3,startedAt:s.time,until:s.time+3,from:at,target:at,gapAngle:0};
@@ -192,9 +219,10 @@ describe('clay delivery ultimates',()=>{
   it('saves each target in the third stamp circle for one heavy landing hit',()=>{
     const g=lab();g.triggerSkill('express');
     const route=expressCast(g.state)!;
-    while(!(route.landings.length===3&&route.onLeg))ticks(g,1);
+    ticks(g,Math.ceil((EXPRESS.windup+(EXPRESS.legs-1)*EXPRESS.leg)/CONFIG.step)+1);
+    expect(route.landings).toHaveLength(EXPRESS.legs);expect(route.onLeg).toBe(true);
     const e=target(g,route.target.x,route.target.y);
-    while(route.landings.length===3){
+    while(route.landings.length===EXPRESS.legs){
       expect(e.hp).toBe(400);
       ticks(g,1);
     }

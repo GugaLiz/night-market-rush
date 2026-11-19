@@ -10,7 +10,8 @@ export const WAVES = {
   steamer: {windup:.13, travel:.65, fade:.24, damage:100, push:48},
   berry:   {windup:.18, travel:.33, fade:.26, damage:144, push:56},
 } as const satisfies Record<WaveKind,{windup:number;travel:number;fade:number;damage:number;push:number}>;
-export const EXPRESS = {windup:.10, leg:.24, fade:.40, radius:37, damage:58, landingDamage:92, landingRadius:110} as const;
+// Four crossings deliver one order. The third order lands exactly 15 seconds after pickup.
+export const EXPRESS = {windup:.12, leg:1.24, legs:12, legsPerOrder:4, fade:.40, radius:37, damage:58, landingDamage:92, landingRadius:110} as const;
 export const TOSS_DURATION=.24;
 
 function tossEnemy(e:Enemy,now:number,height:number,frozen=false):void {
@@ -33,7 +34,7 @@ export function castUltimate(s:GameState,kind:UltimateKind,origin:Vec):void {
   s.ultimates=(s.ultimates??[]).filter(c=>c.kind!==kind);
   const base={x:origin.x,y:origin.y,bornAt:s.time,hitIds:[]};
   if(kind==='express'){
-    s.ultimates.push({...base,kind,expiresAt:s.time+EXPRESS.windup+3*(EXPRESS.leg+CONFIG.step)+EXPRESS.fade,
+    s.ultimates.push({...base,kind,expiresAt:s.time+EXPRESS.windup+EXPRESS.legs*EXPRESS.leg+EXPRESS.fade,
       px:origin.x,py:origin.y,landings:[],legStart:s.time+EXPRESS.windup,target:{x:origin.x,y:origin.y},onLeg:false});
     return;
   }
@@ -111,11 +112,11 @@ function nextStop(s:GameState,cast:ExpressCast,input:Vec):Vec {
     if((sign>0?right-cast.x:cast.x-left)<(right-left)*.35)sign=-sign;
   }else sign=cast.x<(left+right)/2?1:-1;
   const center=(top+bottom)/2;
-  // The outer runs occupy opposite rows with a diagonal return between them.
+  // Sweep alternate outer lanes and bring each fourth delivery back across the rider's row.
   const highLane=top+43,lowLane=bottom-38;
-  const first=cast.landings.length===1,final=cast.landings.length===3;
-  const defaultY=final?cast.y+(cast.y<center?18:-18):
-    first?(cast.y<center-44?highLane:lowLane):(cast.y<center?lowLane:highLane);
+  const leg=cast.landings.length;
+  const defaultY=leg%EXPRESS.legsPerOrder===0?clamp(s.player.y,highLane,lowLane):
+    leg===1?(cast.y<center-44?highLane:lowLane):(cast.y<center?lowLane:highLane);
   const aim=Math.min(1,Math.abs(input.y));
   const desiredY=cast.y+input.y*240;
   const edge=sign>0?right:left;
@@ -125,12 +126,13 @@ function nextStop(s:GameState,cast:ExpressCast,input:Vec):Vec {
 
 function updateExpress(s:GameState,cast:ExpressCast,input:Vec,dt:number,ctx:CombatContext):void {
   cast.px=cast.x;cast.py=cast.y;
-  if(s.time+1e-9<cast.bornAt+EXPRESS.windup||cast.landings.length>=4)return;
+  if(s.time+1e-9<cast.bornAt+EXPRESS.windup||cast.landings.length>EXPRESS.legs)return;
   if(!cast.onLeg){
     if(!cast.landings.length)cast.landings.push({x:cast.x,y:cast.y});
-    cast.legStart=s.time-dt;
+    cast.legStart=cast.bornAt+EXPRESS.windup+(cast.landings.length-1)*EXPRESS.leg;
     cast.target=nextStop(s,cast,input);
-    cast.hitIds=[];
+    // An enemy still underneath the parcel at a turn has not encountered a new pass.
+    cast.hitIds=s.enemies.filter(e=>cast.hitIds.includes(e.id)&&Math.hypot(e.px-cast.x,e.py-cast.y)<=EXPRESS.radius+e.radius).map(e=>e.id);
     cast.onLeg=true;
   }
   const start=cast.landings[cast.landings.length-1],progress=clamp((s.time-cast.legStart)/EXPRESS.leg,0,1);
@@ -139,13 +141,16 @@ function updateExpress(s:GameState,cast:ExpressCast,input:Vec,dt:number,ctx:Comb
   const dx=cast.target.x-start.x,dy=cast.target.y-start.y,distance=Math.hypot(dx,dy)||1;
   cast.x=start.x+dx*t;
   cast.y=start.y+dy*t;
-  const arrived=s.time+1e-9>=cast.legStart+EXPRESS.leg,leg=cast.landings.length;
-  const heavy=arrived&&leg===3;
+  const legEnd=cast.legStart+EXPRESS.leg;
+  const arrived=s.time+1e-9>=legEnd,leg=cast.landings.length;
+  const finalLeg=leg===EXPRESS.legs,heavy=arrived&&finalLeg;
+  const from=clamp((cast.legStart-s.time+dt)/dt,0,1),to=clamp((legEnd-s.time+dt)/dt,0,1);
   for(const e of s.enemies){
     if(!ctx.active(e)||cast.hitIds.includes(e.id))continue;
     // Hold damage inside the final seal for touchdown so the lane cannot spend its heavier hit early.
-    if(leg===3&&!arrived && Math.hypot(e.x-cast.target.x,e.y-cast.target.y)<=EXPRESS.landingRadius+e.radius)continue;
-    const touches=relativeSweep({x:cast.px,y:cast.py},cast,{x:e.px,y:e.py},e,EXPRESS.radius+e.radius)!==null;
+    if(finalLeg&&!arrived && Math.hypot(e.x-cast.target.x,e.y-cast.target.y)<=EXPRESS.landingRadius+e.radius)continue;
+    const ex=e.x-e.px,ey=e.y-e.py;
+    const touches=relativeSweep({x:cast.px,y:cast.py},cast,{x:e.px+from*ex,y:e.py+from*ey},{x:e.px+to*ex,y:e.py+to*ey},EXPRESS.radius+e.radius)!==null;
     const inLanding=heavy && Math.hypot(e.x-cast.x,e.y-cast.y)<=EXPRESS.landingRadius+e.radius;
     if(!touches&&!inLanding)continue;
     const side=(e.y-start.y)*dx-(e.x-start.x)*dy>=0?1:-1;
@@ -161,7 +166,6 @@ function updateExpress(s:GameState,cast:ExpressCast,input:Vec,dt:number,ctx:Comb
   if(arrived){
     ctx.emit({type:'ultimateBeat',kind:'express',beat:leg,x:cast.x,y:cast.y});
     cast.landings.push({x:cast.x,y:cast.y});cast.onLeg=false;
-    if(heavy)cast.expiresAt=s.time+EXPRESS.fade;
   }
 }
 

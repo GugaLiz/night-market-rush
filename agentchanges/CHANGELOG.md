@@ -672,3 +672,36 @@
 - **实现/结果**：六把远程普通连发间隔缩至 0.35–0.73 秒，纸袋风弹加快飞行以腾出完整九路齐射的空间。满杆或键盘连续 1.6 秒从基础 405 提至 567，转弯和掉头保持跑速，停下和顶墙归零。受伤后在附近空地投递单枚带红心的软陶汤包，实际接触最多回复 25 点，满血时保留，拾取后等待 15 秒。新的美术、回血徽记、图鉴、实拍与玩法说明均已接入。
 - **验证**：TypeScript、Vite 和 258 项 Vitest 全部通过。首轮 E2E 中，旧演示脚本一直按住方向键，在读取 HUD 时玩家已跑到远队并用武器清场。改为在触碰风扇时松手，保留原有拾币与远队生存断言，复跑 17 项全部通过。桌面 Chrome 分别验证六把远程弹道与真实命中，连续 6 秒检验常态及加热时每一轮的路数和出手间隔。生产构建 844×390 模拟触控保持方向并两次折返，HUD +12% → +30% → +40%，松手后新起跑到 +4%。普通挑战受伤后自然投递，仅键盘追泡即由 68/100 到 93/100；另测 92/100 到 100/100。4173 正式包和 WebP 与 dist 字节一致，静态构建及四款大招移动端浏览器验收通过。
 - **风险/后续**：GitHub 以当前账号检查推送返回 403，Pages 仍需有写权限的账号触发部署。横屏触控为 Chrome 模拟。
+## 2026-11-20 01:09:29 +08:00 — feature
+
+- **摘要**：修复菜单与战斗图标，夜市图鉴加入七种怪物，并让加急三连送跨场往返十五秒。
+- **涉及文件**：
+  - `docs/verification/clay/enemy-catalog.webp`
+  - `docs/verification/clay/express-route.webm`
+  - `docs/verification/clay/menu-icons.webp`
+  - `src/ui/game-icons.ts`
+  - `README.md`
+  - `docs/V4_PLAYTEST.md`
+  - `scripts/verify-clay-mobile.mjs`
+  - `scripts/verify-clay-ultimates.mjs`
+  - `scripts/verify-production.mjs`
+  - `src/core/config.ts`
+  - `src/core/enemies.ts`
+  - `src/core/game.ts`
+  - `src/core/ultimates.ts`
+  - `src/main.ts`
+  - `src/platform/audio.ts`
+  - `src/render/renderer.ts`
+  - `src/render/ultimate-fx.ts`
+  - `src/ui/catalog.ts`
+  - `src/ui/clay.css`
+  - `src/ui/style.css`
+  - `src/ui/ui.ts`
+  - `tests/e2e/v2-ui.spec.ts`
+  - `tests/e2e/v3-movement.spec.ts`
+  - `tests/ultimates.test.ts`
+  - `agentchanges/CHANGELOG.md`
+- **原因/目标**：暂停页保温包仍是旧线稿，玩法说明把武器箱画成旗帜，图鉴没有怪物页。玩家希望快递包长时间来回弹射。
+- **实现/结果**：暂停与加载共用局内软陶配送包，换装箱和金币改用对应图形。武器、技能和怪物均取战斗图集真实裁框，按钮控件使用固定图形。夜市图鉴加入完整怪物造型、生命、伤害、预警与走位说明。快递包按三单十二程飞行，每程 1.24 秒，拾取后第 15 秒落下终章，折返可引导方向。HUD 显示单数和时间，尾迹淡出、签收音和最后一击同步。
+- **验证**：通过 TypeScript、Vite、259 项 Vitest 与 17 项端到端测试。4173 生产资源与 dist 的 JS/CSS 字节一致；桌面和 844×390 横屏模拟各核对 35 张图鉴卡的真实帧与等比显示，滚到末张精英卡后可切换返回。28 个物品图标按 3 种容器与战场帧像素比对。桌面验证脚本的定点观察者最初在技能结束前倒下，更新验证场景保护后测到十二次落地、十五秒终章和消退；真实生产试验场经普通拾取也完整录到三单、十二次交替抵达和签收声，录像 15.918 秒。横屏触控三单倒数及四款技能音效正常。
+- **风险/后续**：手机触控由 Chrome 模拟。GitHub 当前账号没有此仓库写权限，推送权限检查返回 403。

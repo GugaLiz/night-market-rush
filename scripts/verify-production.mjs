@@ -15,7 +15,7 @@ try{
   await page.locator('[data-view="home"]').waitFor();
   if(await page.evaluate(()=>typeof window.__gameTest!=='undefined'))throw new Error('Development hook leaked into production');
   await page.screenshot({animations:'disabled',path:path.join(output,'home.png')});
-  await page.getByRole('button',{name:'武器与道具图鉴',exact:true}).click();
+  await page.getByRole('button',{name:'夜市图鉴',exact:true}).click();
   const waveCards=page.locator('.catalog-grid article').filter({hasText:'气浪最远'});
   const meleeGuides=await waveCards.count();
   if(meleeGuides!==4)throw new Error(`Expected four melee wave guides, found ${meleeGuides}`);
