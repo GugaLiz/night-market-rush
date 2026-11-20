@@ -34,6 +34,7 @@ export class WebInput {
     listen(window,'keydown',this.keyDown as EventListener);
     listen(window,'keyup',this.keyUp as EventListener);
     listen(window,'blur',this.loseFocus);
+    listen(window,'contextmenu',this.contextMenu as EventListener,{passive:false});
     listen(document,'visibilitychange',this.visibility);
     listen(surface,'pointerdown',this.pointerDown as EventListener,{passive:false});
     listen(surface,'pointermove',this.pointerMove as EventListener,{passive:false});
@@ -109,8 +110,18 @@ export class WebInput {
     if(KEY_DIRECTIONS[e.code]){e.preventDefault();if(!e.repeat)this.keys.add(e.code);}
   };
   private keyUp=(e:KeyboardEvent)=>{this.keys.delete(e.code);};
+  private contextMenu=(e:MouseEvent)=>{
+    if(!this.enabled||('pointerType' in e&&e.pointerType==='touch'))return;
+    if(e.composedPath().includes(this.surface))e.preventDefault();
+    this.clear();
+  };
+  // Adding the right button during a left drag delivers pointermove instead of pointerdown.
+  private interruptSecondaryPress(e:PointerEvent):boolean {
+    if(e.pointerType!=='mouse'||e.button!==2||(e.buttons&2)===0)return false;
+    e.preventDefault();this.clear();return true;
+  }
   private pointerDown=(e:PointerEvent)=>{
-    if(!this.enabled||this.settings.mode!=='joystick'||this.pointer!==null||this.interactive(e.target)||e.button!==0)return;
+    if(!this.enabled||this.interruptSecondaryPress(e)||this.settings.mode!=='joystick'||this.pointer!==null||this.interactive(e.target)||e.button!==0)return;
     const rect=this.surface.getBoundingClientRect(),x=e.clientX-rect.left,y=e.clientY-rect.top;
     if((this.settings.hand==='left'&&x>rect.width*.55)||(this.settings.hand==='right'&&x<rect.width*.45)||y<rect.height*.14)return;
     e.preventDefault();this.pointer=e.pointerId;this.origin={x,y};this.stick={x:0,y:0};
@@ -118,7 +129,7 @@ export class WebInput {
     this.onJoystick?.({active:true,x,y,dx:0,dy:0});
   };
   private pointerMove=(e:PointerEvent)=>{
-    if(e.pointerId!==this.pointer||!this.enabled)return;
+    if(!this.enabled||this.interruptSecondaryPress(e)||e.pointerId!==this.pointer)return;
     if(e.pointerType==='mouse'&&(e.buttons&1)===0){this.releaseJoystick();return;}
     e.preventDefault();
     const rect=this.surface.getBoundingClientRect();

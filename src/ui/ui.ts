@@ -29,7 +29,6 @@ export interface UIActions {
 export interface JoystickVisual {active:boolean;x:number;y:number;dx:number;dy:number}
 interface ViewData {settings?:Settings;state?:GameState;best?:BestRecord|null;isRecord?:boolean;saved?:boolean;progress?:number;count?:number;message?:string;speed?:number}
 const clone=(settings:Settings):Settings=>({...settings});
-const escape=(value:string)=>value.replace(/[&<>"']/g, char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]!));
 export const formatTime=(seconds:number)=>`${Math.floor(Math.max(0,seconds)/60).toString().padStart(2,'0')}:${Math.floor(Math.max(0,seconds)%60).toString().padStart(2,'0')}`;
 const score=(value:number)=>Math.floor(Math.max(0,value)).toString();
 
@@ -185,6 +184,20 @@ export class UI {
       const autofocus=this.overlay.querySelector<HTMLElement>('[data-primary],button:not([disabled]),[tabindex="0"]');
       autofocus?.focus({preventScroll:true});
     });
+  }
+
+  updateLoading(progress:number,message=''):void{
+    this.data.progress=progress;
+    this.data.message=message;
+    if(this.view!=='loading')return;
+    const percent=Math.round(Math.max(0,Math.min(1,progress))*100);
+    const bar=this.overlay.querySelector<HTMLElement>('.load-track')!;
+    bar.setAttribute('aria-valuenow',String(percent));
+    bar.querySelector('i')!.style.width=`${percent}%`;
+    this.overlay.querySelector('.loading-percent')!.textContent=`${percent}%`;
+    const error=this.overlay.querySelector<HTMLElement>('.loading-error')!;
+    error.hidden=!message;
+    error.querySelector('.error-text')!.textContent=message;
   }
 
   updateHUD(state:GameState):void{
@@ -351,8 +364,13 @@ export class UI {
         </section></div>`;break;
       }
       case 'loading':{
-        const raw=this.data.progress??0;const progress=Math.max(0,Math.min(100,raw<=1?raw*100:raw));
-        this.overlay.innerHTML=this.paper(`<div class="loading-bag">${icon('rigBagSide')}</div><h2 id="dialog-title">夜市正在开张</h2><p class="muted">人物、道具和好心情，准备就绪就出发。</p><div class="load-track" role="progressbar" aria-label="加载进度" aria-valuenow="${Math.round(progress)}" aria-valuemin="0" aria-valuemax="100"><i style="width:${progress}%"></i></div><p class="loading-percent">${Math.round(progress)}%</p>${this.data.message?`<p class="error-text">${escape(this.data.message)}</p>${this.button('重试','retry')}`:''}`,'loading-card');break;
+        if(!this.overlay.querySelector('.loading-card')){
+          this.overlay.innerHTML=this.paper(`<div class="loading-bag">${icon('rigBagSide')}</div><h2 id="dialog-title">夜市正在开张</h2><p class="muted">人物、道具和好心情，准备就绪就出发。</p>
+            <div class="load-track" role="progressbar" aria-label="加载进度" aria-valuemin="0" aria-valuemax="100"><i></i></div><p class="loading-percent"></p>
+            <div class="loading-error" hidden><p class="error-text" role="alert"></p>${this.button('重试','retry')}</div>`,'loading-card');
+        }
+        this.updateLoading(this.data.progress??0,this.data.message);
+        break;
       }
       case 'tutorial':
         this.overlay.innerHTML=this.paper(`<h2 id="dialog-title">走位取道具，清出路线收金币</h2>
@@ -404,7 +422,8 @@ export class UI {
           <div class="receipt-actions">${this.button('再来一局','retry','primary wide','data-primary')}${this.button('返回首页','home','secondary wide')}</div>`,'result-card');break;
       }
       case 'rotate':
-        this.overlay.innerHTML=this.paper(`<div class="rotate-phone">${icon('phone')}</div><h2 id="dialog-title">横过来，更好玩</h2><p class="muted">请横屏继续挑战。<br>当前对局已经暂停。</p>${this.button('我已横屏，继续','resume','primary wide','data-primary')}${this.button('返回首页','home','secondary wide')}`,'rotate-card');break;
+        // The orientation notice in index.html is visible even while the script downloads.
+        this.overlay.replaceChildren();break;
     }
   }
 
@@ -449,7 +468,7 @@ export class UI {
 
   private changed(){return JSON.stringify(this.draft)!==JSON.stringify(this.settings);}
   private handleDashPointer=(event:PointerEvent)=>{
-    if(this.view!=='play'||this.dashButton.disabled||!(event.target instanceof Element)||!event.target.closest('#dash-button'))return;
+    if(event.button!==0||this.view!=='play'||this.dashButton.disabled||!(event.target instanceof Element)||!event.target.closest('#dash-button'))return;
     event.preventDefault();this.actions.dash();
   };
   private cancelSettings(){if(this.changed()){this.cancelConfirm=true;this.renderSettings();}else this.actions.cancelSettings();}

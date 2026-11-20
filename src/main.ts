@@ -29,7 +29,9 @@ let inputRequest=0;
 let rotateReturnView:View='home';
 let catalogOrigin:View='home';
 let practiceSpeed=1;
-const portrait=()=>window.innerWidth<window.innerHeight&&window.innerWidth<950;
+let loading={progress:0,message:''};
+const orientation=window.matchMedia('(orientation: portrait)');
+const portrait=()=>orientation.matches;
 
 const ui:UI=new UI(document.getElementById('app')!,{
   start:()=>void start(),resume:()=>void resume(),pause:()=>pause(),dash:()=>dash(),
@@ -124,11 +126,16 @@ function leaveSettings(){
 }
 function home(){
   cancelPendingStart();
-  rotated=false;
   live=false;remaining=0;accumulator=0;recordSoundAt=0;input.setEnabled(false);
-  audio.setScene('home');renderer?.reset();
+  renderer?.reset();
+  if(portrait()){
+    checkOrientation();
+    rotateReturnView='home';
+    return;
+  }
+  rotated=false;
+  audio.setScene('home');
   ui.show('home',{settings,best:storage.data.best});
-  checkOrientation();
 }
 function pause(){
   if(!live||!['play','countdown','confirm'].includes(ui.currentView))return;
@@ -234,31 +241,31 @@ function finish(){
   recordSoundAt=isRecord?performance.now()+900:0;
 }
 function checkOrientation(){
-  if(!ready)return;
   if(portrait()){
-    if(!rotated){
-      cancelPendingStart();
-      const view=ui.currentView;
-      rotateReturnView=['play','countdown','confirm'].includes(view)?'pause':view;
-    }
-    if(ui.currentView==='settings')applyPreferences();
-    if(ui.currentView==='play'||ui.currentView==='countdown')pause();
+    if(rotated)return;
+    cancelPendingStart();
+    const view=ui.currentView;
+    rotateReturnView=['play','countdown','confirm'].includes(view)?'pause':view;
+    if(view==='settings')applyPreferences();
+    if(view==='play'||view==='countdown')pause();
     input.setEnabled(false);audio.setScene('paused');rotated=true;
-    ui.show('rotate',{settings,state:game.state});
+    ui.show('rotate',{settings});
+    document.getElementById('orientation-title')?.focus({preventScroll:true});
   }else if(rotated){
     rotated=false;
-    if(rotateReturnView==='home'||rotateReturnView==='rotate')home();
+    if(!ready)ui.show('loading',loading);
+    else if(rotateReturnView==='home')home();
     else{
-      ui.show(rotateReturnView,{settings,state:game.state});
+      ui.show(rotateReturnView,{settings,state:live||rotateReturnView==='result'?game.state:undefined});
       audio.setScene(live||rotateReturnView==='result'?'paused':'home');
     }
   }
 }
-window.addEventListener('resize',checkOrientation);
+orientation.addEventListener('change',checkOrientation);
 window.addEventListener('blur',()=>pause());
 document.addEventListener('visibilitychange',()=>{
   if(document.hidden){pause();audio.setScene('silent');}
-  else audio.setScene(live||ui.currentView==='result'?'paused':'home');
+  else audio.setScene(rotated||!ready||live||ui.currentView==='result'?'paused':'home');
 });
 
 function frame(now:number){
@@ -295,13 +302,23 @@ function frame(now:number){
   requestAnimationFrame(frame);
 }
 async function boot(){
-  ui.show('loading',{progress:0,message:''});
+  const attempt={progress:0,message:''};
+  loading=attempt;
+  checkOrientation();
+  if(!rotated)ui.updateLoading(0);
   try{
-    const assets=await loadAssets(progress=>ui.show('loading',{progress}));
+    const assets=await loadAssets(progress=>{
+      if(loading!==attempt||attempt.message)return;
+      attempt.progress=progress;
+      if(!rotated)ui.updateLoading(progress);
+    });
+    if(loading!==attempt)return;
     renderer=new Renderer(ui.canvas,assets);renderer.setSettings(settings);ready=true;home();
   }catch(error){
+    if(loading!==attempt)return;
     console.error('Asset loading failed',error);
-    ui.show('loading',{progress:0,message:'素材加载失败，请确认网络连接后重试。'});
+    attempt.message='素材加载失败，请确认网络连接后重试。';
+    if(!rotated)ui.updateLoading(attempt.progress,attempt.message);
   }
 }
 void boot();requestAnimationFrame(frame);

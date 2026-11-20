@@ -1,1 +1,38 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover"><meta name="theme-color" content="#241d27"><meta name="description" content="夜市急送：躲开食物小妖，抢到道具，打出漂亮的反击。"><title>夜市急送 · Night Market Rush</title></head><body><div id="app"></div><script type="module" src="/src/main.ts"></script></body></html>
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#241d27">
+  <meta name="description" content="夜市急送：躲开食物小妖，抢到道具，打出漂亮的反击。">
+  <title>夜市急送 · Night Market Rush</title>
+  <style>
+    #orientation-notice { display:none; }
+    @media (orientation:portrait) {
+      #app { visibility:hidden; }
+      #orientation-notice {
+        position:fixed; inset:0; z-index:1; display:grid; align-content:center; justify-items:center;
+        box-sizing:border-box; padding:24px; text-align:center; background:#30242a; color:#ffeccf;
+        font-family:"Microsoft YaHei","PingFang SC",system-ui,sans-serif;
+      }
+      #orientation-notice svg { width:68px; height:52px; color:#ffb865; }
+      #orientation-notice h1 { margin:16px 0 8px; font-size:clamp(25px,5vw,34px); }
+      #orientation-notice h1:focus { outline:none; }
+      #orientation-notice p { margin:0; font-size:16px; line-height:1.6; text-wrap:balance; }
+    }
+  </style>
+</head>
+<body>
+  <section id="orientation-notice" aria-labelledby="orientation-title">
+    <svg viewBox="0 0 68 52" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M18 14a17 17 0 0 1 25-6l6 5m-1-9 1 9-9 1"/>
+      <rect x="4" y="21" width="60" height="27" rx="6"/>
+      <path d="M57 31v7"/>
+    </svg>
+    <h1 id="orientation-title" tabindex="-1">请横屏游玩</h1>
+    <p>转动设备，或将浏览器窗口调成横向。</p>
+  </section>
+  <div id="app"></div>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

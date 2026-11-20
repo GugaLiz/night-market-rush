@@ -45,6 +45,7 @@
   .clay-sample {min-height:31px;padding:2px 7px;}
 }
 .catalog-enemies article { align-items:center; }
+.loading-card { animation:none; }
 .market-lab {
   margin:0 0 .8em; padding:.55em .8em; border-block:1px dashed #b2885d; background:#f9e6c4;
 }
