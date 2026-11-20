@@ -66,7 +66,7 @@ V2 引入生命、自动攻击、换装与十三种技能。下方的 V1 玩法�
 npm.cmd ci
 npm.cmd test
 node --test scripts/server-test.mjs
-npm.cmd run build
+npm.cmd run build:playtest
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-web.ps1
 ```
 

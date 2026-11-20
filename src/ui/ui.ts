@@ -6,6 +6,7 @@ import {CONFIG} from '../core/config';
 import {isOnPaperRoute} from '../core/geometry';
 import {EXPRESS,expressCast} from '../core/ultimates';
 
+export const practiceEnabled=import.meta.env.DEV||import.meta.env.MODE==='playtest';
 const previewSkills=[...ELEMENTAL_KINDS,...ULTIMATE_KINDS] as const;
 const marketDemos={marketFood:'热汤与涡锅',marketUpgrade:'配送箱改装',marketFinal:'五分钟尾单'} as const;
 const upgradeGuide={
@@ -73,7 +74,7 @@ export class UI {
   private hpBox:HTMLElement;
   private weaponEl:HTMLElement;
   private statusEl:HTMLElement;
-  private labButton:HTMLElement;
+  private labButton:HTMLElement|null;
   private dashButton:HTMLButtonElement;
   private pointerIsCoarse=window.matchMedia('(pointer: coarse)');
   private dashStatus:HTMLElement;
@@ -109,7 +110,7 @@ export class UI {
           </div>
           <div class="battle-timing"><div class="wave-count"><span>波次</span><strong id="wave-value">1</strong></div>
             <div class="hud-clock" aria-label="存活时间"><strong id="time-value">00:00</strong></div></div>
-          <button id="lab-button" class="lab-hud-button" data-action="lab" hidden>试验工具</button>
+          ${practiceEnabled?'<button id="lab-button" class="lab-hud-button" data-action="lab" hidden>试验工具</button>':''}
           <button class="pause-button icon-button" data-action="pause" aria-label="暂停游戏">${icon('pause')}</button>
         </div>
         <div id="wave-banner" class="wave-banner" role="status" hidden></div>
@@ -140,7 +141,7 @@ export class UI {
     this.hintEl=root.querySelector('#opening-hint')!;
     this.timeEl=root.querySelector('#time-value')!;
     this.hpValue=root.querySelector('#hp-value')!;this.hpFill=root.querySelector('#hp-fill')!;this.hpTail=root.querySelector('#hp-tail')!;this.hpBox=root.querySelector('#player-health')!;
-    this.weaponEl=root.querySelector('#weapon-state')!;this.statusEl=root.querySelector('#status-strip')!;this.labButton=root.querySelector('#lab-button')!;this.dashButton=root.querySelector('#dash-button')!;this.dashStatus=root.querySelector('#dash-status')!;this.sprintLabel=root.querySelector('#sprint-label')!;
+    this.weaponEl=root.querySelector('#weapon-state')!;this.statusEl=root.querySelector('#status-strip')!;this.labButton=root.querySelector('#lab-button');this.dashButton=root.querySelector('#dash-button')!;this.dashStatus=root.querySelector('#dash-status')!;this.sprintLabel=root.querySelector('#sprint-label')!;
     this.stageEl=root.querySelector('#stage-label')!;
     this._shell.addEventListener('click',this.handleClick);
     this._shell.addEventListener('input',this.handleInput);
@@ -225,7 +226,8 @@ export class UI {
     const sprint=state.player.sprintMultiplier??1,sprintText=`${sprint>=CONFIG.player.sprintMax?'最高跑速':'连续跑动'} +${Math.round((sprint-1)*100)}%`;
     this.sprintLabel.hidden=sprint<1.01;
     if(this.sprintLabel.textContent!==sprintText)this.sprintLabel.textContent=sprintText;
-    this.labButton.hidden=!state.practice;this._shell.dataset.practice=String(state.practice);
+    if(this.labButton)this.labButton.hidden=!state.practice;
+    this._shell.dataset.practice=String(state.practice);
     const weapon=state.weapon,remaining=Math.max(0,weapon.readyAt-state.time),heat=Math.max(0,state.player.heatUntil-state.time);
     const upgrade=state.market.upgrade?upgradeGuide[state.market.upgrade]:null;
     const equipment=`${weapon.kind}/${state.market.upgrade??''}`;
@@ -344,7 +346,7 @@ export class UI {
           <p class="home-description">穿过食物小妖，抢到外卖道具，给自己清出一条路。</p>
           <div class="best-card"><span>本地最佳击败</span><strong>${best?score(best.score)+' 只':'等待你的第一单'}</strong>${best?`<small>存活 ${formatTime(best.time)}</small>`:''}</div>
           ${this.button(`开始挑战 ${icon('arrow')}`,'start','primary start-button','data-primary')}
-          <div class="home-secondary home-tools">${this.button('配送试验场','practice','secondary')}${this.button('夜市图鉴','catalog','secondary')}</div>
+          <div class="home-secondary home-tools">${practiceEnabled?this.button('配送试验场','practice','secondary'):''}${this.button('夜市图鉴','catalog','secondary')}</div>
           <div class="home-footer"><button class="text-button" data-action="tutorial">玩法说明</button><button class="text-button" data-action="settings">操作设置</button><button class="text-button" data-action="fullscreen" aria-label="全屏游玩">${icon('fullscreen')}全屏</button></div>
         </section></div>`;break;
       }
@@ -407,6 +409,7 @@ export class UI {
   }
 
   private renderLab():void{
+    if(!practiceEnabled)return;
     const weapon=WEAPON_GUIDE[this.selectedWeapon],skill=SKILL_GUIDE[this.selectedSkill];
     const showcases=previewSkills.map(kind=>`<button class="clay-sample" data-preview="${kind}"><span>${icon(kind)}</span>${SKILL_NAMES[kind]}</button>`).join('');
     this.overlay.innerHTML=this.paper(`<div class="lab-title"><div><div class="paper-kicker">自由体验 · 不记入正式纪录</div><h2 id="dialog-title">配送试验场</h2></div>${this.button('继续试验','close-lab','primary compact','data-primary')}</div>

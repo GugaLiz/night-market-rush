@@ -4,7 +4,7 @@
 
 ## GitHub Pages
 
-在仓库 Settings → Pages 中将构建来源设为 **GitHub Actions**。推送到 `main` 后，`.github/workflows/deploy.yml` 会安装依赖、运行测试、构建并发布 `dist`。部署状态和实际链接可在仓库 Actions 和 Pages 设置中查看。项目使用相对资源路径，支持部署在仓库子路径下。
+在仓库 Settings → Pages 中将构建来源设为 **GitHub Actions**。推送到 `main` 后，`.github/workflows/deploy.yml` 会安装依赖、运行测试，用 `npm run build` 生成公开版并发布 `dist`。公开版提供正式挑战和夜市图鉴。部署状态和实际链接可在仓库 Actions 和 Pages 设置中查看。项目使用相对资源路径，支持部署在仓库子路径下。
 
 ## 安装、检查与构建
 
@@ -17,7 +17,7 @@ node --test scripts/server-test.mjs
 npm.cmd run build
 ```
 
-首次开发若没有安装依赖，`npm ci` 根据提交的 lockfile 安装。构建通过后生成 `dist/index.html` 与资源。类型检查或测试失败应先修复，不能把开发服务器能打开视为构建通过。
+首次开发若没有安装依赖，`npm ci` 根据提交的 lockfile 安装。构建通过后生成 `dist/index.html` 与资源。要在本机或同一局域网测试「配送试验场」，把上面的构建命令换成 `npm.cmd run build:playtest`。开发服务 `npm.cmd run dev` 也开放试验场。
 
 ## 启动网页版
 
@@ -53,7 +53,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/stop-web.ps1
 
 停止脚本同时验证 PID 元数据、项目绝对路径、Node 可执行文件以及脚本命令行，只有确认是本项目的 `scripts/serve.mjs` 才停止。PID 被系统复用到其他程序时拒绝操作。元数据位置为 `.night-market-server.json`；后台日志为 `.runtime/web.stdout.log` 和 `.runtime/web.stderr.log`。这些是运行时文件，不应提交为源码。
 
-修改源文件后重新 `npm.cmd run build`。服务器直接读取 `dist`，通常重新刷新即可；若构建过程中请求到短暂缺失的文件，完成后再刷新。正式维护可先停服务、构建成功后再启动。
+修改源文件后按所需版本重新构建。服务器直接读取 `dist`，构建完成后刷新即可。
 
 ## 服务器行为与边界
 

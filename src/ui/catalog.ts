@@ -88,7 +88,7 @@ export const CATALOG={
   },
   skills:{
     label:`${SKILL_KINDS.length} 种技能`,
-    note:'迎上青色技能泡即可发动。试验场的「实战试打」可以单独练习聚怪、放毒、冰封和四款大招。',
+    note:'迎上青色技能泡即可发动。用涡锅聚怪，绕过毒雾诱敌，也可以趁冰封穿过包围。',
     cards:SKILL_KINDS.map(kind=>({kind,title:SKILL_NAMES[kind],...SKILL_GUIDE[kind]})),
   },
   enemies:{

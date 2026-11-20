@@ -6,7 +6,7 @@ import {WEAPONS} from './core/weapons';
 import {WebStorage} from './platform/storage';
 import {WebInput} from './platform/input';
 import {GameAudio} from './platform/audio';
-import {UI, type View} from './ui/ui';
+import {UI, practiceEnabled, type View} from './ui/ui';
 import {loadAssets} from './render/assets';
 import {Renderer} from './render/renderer';
 import {sampleBattleFrame} from './render/battle-frame';
@@ -166,7 +166,7 @@ async function start(){
   }finally{if(request===inputRequest)starting=false;}
 }
 async function startPractice(weapon:WeaponKind='tongs'){
-  if(!ready||starting)return;
+  if(!practiceEnabled||!ready||starting)return;
   if(portrait()){checkOrientation();return;}
   gesture();starting=true;const request=++inputRequest;
   try{if(!(await prepareInput(request)))return;practiceSpeed=1;game.reset(Date.now(),true);game.setWeapon(weapon);renderer?.reset();recordSoundAt=0;live=true;game.drainEvents();openLab();}
