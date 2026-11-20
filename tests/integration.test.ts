@@ -1,8 +1,8 @@
 import {describe,expect,it} from 'vitest';
 import {Game} from '../src/core/game';
 import {WEAPONS} from '../src/core/weapons';
-import {CONFIG,WORLD,difficultyAt} from '../src/core/config';
-import {isElite,type GameEvent,type WeaponKind} from '../src/shared/types';
+import {CONFIG,WORLD} from '../src/core/config';
+import {isGuard,type GameEvent,type WeaponKind} from '../src/shared/types';
 const zero={x:0,y:0};
 function tick(g:Game,seconds:number,input=zero){for(let i=0;i<Math.ceil(seconds*60);i++)g.update(1/60,input);}
 function lab(kind:WeaponKind){const g=new Game(12);g.reset(12,true);g.setWeapon(kind);g.state.weapon.readyAt=0;g.state.player.invulnerableUntil=1e6;g.drainEvents();return g;}
@@ -46,12 +46,12 @@ describe('weapon integration and bounded sessions',()=>{
   it('keeps enemy and pickup budgets separate across ten minutes and all four difficulty stages',()=>{
     const g=new Game(1811),s=g.state;
     s.weapon.readyAt=Infinity;s.player.invulnerableUntil=1e6;
-    const stages=new Set<number>();
+    const stages=new Set<number>(),stageCaps=[45,70,90,100];
     for(let frame=0;frame<36001;frame++){
       for(const e of s.enemies){e.x=120;e.y=150;e.stunUntil=1e6;}
       g.update(CONFIG.step,zero);stages.add(s.stage);
       if(frame%60!==0)continue;
-      expect(s.enemies.length).toBeLessThanOrEqual(difficultyAt(s.time).cap);
+      expect(s.enemies.length).toBeLessThanOrEqual(stageCaps[s.stage-1]);
       expect(new Set(s.enemies.map(e=>e.id)).size).toBe(s.enemies.length);
       const live=s.pickups.filter(q=>!q.retiringUntil),choices=live.filter(q=>q.groupId);
       expect(live.filter(q=>!q.groupId&&q.kind!=='health').length).toBeLessThanOrEqual(CONFIG.pickup.cap);
@@ -60,7 +60,7 @@ describe('weapon integration and bounded sessions',()=>{
       expect(s.weaponDrops.length).toBeLessThanOrEqual(3);expect(s.projectiles.length).toBeLessThanOrEqual(24);
       for(const e of s.enemies)expect(Number.isFinite(e.x)&&Number.isFinite(e.y)).toBe(true);
       // The disabled weapon cannot defeat guards. Release them so the scheduler covers every stage.
-      s.enemies=s.enemies.filter(e=>!isElite(e.kind));
+      s.enemies=s.enemies.filter(e=>!isGuard(e.kind));
     }
     expect(stages).toEqual(new Set([1,2,3,4]));expect(s.time).toBeGreaterThan(600);
     expect(g.drainEvents().length).toBeLessThanOrEqual(1024);

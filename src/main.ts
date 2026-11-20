@@ -12,7 +12,7 @@ import {UI, practiceEnabled, type View} from './ui/ui';
 import {loadAssets} from './render/assets';
 import {Renderer} from './render/renderer';
 import {sampleBattleFrame} from './render/battle-frame';
-import {RULES_VERSION, isElite, WEAPON_NAMES, type Settings, type SkillKind, type EnemyKind, type WeaponKind, type Vec} from './shared/types';
+import {RULES_VERSION, isGuard, isEpic, WEAPON_NAMES, type Settings, type SkillKind, type EnemyKind, type WeaponKind, type Vec} from './shared/types';
 
 const storage=new WebStorage();
 const saved=storage.load();
@@ -103,16 +103,19 @@ const ui:UI=new UI(document.getElementById('app')!,{
   spawnEnemy:(kind,group)=>{
     if(!game.state.practice)return;
     let secondEliteAt:Vec|undefined;
-    if(isElite(kind)){
-      const present=game.state.enemies.filter(e=>e.hp>0&&isElite(e.kind));
+    if(isGuard(kind)){
+      const present=game.state.enemies.filter(e=>e.hp>0&&isGuard(e.kind));
+      if(present.length&&(isEpic(kind)||present.some(e=>isEpic(e.kind)))){
+        ui.toast('史诗首领单独出战，请先击败守关怪或清空场地');return;
+      }
       if(present.some(e=>e.kind===kind)||present.length>=CONFIG.waves.maxElites){
         ui.toast('场上最多两种精英，每种一只');return;
       }
       if(present.length)secondEliteAt=eliteArrival(game.state,kind,{random:Math.random});
     }
-    const count=group&&!isElite(kind)?6:1;
+    const count=group&&!isGuard(kind)?6:1;
     const p=game.state.player;
-    const distance=!group&&game.state.weapon.kind==='lunchbox'?WEAPONS.lunchbox.range:150;
+    const distance=isEpic(kind)?330:!group&&game.state.weapon.kind==='lunchbox'?WEAPONS.lunchbox.range:150;
     for(let i=0;i<count;i++){
       const angle=group?-Math.PI/3+i*Math.PI/3:Math.atan2(p.moveDirection.y,p.moveDirection.x);
       game.spawnEnemy(kind,secondEliteAt??{

@@ -1,5 +1,6 @@
-import {ENEMY_NAMES, SKILL_KINDS, SKILL_NAMES, WEAPON_KINDS, WEAPON_NAMES, type EnemyKind, type SkillKind, type WeaponKind} from '../shared/types';
+import {ELITE_KINDS, ENEMY_NAMES, EPIC_KINDS, ORDINARY_KINDS, SKILL_KINDS, SKILL_NAMES, WEAPON_KINDS, WEAPON_NAMES, type EnemyKind, type EpicKind, type SkillKind, type WeaponKind} from '../shared/types';
 import {CONFIG} from '../core/config';
+import {GUARD_HELPERS} from '../core/guard-attacks';
 import {EXPRESS,WAVES} from '../core/ultimates';
 import {ELEMENTAL} from '../core/elemental-skills';
 import {MELEE_WEAPONS} from '../core/melee';
@@ -48,7 +49,12 @@ function contactStats(kind:Exclude<EnemyKind,'giantBun'>):string {
   return `生命 ${hp} · 碰撞伤害 ${damage}`;
 }
 
-const enemyGuide:Record<EnemyKind,Omit<CatalogEntry,'short'>>={
+function epicStats(kind:EpicKind):string {
+  const firstWave=(EPIC_KINDS.indexOf(kind)+1)*CONFIG.waves.epicEvery;
+  return `生命 ${CONFIG.enemies[kind].hp} · 第 ${firstWave} 波首次登场 · 召唤${ENEMY_NAMES[GUARD_HELPERS[kind]]}`;
+}
+
+export const ENEMY_GUIDE:Record<EnemyKind,Omit<CatalogEntry,'short'>>={
   bun:{
     role:'近战 · 追赶', description:'靠近时会成群追上来，有些会沿小弧线绕向你。贴着怪群外沿跑，把它们引到武器前方。',
     detail:contactStats('bun'),
@@ -74,15 +80,32 @@ const enemyGuide:Record<EnemyKind,Omit<CatalogEntry,'short'>>={
     detail:`${contactStats('bowl')} · 每发汤弹 ${CONFIG.ranged.damage}`,
   },
   giantBun:{
-    role:'精英 · 三连坐', description:'金色斗气随巨包起跳。前两跳移出整圈落点，第三跳对准面粉浪的缺口穿过去，趁它落地回身反击。',
+    role:'三连坐', description:'金色斗气随巨包起跳。前两跳移出整圈落点，第三跳对准面粉浪的缺口穿过去，趁它落地回身反击。',
     detail:`生命 ${CONFIG.enemies.giantBun.hp} · 前两跳各 ${CONFIG.enemies.giantBun.damage} · 末跳面粉浪 ${CONFIG.giant.finalDamage}`,
   },
-  eliteCrab:{role:'精英 · 锁线冲锋',description:'朱红斗气聚到蟹钳时，宽冲锋带锁定方向。横着跑出带边，趁蟹钳王刹车时追击。',detail:`生命 ${CONFIG.enemies.eliteCrab.hp} · 冲锋伤害 ${CONFIG.elites.crab.damage}`},
-  eliteKettle:{role:'精英 · 扇形茶弹',description:`翡翠青斗气围住壶身。壶嘴瞄准后，${CONFIG.elites.kettle.shots} 路茶弹沿地面标线扇形散开。拉开距离，从两道茶线之间穿过。`,detail:`生命 ${CONFIG.enemies.eliteKettle.hp} · 单发茶弹 ${CONFIG.elites.kettle.damage}`},
-  eliteSesame:{role:'精英 · 定点糖浆',description:'莓紫斗气跟着汤勺升起。脚下的大圈会锁定糖浆落点，持续朝最近的圈边走，落击后再折返。',detail:`生命 ${CONFIG.enemies.eliteSesame.hp} · 糖浆伤害 ${CONFIG.elites.sesame.damage}`},
+  eliteCrab:{role:'锁线冲锋',description:'朱红斗气聚到蟹钳时，宽冲锋带锁定方向。横着跑出带边，趁蟹钳王刹车时追击。',detail:`生命 ${CONFIG.enemies.eliteCrab.hp} · 冲锋伤害 ${CONFIG.elites.crab.damage}`},
+  eliteKettle:{role:'扇形茶弹',description:`翡翠青斗气围住壶身。壶嘴瞄准后，${CONFIG.elites.kettle.shots} 路茶弹沿地面标线扇形散开。拉开距离，从两道茶线之间穿过。`,detail:`生命 ${CONFIG.enemies.eliteKettle.hp} · 单发茶弹 ${CONFIG.elites.kettle.damage}`},
+  eliteSesame:{role:'定点糖浆',description:'莓紫斗气跟着汤勺升起。脚下的大圈会锁定糖浆落点，持续朝最近的圈边走，落击后再折返。',detail:`生命 ${CONFIG.enemies.eliteSesame.hp} · 糖浆伤害 ${CONFIG.elites.sesame.damage}`},
+  eliteSkewer:{role:'双签直刺',description:'两道细长的签痕指向前方。看准刺线后横移，等第二签收回再贴近。',detail:contactStats('eliteSkewer')},
+  eliteLotus:{role:'藕鼓双环',description:'鼓点从莲藕身边一圈圈向外敲开。留意第二圈的位置，等环带暗下再靠近。',detail:contactStats('eliteLotus')},
+  eliteChili:{role:'转身扇舞',description:'椒裙带出接连两片转向的扇面。第一片掠过时先看下一片朝哪边，再从空侧绕到身后。',detail:contactStats('eliteChili')},
+  eliteTofu:{role:'铁板烙纹',description:'几条平行烙纹同时亮起，热铁板沿纹路压下。顺着两条烙纹之间的窄巷跑过去。',detail:contactStats('eliteTofu')},
+  eliteTanghulu:{role:'连珠点名',description:'三枚糖果在同一直线上依次落下。离开整串糖圈的侧边，别顺着串签的方向逃。',detail:contactStats('eliteTanghulu')},
+  eliteRoll:{role:'折线滚袭',description:'海苔卷沿着两段相连的滚道飞驰。让开第一段后，绕开拐角，等它滚完第二段再追。',detail:contactStats('eliteRoll')},
+  epicHotpot:{role:'双汤泼洒 · 沸锅环',description:'鸳鸯锅轮流泼出两片滚汤，接着从锅边激起一圈沸浪。看准两片汤的落点换边，小心它叫来的烧卖堵路。',detail:epicStats('epicHotpot')},
+  epicDragon:{role:'蛇行穿街 · 三路龙息',description:'糖龙先沿弯折的路线穿街，再朝前方吐出三道糖息。横穿空出的路段，绕过它唤来的青叶粽。',detail:epicStats('epicDragon')},
+  epicOpera:{role:'十字刀路 · 错扇飞刀',description:'刀削师先亮出交叉刀路，再抖出接连转向的扇面。躲到十字线之间，下一刀出手前留好侧移空间。外卖盒会从旁助阵。',detail:epicStats('epicOpera')},
+  epicPearl:{role:'珍珠雨 · 奶茶环',description:'珍珠在多处落下，接着奶茶环在你脚下锁定。先找落点间的空地，再看环带内外的位置，也要给饭团留出绕行空间。',detail:epicStats('epicPearl')},
+  epicSteamer:{role:'分层汽环 · 蒸汽道',description:'蒸笼一层层揭开，不同距离的汽环接连喷起。穿过熄灭的环带，再沿平行蒸汽道的缝隙跑，避开来援的包子。',detail:epicStats('epicSteamer')},
 };
 
-const enemyKinds=Object.keys(ENEMY_NAMES) as EnemyKind[];
+const enemyKinds=[...ORDINARY_KINDS,...ELITE_KINDS,...EPIC_KINDS];
+export const ENEMY_GROUPS={
+  normal:{label:'普通怪',note:'街上成群出没。留意各自的追赶路线和起手动作。',kinds:ORDINARY_KINDS},
+  elite:{label:'精英怪',note:'普通关由精英守关。从第 4 波起最多两种同场，击败全部守关精英即可解锁下一波。',kinds:ELITE_KINDS},
+  epic:{label:'史诗 Boss',note:'每五波由一位史诗 Boss 守关。击败 Boss 即可进入下一波，五位 Boss 按登场顺序轮换。',kinds:EPIC_KINDS},
+} as const;
+export type EnemyGroup=keyof typeof ENEMY_GROUPS;
 export const CATALOG={
   weapons:{
     label:`${WEAPON_KINDS.length} 款武器`,
@@ -96,7 +119,7 @@ export const CATALOG={
   },
   enemies:{
     label:`${enemyKinds.length} 种怪物`,
-    note:'留意追赶的方向、地面的瞄准线和落点圈。每波末尾都有精英守关，第 4 波起会有两种同场，全部击败才能换波。',
-    cards:enemyKinds.map(kind=>({kind,title:ENEMY_NAMES[kind],...enemyGuide[kind]})),
+    note:'',
+    cards:enemyKinds.map(kind=>({kind,title:ENEMY_NAMES[kind],...ENEMY_GUIDE[kind]})),
   },
 };

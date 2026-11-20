@@ -1,5 +1,13 @@
 // Trimmed source rectangles of the packed soft-clay WebP atlases (x, y, width, height).
 export const clayFrames = {
+  champions: {
+    eliteSkewer: [28,8,200,240], eliteLotus: [264,8,239,240], eliteChili: [545,8,189,240],
+    eliteTofu: [8,295,240,209], eliteTanghulu: [275,264,218,240], eliteRoll: [520,294,240,210],
+  },
+  bosses: {
+    epicHotpot: [8,35,304,277], epicDragon: [351,8,258,304], epicOpera: [652,8,296,304],
+    epicPearl: [21,328,278,304], epicSteamer: [333,328,293,304],
+  },
   elites: {
     eliteCrab: [9, 67, 238, 180],
     eliteKettle: [265, 40, 238, 207],

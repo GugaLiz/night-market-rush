@@ -1,4 +1,7 @@
 import {test,expect,type Route} from '@playwright/test';
+import {BOOT_IMAGES} from '../../src/render/assets';
+
+const percentLoaded=(count:number)=>String(Math.round(100*count/BOOT_IMAGES.length));
 
 declare global {
   interface Window { pendingBootImages:Map<string,()=>void>; }
@@ -29,12 +32,12 @@ test('staggered artwork downloads advance progress without replacing or fading t
   await card.evaluate(el=>Promise.all(el.getAnimations().map(animation=>animation.finished)).then(()=>true));
 
   await release('clay-night-market.webp','clay-riverside-market.webp','clay-chibi-home.webp');
-  await expect(progress).toHaveAttribute('aria-valuenow','18');
-  await expect(card).toContainText('18%');
+  await expect(progress).toHaveAttribute('aria-valuenow',percentLoaded(3));
+  await expect(card).toContainText(percentLoaded(3)+'%');
   expect(await card.evaluate((el,first)=>el===first,original)).toBe(true);
   expect(await card.evaluate(el=>getComputedStyle(el).opacity)).toBe('1');
   await release('clay-actors.webp');
-  await expect(progress).toHaveAttribute('aria-valuenow','24');
+  await expect(progress).toHaveAttribute('aria-valuenow',percentLoaded(4));
   expect(await card.evaluate((el,first)=>el===first,original)).toBe(true);
   finish=true;
   await release();
@@ -76,9 +79,10 @@ test('late completions from a failed load cannot change retry progress or interr
   await expect.poll(()=>lateImages.evaluate(images=>images.size)).toBe(2);
   await retry.click();
   const progress=page.getByRole('progressbar',{name:'加载进度'});
-  await expect(progress).toHaveAttribute('aria-valuenow','94');
+  const awaitingFinalImage=percentLoaded(BOOT_IMAGES.length-1);
+  await expect(progress).toHaveAttribute('aria-valuenow',awaitingFinalImage);
   await lateImages.evaluate(images=>images.get('clay-night-market.webp')!());
-  expect(await progress.getAttribute('aria-valuenow')).toBe('94');
+  expect(await progress.getAttribute('aria-valuenow')).toBe(awaitingFinalImage);
   await expect(retry).toBeHidden();
   await expect.poll(()=>Boolean(lastRequest)).toBe(true);
   await lastRequest!.continue();

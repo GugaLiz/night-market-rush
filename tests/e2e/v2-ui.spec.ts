@@ -1,5 +1,5 @@
 import {test,expect,type Page} from '@playwright/test';
-import {ELEMENTAL_KINDS,ENEMY_NAMES,WEAPON_KINDS,SKILL_KINDS,SKILL_NAMES,type GameState} from '../../src/shared/types';
+import {ELEMENTAL_KINDS,ELITE_KINDS,ENEMY_NAMES,EPIC_KINDS,isGuard,WEAPON_KINDS,SKILL_KINDS,SKILL_NAMES,type EnemyKind,type GameState} from '../../src/shared/types';
 import {CONFIG} from '../../src/core/config';
 import {SAVE_KEY} from '../../src/platform/storage';
 import {clayFrames} from '../../src/render/clay-frames';
@@ -31,14 +31,28 @@ test('complete catalog and safe laboratory lifecycle with all weapons, skills an
   await page.getByRole('tab',{name:`${SKILL_KINDS.length} 种技能`}).click();await expect(page.locator('.catalog-grid article')).toHaveCount(SKILL_KINDS.length);
   await expectCatalogArt(page,SKILL_KINDS,{...clayFrames.supplies,...clayFrames.ultimates,...clayFrames.elementals});
   await page.screenshot({animations:'disabled',path:info.outputPath('v2-catalog.png')});
-  const enemyTab=page.getByRole('tab',{name:'10 种怪物'});
+  const kinds=Object.keys(ENEMY_NAMES) as EnemyKind[];
+  const enemyTabLabel=`${kinds.length} 种怪物`;
+  const enemyTab=page.getByRole('tab',{name:enemyTabLabel});
   await enemyTab.click();
   await expect(enemyTab).toHaveAttribute('aria-selected','true');
-  const enemies=page.getByRole('tabpanel',{name:'10 种怪物'});
-  await expect(enemies.getByRole('heading',{level:3})).toHaveText(Object.values(ENEMY_NAMES));
-  await expectCatalogArt(page,Object.keys(ENEMY_NAMES),{...clayFrames.streetSnacks,...clayFrames.mascots,...clayFrames.elites});
-  for(const [kind,{hp}] of Object.entries(CONFIG.enemies)){
-    await expect(enemies.locator('article').filter({has:page.locator(`[data-icon="${kind}"]`)}).locator('small')).toContainText(`生命 ${hp}`);
+  const enemies=page.getByRole('tabpanel',{name:enemyTabLabel});
+  const groups=[
+    {name:'普通怪',kinds:kinds.filter(kind=>!isGuard(kind)),frames:{...clayFrames.streetSnacks,...clayFrames.mascots}},
+    {name:'精英怪',kinds:ELITE_KINDS,frames:{...clayFrames.mascots,...clayFrames.elites,...clayFrames.champions}},
+    {name:'史诗 Boss',kinds:EPIC_KINDS,frames:clayFrames.bosses},
+  ] as const;
+  for(const group of groups){
+    const filter=enemies.getByRole('button',{name:`${group.name} ${group.kinds.length}`,exact:true});
+    await filter.click();
+    await expect(filter).toHaveAttribute('aria-pressed','true');
+    await expect(enemies.getByRole('heading',{level:3})).toHaveText(group.kinds.map(kind=>ENEMY_NAMES[kind]));
+    await expectCatalogArt(page,group.kinds,group.frames);
+    for(const kind of group.kinds){
+      const card=enemies.locator('article').filter({has:page.locator(`[data-icon="${kind}"]`)});
+      await expect(card.locator('.enemy-rank')).toHaveText(group.name);
+      await expect(card.locator('small')).toContainText(`生命 ${CONFIG.enemies[kind].hp}`);
+    }
   }
   await page.getByRole('button',{name:'返回',exact:true}).click();
   await page.getByRole('button',{name:'配送试验场',exact:true}).click();await view(page,'lab');
@@ -66,6 +80,45 @@ test('complete catalog and safe laboratory lifecycle with all weapons, skills an
   await page.keyboard.press('Escape');await view(page,'pause');await page.getByRole('button',{name:'返回首页',exact:true}).click();await view(page,'confirm');
   await page.getByRole('button',{name:'结束本局',exact:true}).click();await view(page,'home');
   const best=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)??'null')?.best??null,SAVE_KEY);expect(best).toBeNull();
+});
+
+test.describe('touch landscape',()=>{
+  test.use({viewport:{width:844,height:390},hasTouch:true,isMobile:true});
+  test('landscape catalog groups and practice bosses show the matching name and current HP',async({page},info)=>{
+    await page.getByRole('button',{name:'夜市图鉴',exact:true}).tap();
+    await page.getByRole('tab',{name:/种怪物/}).tap();
+    await page.getByRole('button',{name:'史诗 Boss 5',exact:true}).tap();
+    const panel=page.getByRole('tabpanel');
+    await expect(panel.getByRole('heading',{level:3})).toHaveText(EPIC_KINDS.map(kind=>ENEMY_NAMES[kind]));
+    await expect(panel).toContainText('每五波');
+    expect(await panel.evaluate(el=>el.scrollWidth<=el.clientWidth+1)).toBe(true);
+    await page.screenshot({animations:'disabled',path:info.outputPath('epic-guide-landscape.png')});
+    await page.getByRole('button',{name:'返回',exact:true}).tap();
+    await page.getByRole('button',{name:'配送试验场',exact:true}).tap();
+    const select=page.getByLabel('敌人类型',{exact:true});
+    await expect(select.locator('optgroup[label="史诗 Boss"] option')).toHaveCount(5);
+    await expect(select.locator('optgroup[label="精英怪"] option')).toHaveCount(10);
+    for(const kind of EPIC_KINDS){
+      await select.selectOption(kind);
+      await expect(page.getByRole('button',{name:'生成敌群'})).toHaveCount(0);
+      await page.getByRole('button',{name:'生成单只'}).tap();
+      await expect(page.getByRole('progressbar',{name:ENEMY_NAMES[kind],exact:true})).toBeVisible();
+      const health=page.locator('#epic-meter');
+      await expect(health).toHaveAttribute('max',String(CONFIG.enemies[kind].hp));
+      await expect(page.locator('#epic-health')).toContainText(`/ ${CONFIG.enemies[kind].hp}`);
+      if(kind===EPIC_KINDS[0]){
+        await page.getByRole('button',{name:'试验工具',exact:true}).tap();
+        await page.getByLabel('试验技能',{exact:true}).selectOption('steamer');
+        await page.getByRole('button',{name:'触发并体验',exact:true}).tap();
+        await expect.poll(async()=>Number(await health.getAttribute('value'))).toBeLessThan(CONFIG.enemies[kind].hp);
+        await expect(page.locator('#epic-move')).toBeVisible();
+        await page.screenshot({animations:'disabled',path:info.outputPath('epic-battle-landscape.png')});
+      }
+      await page.getByRole('button',{name:'试验工具',exact:true}).tap();
+      await page.getByRole('button',{name:'清空场地',exact:true}).tap();
+      await expect(page.locator('#epic-panel')).toBeHidden();
+    }
+  });
 });
 
 test('the three elemental trials start from a drifting pickup and play through their release',async({page},info)=>{

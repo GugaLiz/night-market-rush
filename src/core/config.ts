@@ -1,4 +1,4 @@
-import {isElite,type EnemyKind,type Pickup} from '../shared/types';
+import {isGuard,type EnemyKind,type Pickup} from '../shared/types';
 
 /** Coordinates are game units, never display pixels. All adapters use this view. */
 export const WORLD = {
@@ -12,6 +12,7 @@ export const WORLD = {
 const S = WORLD.shortSide;
 const soupRange=820;
 const eliteRadius=34;
+const guardAwareness={notice:1400, release:1500};
 export const CONFIG = {
   step: 1 / 60,
   player: {
@@ -31,6 +32,17 @@ export const CONFIG = {
     eliteCrab: {speed:62, radius:eliteRadius, coins:12, hp:500, damage:14},
     eliteKettle: {speed:40, radius:eliteRadius, coins:12, hp:440, damage:12},
     eliteSesame: {speed:36, radius:eliteRadius, coins:12, hp:460, damage:12},
+    eliteSkewer: {speed:72, radius:eliteRadius, coins:12, hp:430, damage:12},
+    eliteLotus: {speed:42, radius:eliteRadius, coins:13, hp:540, damage:14},
+    eliteChili: {speed:85, radius:eliteRadius, coins:12, hp:400, damage:11},
+    eliteTofu: {speed:34, radius:eliteRadius, coins:15, hp:640, damage:16},
+    eliteTanghulu: {speed:55, radius:eliteRadius, coins:13, hp:450, damage:12},
+    eliteRoll: {speed:82, radius:eliteRadius, coins:12, hp:475, damage:12},
+    epicHotpot: {speed:41, radius:48, coins:32, hp:1500, damage:18},
+    epicDragon: {speed:95, radius:43, coins:34, hp:1420, damage:15},
+    epicOpera: {speed:68, radius:44, coins:35, hp:1580, damage:16},
+    epicPearl: {speed:46, radius:46, coins:36, hp:1690, damage:15},
+    epicSteamer: {speed:30, radius:51, coins:40, hp:1920, damage:19},
   } satisfies Record<EnemyKind, {speed: number; radius: number; coins:number; hp:number; damage:number}>,
   awareness: {
     bun: {notice:190, release:270},
@@ -39,10 +51,10 @@ export const CONFIG = {
     zongzi: {notice:200, release:285},
     box: {notice:235, release:330},
     bowl: {notice:soupRange, release:920},
-    giantBun: {notice:1400, release:1500},
-    eliteCrab: {notice:1400, release:1500},
-    eliteKettle: {notice:1400, release:1500},
-    eliteSesame: {notice:1400, release:1500},
+    giantBun:guardAwareness, eliteCrab:guardAwareness, eliteKettle:guardAwareness, eliteSesame:guardAwareness,
+    eliteSkewer:guardAwareness, eliteLotus:guardAwareness, eliteChili:guardAwareness, eliteTofu:guardAwareness,
+    eliteTanghulu:guardAwareness, eliteRoll:guardAwareness, epicHotpot:guardAwareness, epicDragon:guardAwareness,
+    epicOpera:guardAwareness, epicPearl:guardAwareness, epicSteamer:guardAwareness,
   },
   dash: {warning: 1.1, duration: .5, recovery: 1.5, speed: .38 * S, damage:20, approach: 4, concurrent: 1},
   giant: {
@@ -74,14 +86,14 @@ export const CONFIG = {
   pickup: {radius: .027 * S, reach:56, choiceReach:42, driftMin:90, driftMax:115, firstAt:.35, interval:3, emptyGrace:2, cap:4, firstUltimate:6, ultimateInterval:12},
   weapons: {projectileCap:24, dropFirst:4, dropInterval:12, dropRadius:12, pickupReach:42},
   // V4 tuning values for the night-market adaptation. The video only establishes visible outcomes.
-  waves: {firstDuration:36, duration:34, eliteLead:6, maxElites:2, transition:1.65},
+  waves: {firstDuration:36, duration:34, eliteLead:6, maxElites:2, epicEvery:5, transition:1.65},
   rewards: {coinGrace:.42, attractionRadius:110, attractionSpeed:535, collectRadius:15, cap:96, comboDuration:2.4},
   reviveProtection: 3,
 } as const;
 
 /** Keep the tall elite silhouettes on the same open paving as the courier. */
 export function enemyMinY(kind:EnemyKind,radius:number):number {
-  return Math.max(WORLD.bounds.top+radius,isElite(kind)?CONFIG.player.minY:WORLD.bounds.top);
+  return Math.max(WORLD.bounds.top+radius,isGuard(kind)?CONFIG.player.minY:WORLD.bounds.top);
 }
 
 /** Distance between the rider's feet and the drop's ground position, in world units. */

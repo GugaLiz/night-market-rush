@@ -1,5 +1,5 @@
 import {CONFIG, WORLD} from '../core/config';
-import {DEFAULT_SETTINGS, isElite, SKILL_NAMES, ULTIMATE_KINDS, WEAPON_NAMES} from '../shared/types';
+import {DEFAULT_SETTINGS, isGuard, isEpic, SKILL_NAMES, ULTIMATE_KINDS, WEAPON_NAMES} from '../shared/types';
 import {isOnPaperRoute} from '../core/geometry';
 import {TOSS_DURATION} from '../core/ultimates';
 import type {ElementalField, Enemy, GameEvent, GameState, Settings, Vec, WeaponKind} from '../shared/types';
@@ -30,9 +30,9 @@ type Effect = {kind: string; x: number; y: number; age: number; duration: number
 type Particle = {x: number; y: number; vx: number; vy: number; age: number; duration: number; size: number; color: string};
 const COLORS: Record<string, string> = {fan:'#b6f8ec',skate:'#ffd56c',soda:'#79f3ce',lure:'#ffd891',bubble:'#c2eeff',cones:'#ffb466',bell:'#fff2b0',route:'#82ecd2',hook:'#a1dfde',heat:'#ffb378',dispatch:'#b5c7ff',stamp:'#ffcc9e',supply:'#ffe8b4'};
 const TAU=Math.PI*2;
-// The tea spout and syrup ladle extend left in the source artwork.
+// These tools, and the sushi rider's front wheel, point left in the source artwork.
 const spriteFacing = (name: SpriteName, facing: number) =>
-  (name === 'eliteKettle' || name === 'eliteSesame' ? -facing : facing) < 0 ? -1 : 1;
+  (name === 'eliteKettle' || name === 'eliteSesame' || name==='eliteSkewer' || name==='eliteTanghulu' || name==='eliteRoll' ? -facing : facing) < 0 ? -1 : 1;
 const ghostRadius=150;
 type DashGhost = {image: HTMLCanvasElement; x: number; y: number; time: number};
 type CrowdImpact = {x:number; y:number; age:number; power:number; direction:number};
@@ -281,8 +281,13 @@ export class Renderer {
       const age = s.time - e.spawnAt;
       if (age < CONFIG.spawn.warning) {
         c.save(); c.strokeStyle = '#ffbd79'; c.fillStyle = '#38242d55'; c.lineWidth = 3;
-        const radius=isElite(e.kind)?56:25;
-        c.setLineDash([5, 5]); c.beginPath(); c.ellipse(e.x, e.y, radius, radius*.48, 0, 0, Math.PI * 2); c.fill(); c.stroke(); c.restore();
+        const radius=isGuard(e.kind)?e.radius*1.65:25;
+        c.setLineDash([5, 5]); c.beginPath(); c.ellipse(e.x, e.y, radius, radius*.48, 0, 0, Math.PI * 2); c.fill(); c.stroke();
+        if(isEpic(e.kind)){
+          c.setLineDash([]);c.strokeStyle='#ffe7a5';c.lineWidth=2;
+          c.beginPath();c.ellipse(e.x,e.y,radius+7,radius*.48+5,0,0,TAU);c.stroke();
+        }
+        c.restore();
       }
       if(age>=CONFIG.spawn.warning)drawEnemyAttackGround(c,e,s.time,this.settings);
     }
@@ -445,7 +450,7 @@ export class Renderer {
     const dir=strike?.angle??0,foot=e.y-posed.lift-toss;
     c.save();
     if(age<CONFIG.spawn.warning)c.globalAlpha=.2+.6*Math.max(0,age)/CONFIG.spawn.warning;
-    const shade=isElite(e.kind)?38:e.kind==='bowl'?26:18;
+    const shade=isGuard(e.kind)?e.radius*1.12:e.kind==='bowl'?26:18;
     this.shadow(e.x,e.y,shade*(1-.003*(posed.lift+toss)),.24-.0014*(posed.lift+toss));
     c.save();c.translate(e.x+Math.cos(dir)*recoil*13,foot+Math.sin(dir)*recoil*9);
     if(swallowed>0&&!reduced){
@@ -455,7 +460,7 @@ export class Renderer {
     c.scale((1+.08*recoil)*posed.scaleX,(1-.08*recoil)*posed.scaleY);
     if(strike&&!reduced)poseContact(c,strike.kind,strike.age,dir,height);
     const tilt=posed.tilt+Math.cos(dir)*recoil*.18;
-    if(isElite(e.kind)&&age>=CONFIG.spawn.warning){
+    if(isGuard(e.kind)&&age>=CONFIG.spawn.warning){
       c.save();c.rotate(tilt);c.scale(spriteFacing(sprite,e.facing),1);
       drawEliteAura(c,e,e.kind,this.assets.sprites[sprite],height,time,this.settings);
       c.restore();
@@ -559,7 +564,7 @@ export class Renderer {
         const motion=this.settings.reduceMotion?0:Math.max(0,(e.age-delay)/(e.duration-delay));
         const distance=e.power??12, angle=e.angle??0, push=1-(1-motion)**2;
         const height=enemyHeight(e.sprite);
-        const face=isElite(e.sprite)&&e.sprite!=='giantBun'?e.sprite:e.sprite+(e.sprite==='box'||e.sprite==='bowl'?'Low':'Hurt');
+        const face=isGuard(e.sprite)&&e.sprite!=='giantBun'?e.sprite:e.sprite+(e.sprite==='box'||e.sprite==='bowl'?'Low':'Hurt');
         const hop=Math.sin(motion*Math.PI)*distance*(e.reaction==='chopsticks'?.35:.82);
         const x=e.x+Math.cos(angle)*distance*push, groundY=e.y+Math.sin(angle)*distance*push*.6;
         const spin=Math.cos(angle)*motion*(distance>35?1.25:.45);

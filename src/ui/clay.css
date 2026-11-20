@@ -75,6 +75,41 @@
   .receipt-actions > .button { flex:1; }
 }
 .catalog-enemies .catalog-icon { width:clamp(54px,5.5cqw,76px); height:auto; aspect-ratio:1; }
+.enemy-filters { display:flex; gap:6px; flex-wrap:wrap; margin-top:12px; }
+.enemy-filters button {
+  display:inline-flex; align-items:center; justify-content:center; gap:7px;
+  min-height:38px; padding:4px 12px; cursor:pointer;
+  font-family:inherit; font-size:14px; line-height:1.2; font-weight:750; color:#573f32; border:1px solid #beaa8b; border-radius:10px; background:#fff4de;
+}
+.enemy-filters button[aria-pressed=true] { color:#fff4df; background:#574136; border-color:#574136; }
+.enemy-filters button span { opacity:.86; font-variant-numeric:tabular-nums; font-size:.85em; }
+.enemy-filters button:focus-visible { outline:3px solid #347b6f; outline-offset:2px; }
+.catalog-enemies { --rank-ink:#28584e; --rank-paper:#d9ebda; }
+.catalog-enemies[data-rank=elite] { --rank-ink:#734016; --rank-paper:#ffe1a8; }
+.catalog-enemies[data-rank=epic] { --rank-ink:#6a3156; --rank-paper:#f2d3e3; }
+.catalog-enemies .catalog-id { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+.enemy-rank { padding:2px 5px; color:var(--rank-ink); background:var(--rank-paper); border-radius:4px; font-weight:800; line-height:1.25; }
+.epic-panel {
+  position:relative; flex:0 1 27%; max-width:310px; min-width:0; margin:auto;
+  padding:3px clamp(6px,.65cqw,10px) 5px; border:1px solid #deb188; border-radius:6px;
+  background:linear-gradient(105deg,#432536f5,#442731f2); color:#ffebd1;
+}
+.epic-heading { display:flex; align-items:baseline; gap:.45em; white-space:nowrap; font:700 clamp(10px,1.1cqw,16px)/1.4 system-ui,sans-serif; }
+.epic-heading > span { color:#ffd49f; font-size:.85em; }
+.epic-heading strong { min-width:0; overflow:hidden; text-overflow:ellipsis; }
+.epic-heading small { margin-left:auto; font-size:.82em; font-variant-numeric:tabular-nums; }
+.epic-panel progress { display:block; width:100%; height:5px; margin-top:2px; appearance:none; border:0; border-radius:6px; overflow:hidden; background:#2c1720; }
+.epic-panel progress::-webkit-progress-bar { background:#2c1720; }
+.epic-panel progress::-webkit-progress-value { background:linear-gradient(90deg,#d77a96,#ffbf98); }
+.epic-panel progress::-moz-progress-bar { background:#ed9aa6; }
+.epic-move {
+  position:absolute; top:100%; left:50%; transform:translateX(-50%); padding:1px .65em 3px;
+  border-radius:0 0 6px 6px; color:#ffedca; background:#432536eb;
+  font-size:clamp(10px,1cqw,14px); white-space:nowrap;
+}
+@media (pointer:coarse) {
+  .enemy-filters button { min-height:44px; }
+}
 @media (max-height:510px) {
   .catalog-enemies { grid-template-columns:1fr; }
   .catalog-enemies p { font-size:13px; }

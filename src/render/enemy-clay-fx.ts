@@ -3,7 +3,8 @@ import {clamp} from '../core/geometry';
 import {giantJumpHeight,giantPulseLifetime,giantPulseRadius} from '../core/giant-bun';
 import {crabChargeReach,siumaiHop} from '../core/enemies';
 import {enemyHeight} from './enemy-vitals';
-import {isElite} from '../shared/types';
+import {isGuard} from '../shared/types';
+import {drawGuardTelegraph} from './guard-telegraphs';
 import type {Enemy,EnemyShot,GameState,Player,Settings} from '../shared/types';
 import type {Assets} from './assets';
 
@@ -82,7 +83,9 @@ export function drawSyrupDrop(c:Canvas,e:Enemy,time:number,settings:Settings):vo
 }
 
 export function drawEnemyAttackGround(c:Canvas,e:Enemy,time:number,settings:Settings):void{
-  if(e.kind==='eliteSesame'){
+  if(e.guardCast){
+    drawGuardTelegraph(c,e,time,settings);
+  }else if(e.kind==='eliteSesame'){
     syrupLanding(c,e,time,settings);
   }else if(e.kind==='giantBun' && e.jump && e.jump.phase!=='rest'){
     const j=e.jump,heavy=j.hop===3;
@@ -183,7 +186,7 @@ export function drawEnemyAttackGround(c:Canvas,e:Enemy,time:number,settings:Sett
 
 export function enemyExpression(e:Enemy,time:number):string {
   const hurt=time-e.hurtAt<.16,low=e.hp<=e.maxHp*.35;
-  if(isElite(e.kind)&&e.kind!=='giantBun')return e.kind;
+  if(isGuard(e.kind)&&e.kind!=='giantBun')return e.kind;
   if(e.kind==='onigiri'||e.kind==='siumai'||e.kind==='zongzi'){
     if(hurt)return e.kind+'Hurt';
     if(low)return e.kind+'Low';
@@ -205,7 +208,18 @@ export function enemyExpression(e:Enemy,time:number):string {
 export function getEnemyAttackPose(e:Enemy,time:number,settings:Settings){
   const pose={lift:0,scaleX:1,scaleY:1,tilt:0};
   const j=e.jump,amount=settings.reduceMotion?.38:1;
-  if(j){
+  if(e.guardCast){
+    const mark=e.guardCast.marks.find(m=>time>=m.warnAt&&time<m.endAt);
+    if(mark){
+      const armed=time<mark.hitAt;
+      const u=armed?clamp((time-mark.warnAt)/Math.max(.001,mark.hitAt-mark.warnAt),0,1):
+        1-clamp((time-mark.hitAt)/Math.max(.001,mark.endAt-mark.hitAt),0,1);
+      const brace=(armed?1:-.67)*u*amount;
+      pose.tilt=-e.facing*.10*brace;
+      pose.scaleX+=.07*brace;pose.scaleY-=.08*brace;
+      if(mark.shape.kind==='fan')pose.tilt+=e.facing*.11*brace;
+    }
+  }else if(j){
     const u=clamp((time-j.startedAt)/(j.until-j.startedAt),0,1);
     if(j.phase==='flight'){
       const height=4*u*(1-u);

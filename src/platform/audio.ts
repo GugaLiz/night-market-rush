@@ -173,6 +173,32 @@ export class GameAudio {
       }
       return;
     }
+    if(event.type==='guardBeat'){
+      if(this.scene!=='play')return;
+      if(event.beat==='summon'){
+        // The stall bell answers when the first helper actually arrives.
+        this.skillTone(734,now,.14,.19,'triangle',699);
+        this.skillTone(981,now+.105,.19,.18,'sine',948);
+        return;
+      }
+      switch(event.kind){
+        case 'epicHotpot':
+          this.skillTone(207,now,.25,.22,'sine',72);
+          this.skillFoley(now+.015,.24,.17,1600,510);break;
+        case 'epicDragon':
+          this.skillTone(415,now,.16,.13,'triangle',910);
+          this.skillFoley(now+.045,.22,.21,900,3600);break;
+        case 'epicOpera':
+          this.skillTone(1073,now,.14,.15,'triangle',545);
+          this.skillTone(895,now+.082,.12,.13,'triangle',388);break;
+        case 'epicPearl':
+          [261,358,312].forEach((pitch,i)=>this.skillTone(pitch,now+i*.067,.105,.18,'sine',pitch*1.7));break;
+        case 'epicSteamer':
+          this.skillTone(149,now,.21,.23,'triangle',69);
+          this.skillFoley(now+.035,.30,.22,780,2450);break;
+      }
+      return;
+    }
     if(event.type==='ultimateBeat'){
       if(this.scene!=='play')return;
       if(event.kind!=='express'||event.beat%EXPRESS.legsPerOrder===0)this.makeRoomForSkill(now);

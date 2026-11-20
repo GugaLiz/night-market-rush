@@ -6,12 +6,13 @@ import {updateWeapons} from './weapons';
 import {activateSkill,canCollectPickup,isPlayerInvulnerable,restorePlayerHealth,updateSkills} from './skills';
 import {updateEnemies,updateEnemyShots,type ChargeContact} from './enemies';
 import {collectCoins,dropCoins} from './rewards';
-import {advanceWave,spawnMarketEnemies} from './waves';
+import {advanceWave,epicForWave,spawnMarketEnemies} from './waves';
 import {driftPickup,launchPickup,skillContact} from './pickup-motion';
 import {giantPulseContact,giantPulseLifetime} from './giant-bun';
+import {guardMarkContact} from './guard-attacks';
 import {newMarket,openMarket,updateMarket} from './market-orders';
 import type {MarketDemo} from '../shared/types';
-import {ELEMENTAL_KINDS,ULTIMATE_KINDS,isUltimate,type ElementalKind,type UltimateKind} from '../shared/types';
+import {ELEMENTAL_KINDS,ULTIMATE_KINDS,isEpic,isUltimate,type ElementalKind,type UltimateKind} from '../shared/types';
 
 /** Resolve each crossed drop in travel order. A stationary rider gets the closest overlapping choice. */
 function pickupContacts<T extends Vec & {id:number}>(start:Vec,end:Vec,items:T[],reach:(item:T)=>number) {
@@ -195,7 +196,7 @@ export class Game {
       const batchSize=5+Math.min(s.wave,3),batchInterval=difficulty.interval*batchSize;
       if(this.dispatchWasActive&&!dispatch)this.nextEnemyAt=s.time+batchInterval;
       this.dispatchWasActive=dispatch;
-      if(!dispatch&&s.eliteWave!==s.wave&&s.time>=this.nextEnemyAt&&s.time>=s.market.reprieveUntil){
+      if(!dispatch&&s.eliteWave!==s.wave&&s.time>=this.nextEnemyAt&&!epicForWave(s.wave)&&s.time>=s.market.reprieveUntil){
         const spawn=(kind:EnemyKind,at:Vec)=>this.spawnEnemy(kind,at);
         const opening=this.batch===0&&s.time<1&&s.enemies.length===0;
         // Survivors carry into the next wave, where two distinct guards may need to enter.
@@ -209,7 +210,7 @@ export class Game {
       }
       this.schedulePickups();this.scheduleWeapon();this.scheduleHealth();
     }
-    this.chargeContacts=updateEnemies(s,dt,difficulty.speedScale,this.ctx);
+    this.chargeContacts=updateEnemies(s,dt,difficulty,this.ctx,(kind,at)=>this.spawnEnemy(kind,at));
     updateEnemyShots(s,dt);
     for(const pickup of s.pickups)driftPickup(pickup,s.seed,s.time,dt);
     updateSkills(s,dt,this.ctx,input);
@@ -299,6 +300,21 @@ export class Game {
     const contacts:Array<{id:number;kind:EnemyKind;t:number;amount:number;source:DamageSource;shot:boolean;impactAngle?:number}>=[];
     for(const e of s.enemies){
       if(e.kind==='giantBun'||!this.active(e)||e.contactSuppressedUntil>s.time||(e.frostUntil??0)>s.time)continue;
+      if(e.guardCast){
+        if(e.stunUntil>s.time)continue;
+        for(const mark of e.guardCast.marks){
+          if(isEpic(e.kind)&&!e.guardCast.beatSent&&mark.damage>0&&s.time>=mark.hitAt&&s.time-dt<mark.endAt){
+            const at=mark.shape.kind==='lane'?mark.shape.from:mark.shape.center;
+            e.guardCast.beatSent=true;
+            this.emit({type:'guardBeat',kind:e.kind,beat:'strike',...at});
+          }
+          const t=guardMarkContact(mark,p,s.time,dt);
+          if(t===null)continue;
+          mark.spent=true;
+          contacts.push({id:e.id,kind:e.kind,t,amount:mark.damage,source:e.kind,shot:false});
+        }
+        continue;
+      }
       if(e.kind==='eliteSesame'&&e.syrupImpactAt===s.time&&e.syrupTarget
         &&distanceSquared(p,e.syrupTarget)<=(p.radius+CONFIG.elites.sesame.radius)**2){
         contacts.push({id:e.id,kind:e.kind,t:1,amount:CONFIG.elites.sesame.damage,source:e.kind,shot:false});
@@ -348,7 +364,9 @@ export class Game {
       const s=this.state;
       if(enemy.kind==='giantBun'&&!s.practice&&s.wave>=4&&s.time<300&&s.market.reprieveUntil===0)s.market.reprieveUntil=s.time+6;
       s.kills++;s.score=s.kills;s.combo=s.time<s.comboUntil?s.combo+1:1;s.comboUntil=s.time+CONFIG.rewards.comboDuration;
-      s.enemies=s.enemies.filter(e=>e.id!==enemy.id);
+      // A sweep may still hold references to helpers after their summoner falls.
+      if(enemy.guardSummoned)for(const helper of s.enemies)if(helper.summonerId===enemy.id)helper.hp=0;
+      s.enemies=s.enemies.filter(e=>e.id!==enemy.id&&e.summonerId!==enemy.id);
       const value=CONFIG.enemies[enemy.kind].coins+(s.player.stampUntil>s.time?1:0);
       dropCoins(s,enemy,value,this.ctx);
       this.emit({type:'kill',kind:enemy.kind,victimId:enemy.id,x:enemy.x,y:enemy.y,points:1,maxHp:enemy.maxHp,facing:enemy.facing,source,impactAngle});

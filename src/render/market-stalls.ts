@@ -1,11 +1,12 @@
 import {clamp} from '../core/geometry';
-import type {GameState, MarketStall, MarketStallKind, Settings} from '../shared/types';
+import type {EpicKind, GameState, MarketStall, MarketStallKind, Settings} from '../shared/types';
+import {epicForWave} from '../core/waves';
 import type {Assets} from './assets';
 import {drawSprite} from './sprite';
 
 type Canvas = CanvasRenderingContext2D;
 type SignState = 'open'|'signed'|'rolled';
-type Placard = {coins:boolean; heal?:number; locked?:boolean; reenter?:boolean; state:SignState; age:number; remaining?:number|null};
+type Placard = {coins:boolean; heal?:number; locked?:boolean; boss?:EpicKind; reenter?:boolean; state:SignState; age:number; remaining?:number|null};
 const turn = 2*Math.PI;
 const font = '"Microsoft YaHei","PingFang SC",sans-serif';
 const stallStyles = {
@@ -79,8 +80,8 @@ function paperSign(c:Canvas,assets:Assets,stall:MarketStall,sign:Placard,reduced
   const style=stallStyles[stall.kind];
   let label:string=style.label;
   if(stall.kind==='soup')label=coins?'金币 +5':sign.heal==null?'回血':'回血 +'+sign.heal;
-  if(stall.kind==='final')label=locked?'巨包守摊':reenter?'出圈再进':style.label;
-  const picture=locked?'giantBun':style.sprite;
+  if(stall.kind==='final')label=locked?(sign.boss?'击败首领':'巨包守摊'):reenter?'出圈再进':style.label;
+  const picture=locked?(sign.boss??'giantBun'):style.sprite;
   const width=label.length<=2?100:143, height=35;
   const retract=state==='rolled'?(reduced?1:clamp(age/.48,0,1)):0;
   c.save();c.translate(-2,baseY-bodyHeight*.63);
@@ -164,7 +165,7 @@ export function drawMarketStalls(c:Canvas,s:GameState,settings:Settings,assets:A
   if(offer){
     const remaining=offer.expiresAt===null?null:clamp((offer.expiresAt-s.time)/(offer.expiresAt-offer.openedAt),0,1);
     for(const stall of offer.stalls){
-      drawStall(c,assets,stall,{coins,heal,locked:stall.kind==='final'&&!offer.ready,reenter:offer.mustReenter,
+      drawStall(c,assets,stall,{coins,heal,locked:stall.kind==='final'&&!offer.ready,boss:epicForWave(s.wave),reenter:offer.mustReenter,
         state:'open',age:s.time-offer.openedAt,remaining},settings,warningClip);
     }
   }

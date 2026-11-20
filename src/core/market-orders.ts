@@ -3,6 +3,7 @@ import type {CombatContext} from './contracts';
 import {CONFIG,WORLD} from './config';
 import {distanceSquared,segmentDistanceSquared,sweepContact} from './geometry';
 import {activateSkill,restorePlayerHealth} from './skills';
+import {epicForWave} from './waves';
 
 const radius=29;
 const finalTime=300;
@@ -84,6 +85,8 @@ function chooseStalls(s:GameState,group:MarketGroup,phase:number):MarketStall[]|
 export function openMarket(s:GameState,group:MarketGroup,ctx:CombatContext,spawn:SpawnGuardian):boolean {
   const m=s.market;
   if(m.offer || m.opened.includes(group))return false;
+  // A final delivery can add its own giant. Keep that fight off a boss floor.
+  if(group==='final' && epicForWave(s.wave))return false;
   // Keep street layout draws independent of the weapon, enemy and skill-drop sequences.
   let roll=(s.seed^Math.imul(Math.round(m.retryAt/CONFIG.step),0x9e3779b1))>>>0;
   roll^=roll<<13;roll^=roll>>>17;roll^=roll<<5;
@@ -154,6 +157,11 @@ function checkOffer(s:GameState,offer:MarketOffer,dt:number,ctx:CombatContext):v
   if(offer.group==='final'){
     const stall=offer.stalls[0];
     const inside=distanceSquared(stall,p)<=stall.radius**2;
+    if(epicForWave(s.wave)){
+      offer.ready=false;
+      offer.mustReenter=inside;
+      return;
+    }
     if(s.ended){if(inside)offer.mustReenter=true;return;}
     if(!offer.ready){
       const guardian=s.enemies.find(e=>e.id===offer.guardianId && e.hp>0);

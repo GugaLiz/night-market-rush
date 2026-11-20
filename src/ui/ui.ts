@@ -1,5 +1,5 @@
-import {DEFAULT_SETTINGS, isElite, ELEMENTAL_KINDS, ENEMY_NAMES, WEAPON_NAMES, WEAPON_KINDS, SKILL_NAMES, SKILL_KINDS, ULTIMATE_KINDS, type WeaponKind, type SkillKind, type EnemyKind, type BestRecord, type GameState, type Settings} from '../shared/types';
-import {CATALOG, WEAPON_GUIDE, SKILL_GUIDE} from './catalog';
+import {DEFAULT_SETTINGS, isElite, isEpic, isGuard, ELEMENTAL_KINDS, ENEMY_NAMES, WEAPON_NAMES, WEAPON_KINDS, SKILL_NAMES, SKILL_KINDS, ULTIMATE_KINDS, type WeaponKind, type SkillKind, type EnemyKind, type BestRecord, type GameState, type Settings} from '../shared/types';
+import {CATALOG, WEAPON_GUIDE, SKILL_GUIDE, ENEMY_GROUPS, ENEMY_GUIDE, type EnemyGroup} from './catalog';
 import {icon} from './game-icons';
 import {WEAPONS} from '../core/weapons';
 import {CONFIG} from '../core/config';
@@ -55,6 +55,11 @@ export class UI {
   private coinEl:HTMLElement;
   private waveEl:HTMLElement;
   private waveBanner:HTMLElement;
+  private epicPanel:HTMLElement;
+  private epicName:HTMLElement;
+  private epicHealth:HTMLElement;
+  private epicMove:HTMLElement;
+  private epicMeter:HTMLProgressElement;
   private comboEl:HTMLElement;
   private comboBox:HTMLElement;
   private comboFuse:HTMLElement;
@@ -83,6 +88,7 @@ export class UI {
   private lastStatus='';
   private lastWeapon='';
   private catalogTab:keyof typeof CATALOG='weapons';
+  private enemyGroup:EnemyGroup='normal';
   private selectedWeapon:WeaponKind='tongs';
   private selectedSkill:SkillKind='fan';
   private selectedEnemy:EnemyKind='bun';
@@ -107,6 +113,11 @@ export class UI {
               <div class="coin-count" title="已收金币"><i class="tally-coin" aria-hidden="true"></i><strong id="coin-value">0</strong><span>金币</span></div>
             </div>
             <div class="combo-count" hidden><span>连击</span><strong id="combo-value">×0</strong><i class="combo-fuse"></i><small id="burst-value" hidden></small></div>
+          </div>
+          <div id="epic-panel" class="epic-panel" hidden>
+            <div class="epic-heading"><span>史诗</span><strong id="epic-name"></strong><small id="epic-health"></small></div>
+            <progress id="epic-meter" aria-labelledby="epic-name" aria-describedby="epic-health"></progress>
+            <span id="epic-move" class="epic-move" hidden></span>
           </div>
           <div class="battle-timing"><div class="wave-count"><span>波次</span><strong id="wave-value">1</strong></div>
             <div class="hud-clock" aria-label="存活时间"><strong id="time-value">00:00</strong></div></div>
@@ -134,6 +145,11 @@ export class UI {
     this.coinEl=root.querySelector('#coin-value')!;
     this.waveEl=root.querySelector('#wave-value')!;
     this.waveBanner=root.querySelector('#wave-banner')!;
+    this.epicPanel=root.querySelector('#epic-panel')!;
+    this.epicName=root.querySelector('#epic-name')!;
+    this.epicHealth=root.querySelector('#epic-health')!;
+    this.epicMove=root.querySelector('#epic-move')!;
+    this.epicMeter=root.querySelector<HTMLProgressElement>('#epic-meter')!;
     this.comboEl=root.querySelector('#combo-value')!;
     this.comboBox=root.querySelector('.combo-count')!;
     this.comboFuse=root.querySelector('.combo-fuse')!;
@@ -213,11 +229,27 @@ export class UI {
     const waveEnd=state.waveStartedAt+CONFIG.waves.transition;
     const showingWave=state.wave>=2&&state.time<waveEnd;
     const offer=state.market.offer;
+    const boss=state.enemies.find(e=>e.hp>0&&isEpic(e.kind));
+    this.epicPanel.hidden=!boss;
+    if(boss){
+      const name=ENEMY_NAMES[boss.kind],health=`${Math.ceil(boss.hp)} / ${boss.maxHp}`;
+      if(this.epicName.textContent!==name)this.epicName.textContent=name;
+      const move=boss.guardCast?.name??'';
+      if(this.epicMove.textContent!==move){
+        this.epicMove.textContent=move;
+        this.epicMove.hidden=!move;
+      }
+      if(this.epicHealth.textContent!==health){
+        this.epicHealth.textContent=health;
+        this.epicMeter.max=boss.maxHp;
+        this.epicMeter.value=boss.hp;
+      }
+    }
     let banner='';
     if(showingWave)banner=`WAVE ${wave}`;
     else if(state.eliteWave===state.wave && state.enemies.some(e=>e.hp>0&&isElite(e.kind))){
       const names=state.enemies.filter(e=>e.hp>0&&isElite(e.kind)).map(e=>ENEMY_NAMES[e.kind]);
-      banner='本波守关 · '+names.join('、');
+      banner='守关精英 · '+names.join('、');
     }else if(offer){
       const openedDuringWaveIntro=state.wave>=2&&offer.openedAt>=state.waveStartedAt-1e-8&&offer.openedAt<=waveEnd;
       const introStart=openedDuringWaveIntro?waveEnd:offer.openedAt;
@@ -445,22 +477,32 @@ export class UI {
   private renderLab():void{
     if(!practiceEnabled)return;
     const weapon=WEAPON_GUIDE[this.selectedWeapon],skill=SKILL_GUIDE[this.selectedSkill];
+    const enemyOptions=Object.values(ENEMY_GROUPS).map(group=>{
+      const options=group.kinds.map(kind=>`<option value="${kind}" ${kind===this.selectedEnemy?'selected':''}>${ENEMY_NAMES[kind]}</option>`);
+      return `<optgroup label="${group.label}">${options.join('')}</optgroup>`;
+    }).join('');
     const showcases=previewSkills.map(kind=>`<button class="clay-sample" data-preview="${kind}"><span>${icon(kind)}</span>${SKILL_NAMES[kind]}</button>`).join('');
     this.overlay.innerHTML=this.paper(`<div class="lab-title"><div><div class="paper-kicker">自由体验 · 不记入正式纪录</div><h2 id="dialog-title">配送试验场</h2></div>${this.button('继续试验','close-lab','primary compact','data-primary')}</div>
       <section class="market-lab lab-demos" aria-label="夜市接单"><h3>夜市接单</h3>${Object.entries(marketDemos).map(([key,label])=>`<button class="button secondary compact" data-market-demo="${key}">${label}</button>`).join('')}</section>
-      <div class="lab-grid"><section><h3>更换武器</h3><label class="sr-only" for="lab-weapon">试验武器</label><select id="lab-weapon" data-lab="weapon">${WEAPON_KINDS.map(k=>`<option value="${k}" ${k===this.selectedWeapon?'selected':''}>${WEAPON_NAMES[k]}</option>`).join('')}</select><p>${weapon.description}</p><small>${weapon.detail}</small>${this.button('装备并体验','choose-weapon','primary wide')}</section><section><h3>立即触发技能</h3><label class="sr-only" for="lab-skill">试验技能</label><select id="lab-skill" data-lab="skill">${SKILL_KINDS.map(k=>`<option value="${k}" ${k===this.selectedSkill?'selected':''}>${SKILL_NAMES[k]}</option>`).join('')}</select><p>${skill.description}</p><small>${skill.detail}</small>${this.button('触发并体验','trigger-skill','primary wide')}</section><section><h3>布置敌人</h3><label class="sr-only" for="lab-enemy">敌人类型</label><select id="lab-enemy" data-lab="enemy">${(Object.keys(ENEMY_NAMES) as EnemyKind[]).map(k=>`<option value="${k}" ${k===this.selectedEnemy?'selected':''}>${ENEMY_NAMES[k]}</option>`).join('')}</select><p>单只观察攻击判定，敌群体验贯穿、范围与防护。敌人会正常攻击。</p><div class="lab-spawns">${this.button('生成单只','spawn-single','secondary')}${this.button('生成敌群','spawn-group','secondary')}</div></section></div><section class="clay-samples" aria-label="技能与精英试打"><h3>实战试打</h3><div>${showcases}${this.button(`<span>${icon('giantBun')}</span>巨包三连坐`,'demo-giant','clay-sample giant-sample')}</div></section><div class="lab-demos"><h3>基础练习</h3>${this.button('取卡清场','demo-pickup','secondary compact')}${this.button('连续换波','demo-wave','secondary compact')}</div><div class="lab-footer"><div class="lab-speed" role="group" aria-label="试验速度">${[.5,1].map(speed=>`<button class="segment ${speed===(this.data.speed??1)?'selected':''}" data-speed="${speed}" aria-pressed="${speed===(this.data.speed??1)}">${speed}× 速度</button>`).join('')}</div><div>${this.button('补满生命','heal','secondary compact')}${this.button('清空场地','clear','secondary compact')}${this.button('重置试验','reset-lab','secondary compact')}${this.button('查看图鉴','catalog','secondary compact')}</div></div><p class="lab-hint">操作面板打开时模拟暂停。按 Esc 或“继续试验”回到场地；顶部“试验工具”可再次打开。</p>`,'lab-card');
+      <div class="lab-grid"><section><h3>更换武器</h3><label class="sr-only" for="lab-weapon">试验武器</label><select id="lab-weapon" data-lab="weapon">${WEAPON_KINDS.map(k=>`<option value="${k}" ${k===this.selectedWeapon?'selected':''}>${WEAPON_NAMES[k]}</option>`).join('')}</select><p>${weapon.description}</p><small>${weapon.detail}</small>${this.button('装备并体验','choose-weapon','primary wide')}</section><section><h3>立即触发技能</h3><label class="sr-only" for="lab-skill">试验技能</label><select id="lab-skill" data-lab="skill">${SKILL_KINDS.map(k=>`<option value="${k}" ${k===this.selectedSkill?'selected':''}>${SKILL_NAMES[k]}</option>`).join('')}</select><p>${skill.description}</p><small>${skill.detail}</small>${this.button('触发并体验','trigger-skill','primary wide')}</section><section><h3>布置敌人</h3><label class="sr-only" for="lab-enemy">敌人类型</label><select id="lab-enemy" data-lab="enemy">${enemyOptions}</select><p>${ENEMY_GUIDE[this.selectedEnemy].description}</p><div class="lab-spawns">${this.button('生成单只','spawn-single','secondary')}${isGuard(this.selectedEnemy)?'':this.button('生成敌群','spawn-group','secondary')}</div></section></div><section class="clay-samples" aria-label="技能与精英试打"><h3>实战试打</h3><div>${showcases}${this.button(`<span>${icon('giantBun')}</span>巨包三连坐`,'demo-giant','clay-sample giant-sample')}</div></section><div class="lab-demos"><h3>基础练习</h3>${this.button('取卡清场','demo-pickup','secondary compact')}${this.button('连续换波','demo-wave','secondary compact')}</div><div class="lab-footer"><div class="lab-speed" role="group" aria-label="试验速度">${[.5,1].map(speed=>`<button class="segment ${speed===(this.data.speed??1)?'selected':''}" data-speed="${speed}" aria-pressed="${speed===(this.data.speed??1)}">${speed}× 速度</button>`).join('')}</div><div>${this.button('补满生命','heal','secondary compact')}${this.button('清空场地','clear','secondary compact')}${this.button('重置试验','reset-lab','secondary compact')}${this.button('查看图鉴','catalog','secondary compact')}</div></div><p class="lab-hint">操作面板打开时模拟暂停。按 Esc 或“继续试验”回到场地；顶部“试验工具”可再次打开。</p>`,'lab-card');
   }
   private renderCatalog():void{
-    const {cards,note}=CATALOG[this.catalogTab];
+    const page=CATALOG[this.catalogTab];
+    const group=this.catalogTab==='enemies'?ENEMY_GROUPS[this.enemyGroup]:null;
     const tabs=Object.entries(CATALOG).map(([key,{label}])=>{
       const selected=this.catalogTab===key;
       return `<button class="tab ${selected?'selected':''}" data-catalog="${key}" id="tab-${key}" role="tab" aria-selected="${selected}" aria-controls="catalog-panel">${label}</button>`;
     });
-    const entries=cards.map(card=>`<article><div class="catalog-icon">${icon(card.kind)}</div><div><span class="catalog-id">${card.role}</span><h3>${card.title}</h3><p>${card.description}</p><small>${card.detail}</small></div></article>`);
+    const visibleKinds=group?new Set<string>(group.kinds):null;
+    const cards=page.cards.filter(card=>!visibleKinds||visibleKinds.has(card.kind));
+    const filters=group?`<div class="enemy-filters" role="group" aria-label="怪物等级">${Object.entries(ENEMY_GROUPS).map(([key,item])=>
+      `<button data-enemy-group="${key}" aria-pressed="${key===this.enemyGroup}" aria-controls="catalog-entries">${item.label} <span>${item.kinds.length}</span></button>`).join('')}</div>`:'';
+    const rank=group?`<span class="enemy-rank">${group.label}</span>`:'';
+    const entries=cards.map(card=>`<article><div class="catalog-icon">${icon(card.kind)}</div><div><span class="catalog-id">${rank}${card.role}</span><h3>${card.title}</h3><p>${card.description}</p><small>${card.detail}</small></div></article>`);
     this.overlay.innerHTML=this.paper(`<div class="catalog-title"><h2 id="dialog-title">夜市图鉴</h2>${this.button('返回','close-catalog','secondary compact','data-primary')}</div>
       <div class="settings-tabs" role="tablist" aria-label="图鉴分类">${tabs.join('')}</div>
-      <section id="catalog-panel" role="tabpanel" aria-labelledby="tab-${this.catalogTab}"><p class="catalog-note">${note}</p>
-      <div class="catalog-grid catalog-${this.catalogTab}">${entries.join('')}</div></section>`,'catalog-card');
+      <section id="catalog-panel" role="tabpanel" aria-labelledby="tab-${this.catalogTab}">${filters}<p class="catalog-note">${group?.note??page.note}</p>
+      <div id="catalog-entries" class="catalog-grid catalog-${this.catalogTab}" ${group?`data-rank="${this.enemyGroup}"`:''}>${entries.join('')}</div></section>`,'catalog-card');
   }
 
   private segments<T extends string>(field:string,values:Array<[T,string]>,selected:T){return `<div class="segments" role="group" aria-label="${field==='mode'?'操作方式':field==='hand'?'操作手位':field==='quality'?'特效质量':field==='sensitivity'?'灵敏度':'摇杆大小'}">${values.map(([value,label])=>`<button class="segment ${selected===value?'selected':''}" data-setting="${field}" data-value="${value}" aria-pressed="${selected===value}">${selected===value?icon('check'):''}${label}</button>`).join('')}</div>`;}
@@ -504,6 +546,13 @@ export class UI {
     if(preview){this.actions.demo(preview);return;}
     const marketDemo=button.dataset.marketDemo as keyof typeof marketDemos|undefined;
     if(marketDemo&&Object.hasOwn(marketDemos,marketDemo)){this.actions.demo(marketDemo);return;}
+    const group=button.dataset.enemyGroup;
+    if(group&&Object.hasOwn(ENEMY_GROUPS,group)){
+      this.enemyGroup=group as EnemyGroup;
+      this.renderCatalog();
+      this.overlay.querySelector<HTMLElement>(`[data-enemy-group="${group}"]`)?.focus({preventScroll:true});
+      return;
+    }
     if(button.dataset.catalog&&Object.hasOwn(CATALOG,button.dataset.catalog)){
       this.catalogTab=button.dataset.catalog as keyof typeof CATALOG;
       this.renderCatalog();

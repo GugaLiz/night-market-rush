@@ -1,7 +1,15 @@
-export const ELITE_KINDS=['giantBun','eliteCrab','eliteKettle','eliteSesame'] as const;
+export const ORDINARY_KINDS=['bun','onigiri','siumai','zongzi','box','bowl'] as const;
+export const ELITE_KINDS=['giantBun','eliteCrab','eliteKettle','eliteSesame','eliteSkewer','eliteLotus','eliteChili','eliteTofu','eliteTanghulu','eliteRoll'] as const;
+export const EPIC_KINDS=['epicHotpot','epicDragon','epicOpera','epicPearl','epicSteamer'] as const;
 export type EliteKind=typeof ELITE_KINDS[number];
-export type EnemyKind='bun'|'onigiri'|'siumai'|'zongzi'|'box'|'bowl'|EliteKind;
-export function isElite(kind:EnemyKind):kind is EliteKind{return ELITE_KINDS.some(elite=>elite===kind);}
+export type EpicKind=typeof EPIC_KINDS[number];
+export type GuardKind=EliteKind|EpicKind;
+export type EnemyKind=typeof ORDINARY_KINDS[number]|GuardKind;
+const elites:ReadonlySet<EnemyKind>=new Set(ELITE_KINDS);
+const epics:ReadonlySet<EnemyKind>=new Set(EPIC_KINDS);
+export function isElite(kind:EnemyKind):kind is EliteKind{return elites.has(kind);}
+export function isEpic(kind:EnemyKind):kind is EpicKind{return epics.has(kind);}
+export function isGuard(kind:EnemyKind):kind is GuardKind{return isElite(kind)||isEpic(kind);}
 export type WeaponKind='tongs'|'bag'|'chopsticks'|'spirit'|'knife'|'tray'|'umbrella'|'sword'|'lunchbox'|'talisman';
 export type MeleeKind=Extract<WeaponKind,'tongs'|'knife'|'umbrella'|'sword'>;
 export const ULTIMATE_KINDS = ['icebox','steamer','express','berry'] as const;
@@ -49,7 +57,17 @@ export interface Player extends Vec {
   dashFromMovement?:boolean;
   hp:number;maxHp:number;invulnerableUntil:number;hurtAt:number;bubbleUntil:number;heatUntil:number;stampUntil:number;moveDirection:Vec;sprintTime?:number;sprintMultiplier?:number;dashUntil?:number;dashReadyAt?:number;dashDirection?:Vec;
 }
+export type GuardShape =
+  | {kind:'disc'|'ring';center:Vec;radius:number;inner:number}
+  | {kind:'lane';from:Vec;to:Vec;radius:number}
+  | {kind:'fan';center:Vec;angle:number;halfAngle:number;radius:number};
+export interface GuardMark {
+  shape:GuardShape;warnAt:number;hitAt:number;endAt:number;damage:number;
+  rush?:boolean;summon?:EnemyKind;spent?:boolean;
+}
+export interface GuardCast {name:string;startsAt:number;endsAt:number;marks:GuardMark[];beatSent?:boolean}
 export interface Enemy extends Vec {
+  guardCast?:GuardCast;guardTurn?:number;guardSummoned?:number;summonerId?:number;
   jump?:GiantJump;
   id:number;kind:EnemyKind;px:number;py:number;radius:number;spawnAt:number;slowUntil:number;
   phase:'chase'|'warn'|'dash'|'recover';phaseUntil:number;dashX:number;dashY:number;facing:number;
@@ -83,6 +101,7 @@ export interface EnemyShot extends Vec {id:number;ownerId:number;kind?:'tea';px:
 export interface Zone extends Vec {id:number;kind:'lure'|'cone'|'route'|'supply';radius:number;bornAt:number;expiresAt:number;angle:number;length:number;width:number;hp:number;groupId?:number}
 export interface SkillEffects {hookUntil:number;dispatchUntil:number;dispatchStartedAt:number;dispatchCooldownUntil:number;[key:string]:number}
 export type GameEvent=
+  {type:'guardBeat';kind:EpicKind;beat:'strike'|'summon';x:number;y:number}|
   {type:'dispatchClear';x:number;y:number}|
   {type:'frostShatter';kind:EnemyKind;x:number;y:number;angle:number}|{type:'iceShards';x:number;y:number;angle:number;reach:number}|
   {type:'market';action:'open'|'sign'|'closing';group:MarketGroup;kind:MarketStallKind|null;x:number;y:number}|
@@ -104,7 +123,12 @@ export const DEFAULT_SETTINGS:Settings={mode:'joystick',joystickSize:'medium',ha
 export interface BestRecord {score:number;time:number;rulesVersion:string;date:string}
 export interface SaveData {version:1;settings:Settings;best:BestRecord|null;tutorialSeen:boolean}
 export const RULES_VERSION='night-market-4.0';
-export const ENEMY_NAMES:Record<EnemyKind,string>={bun:'包子怪',onigiri:'三角饭团',siumai:'金黄烧卖',zongzi:'青叶粽',box:'外卖盒怪',bowl:'大碗面怪',giantBun:'巨包三连坐',eliteCrab:'铁板蟹钳王',eliteKettle:'铜壶茶掌柜',eliteSesame:'芝麻汤圆婆婆'};
+export const ENEMY_NAMES:Record<EnemyKind,string>={
+  bun:'包子怪',onigiri:'三角饭团',siumai:'金黄烧卖',zongzi:'青叶粽',box:'外卖盒怪',bowl:'大碗面怪',
+  giantBun:'巨包三连坐',eliteCrab:'铁板蟹钳王',eliteKettle:'铜壶茶掌柜',eliteSesame:'芝麻汤圆婆婆',
+  eliteSkewer:'烤串枪手',eliteLotus:'莲藕鼓手',eliteChili:'朝天椒舞娘',eliteTofu:'铁板豆腐卫',eliteTanghulu:'糖葫芦串将',eliteRoll:'海苔卷骑手',
+  epicHotpot:'鸳鸯锅主',epicDragon:'糖画游龙',epicOpera:'傩面刀削师',epicPearl:'珍珠奶茶后',epicSteamer:'千层蒸笼塔',
+};
 export const WEAPON_NAMES:Record<WeaponKind,string>={tongs:'伸缩取餐夹',bag:'纸袋气炮',chopsticks:'飞筷匣',spirit:'汤灵保温壶',knife:'拆箱快刀',tray:'回旋餐盘',umbrella:'折叠配送伞',sword:'签收尺剑',lunchbox:'弹射餐盒',talisman:'派单符册'};
 export const SKILL_NAMES:Record<SkillKind,string>={fan:'旋风电扇',skate:'滑板环绕',soda:'汽水缓速',lure:'试吃保温盒',bubble:'气泡缓冲卷',cones:'反光路锥阵',bell:'到站手铃',route:'导航纸地图',hook:'伸缩取餐钩',heat:'加热餐包',dispatch:'派单终端',stamp:'加急印章',supply:'补给扫码券',icebox:'保冷箱冰浪',steamer:'蒸笼开席',express:'加急三连送',berry:'杨梅汽水炸屏',health:'暖心汤包',vortex:'乌金涡锅',poison:'毒雾泡菜坛',frost:'冰封刨冰机'};
 export const WEAPON_KINDS=Object.keys(WEAPON_NAMES) as WeaponKind[];

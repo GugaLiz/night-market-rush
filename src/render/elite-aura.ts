@@ -1,13 +1,24 @@
-import type {EliteKind, Enemy, Settings} from '../shared/types';
+import type {EliteKind, EpicKind, Enemy, Settings} from '../shared/types';
 import type {Sprite} from './assets';
 
-const colors = {
+export const guardColors = {
   giantBun: {body: '#ffad26', tip: '#ffeb9b'},
   eliteCrab: {body: '#fc493e', tip: '#ffb08a'},
   eliteKettle: {body: '#19cca6', tip: '#b8ffe0'},
   eliteSesame: {body: '#b25cff', tip: '#f4c5ff'},
-} satisfies Record<EliteKind, {body: string; tip: string}>;
-type Palette = typeof colors[EliteKind];
+  eliteSkewer: {body: '#d67031', tip: '#ffe4a8'},
+  eliteLotus: {body: '#dc76a6', tip: '#ffe3ee'},
+  eliteChili: {body: '#ff352b', tip: '#ffe15f'},
+  eliteTofu: {body: '#6979d9', tip: '#dbe5ff'},
+  eliteTanghulu: {body: '#c93668', tip: '#ffd9b1'},
+  eliteRoll: {body: '#389c51', tip: '#d8ff9c'},
+  epicHotpot: {body: '#d83d24', tip: '#ffe495'},
+  epicDragon: {body: '#dc8724', tip: '#fff2b5'},
+  epicOpera: {body: '#199f95', tip: '#b8fff0'},
+  epicPearl: {body: '#a363cd', tip: '#f6d6ff'},
+  epicSteamer: {body: '#8eaa52', tip: '#f4ffca'},
+} satisfies Record<EliteKind|EpicKind, {body: string; tip: string}>;
+type Palette = typeof guardColors[EliteKind|EpicKind];
 const tau = Math.PI * 2;
 const rims = new WeakMap<Sprite, HTMLCanvasElement>();
 
@@ -82,13 +93,13 @@ function drawFlank(c: CanvasRenderingContext2D, side: number, radius: number, he
 }
 
 /** Local sprite space, with the bottom center at zero and the same pose and facing as the elite. */
-export function drawEliteAura(c: CanvasRenderingContext2D, enemy: Enemy, kind: EliteKind, sprite: Sprite,
+export function drawEliteAura(c: CanvasRenderingContext2D, enemy: Enemy, kind: EliteKind|EpicKind, sprite: Sprite,
   height: number, time: number, settings: Settings): void {
-  const palette = colors[kind], rim = spriteRim(sprite, palette);
+  const palette = guardColors[kind], rim = spriteRim(sprite, palette);
   const scale = height / sprite.height, width = sprite.width * scale;
   const frozen = (enemy.chilledUntil ?? 0) > time || (enemy.frostUntil ?? 0) > time;
   const still = settings.reduceMotion || frozen || enemy.stunUntil > time;
-  const charging = enemy.phase === 'warn' || enemy.phase === 'dash' || enemy.jump?.phase === 'warn' ||
+  const charging = !!enemy.guardCast || enemy.phase === 'warn' || enemy.phase === 'dash' || enemy.jump?.phase === 'warn' ||
     enemy.jump?.phase === 'flight' || (enemy.shotWarnUntil ?? 0) > time || (enemy.volleyRemaining ?? 0) > 0;
   c.save();
   if (!still) {

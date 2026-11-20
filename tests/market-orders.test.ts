@@ -168,6 +168,35 @@ describe('V5 signed market orders',()=>{
     expect(g.drainEvents().filter(e=>e.type==='market'&&e.group==='final'&&e.action==='open')).toHaveLength(1);
   });
 
+  it('defers a new final delivery on an epic wave and never adds a second guardian',()=>{
+    const game=challenge(49,10,400),s=game.state;
+    game.update(CONFIG.step,still);
+    expect(s.market.offer).toBeNull();
+    expect(s.enemies.map(enemy=>enemy.kind)).toEqual(['epicDragon']);
+    const boss=s.enemies[0];
+    tick(game,.7);boss.hp=1;
+    Object.assign(s.player,{x:boss.x,y:boss.y});
+    game.triggerSkill('fan');game.update(CONFIG.step,still);
+    expect(s.wave).toBe(11);
+    expect(s.market.offer?.group).toBe('final');
+  });
+
+  it('keeps an unsigned final stall through an epic fight and requires a fresh entry after the kill',()=>{
+    const game=challenge(11,9,300),s=game.state;
+    game.update(CONFIG.step,still);
+    const offer=s.market.offer!,stall=offer.stalls[0];
+    s.enemies=[];s.wave=10;s.waveStartedAt=s.time;
+    Object.assign(s.player,{x:stall.x,y:stall.y});offer.ready=true;
+    tick(game,.7);
+    expect(s.market.offer).toBe(offer);expect(offer.ready).toBe(false);
+    expect(s.market.closing).toBe('open');
+    const boss=s.enemies.find(e=>e.kind==='epicDragon')!;
+    boss.hp=1;game.triggerSkill('berry');tick(game,1);
+    expect(s.wave).toBe(11);expect(offer.ready).toBe(true);
+    expect(s.market.closing).toBe('open');
+    approach(game,'final');expect(s.market.closing).toBe('choice');
+  });
+
   it.each(['settle','night'] as const)('opens once on the third landing then freezes until %s is chosen',choice=>{
     const g=arena('marketFinal'),s=g.state,p=s.player;
     for(let i=0;i<480&&!s.market.offer!.ready;i++)g.update(CONFIG.step,still);
@@ -203,9 +232,9 @@ describe('V5 signed market orders',()=>{
   });
 
   it('slows reinforcements once after a mid-game elite defeat',()=>{
-    const g=challenge(71,5,150),s=g.state;s.effects.dispatchUntil=0;
-    const elite=g.spawnEnemy('giantBun',s.player);elite.hp=1;elite.spawnAt=140;
-    g.triggerSkill('fan');expect(s.market.reprieveUntil).toBe(156);
+    const g=challenge(71,6,178),s=g.state;s.effects.dispatchUntil=0;
+    const elite=g.spawnEnemy('giantBun',s.player);elite.hp=1;elite.spawnAt=170;
+    g.triggerSkill('fan');expect(s.market.reprieveUntil).toBe(184);
     tick(g,5);expect(s.enemies).toHaveLength(0);
     tick(g,1.1);expect(s.enemies.length).toBeGreaterThan(0);
   });

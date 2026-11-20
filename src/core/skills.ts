@@ -1,4 +1,4 @@
-import {isElite, type Enemy, type GameState, type Pickup, type SkillKind, type Vec, type Zone} from '../shared/types';
+import {isGuard, type Enemy, type GameState, type Pickup, type SkillKind, type Vec, type Zone} from '../shared/types';
 import type {CombatContext} from './contracts';
 import {CONFIG, WORLD, pickupReach, enemyMinY} from './config';
 import {clamp, distanceSquared, segmentDistanceSquared, sweepContact} from './geometry';
@@ -196,7 +196,7 @@ function broadcastDispatch(s:GameState,origin:Vec,ctx:CombatContext):void {
     return false;
   });
   for(const e of s.enemies){
-    if(isElite(e.kind)||!ctx.active(e)||distanceSquared(e,origin)>(radius+e.radius)**2)continue;
+    if(isGuard(e.kind)||!ctx.active(e)||distanceSquared(e,origin)>(radius+e.radius)**2)continue;
     e.slowUntil=Math.max(e.slowUntil,s.time+slowTime);
     if((e.frostUntil??0)>s.time)continue;
     const until=s.time+recoilTime;

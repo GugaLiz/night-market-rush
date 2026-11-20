@@ -1,8 +1,9 @@
-import type {Enemy,GameState} from '../shared/types';
+import type {Enemy,EnemyKind,GameState,Vec} from '../shared/types';
 import type {CombatContext} from './contracts';
-import {CONFIG,WORLD,enemyMinY} from './config';
+import {CONFIG,WORLD,enemyMinY,type Difficulty} from './config';
 import {clamp} from './geometry';
 import {updateGiant} from './giant-bun';
+import {hasGuardAttacks,updateGuard} from './guard-attacks';
 
 /** Discard a locked attack when its owner is interrupted, before the next frame can draw or resume it. */
 export function stunEnemy(e:Enemy,until:number):void {
@@ -11,7 +12,10 @@ export function stunEnemy(e:Enemy,until:number):void {
 }
 
 export function interruptAttack(e:Enemy,until:number):void {
-  if(e.kind==='box'||e.kind==='eliteCrab'){
+  if(hasGuardAttacks(e.kind)){
+    delete e.guardCast;
+    e.shotReadyAt=Math.max(e.shotReadyAt??0,until+.75);
+  }else if(e.kind==='box'||e.kind==='eliteCrab'){
     e.phaseUntil=Math.max(e.phase==='recover'?e.phaseUntil:0,until+.4);
     e.phase='recover';
   }else if(e.kind==='bowl'||e.kind==='eliteKettle'||e.kind==='eliteSesame'){
@@ -117,7 +121,7 @@ function updateCook(s:GameState,e:Enemy,pursuing:boolean,distance:number,ctx:Com
 export interface ChargeContact {damage:number;radius:number}
 
 /** Return the active charge sweeps, including a final segment which reached a wall this step. */
-export function updateEnemies(s:GameState,dt:number,speedScale:number,ctx:CombatContext):Map<number,ChargeContact>{
+export function updateEnemies(s:GameState,dt:number,difficulty:Difficulty,ctx:CombatContext,spawn:(kind:EnemyKind,at:Vec)=>Enemy):Map<number,ChargeContact>{
   const p=s.player,charges=new Map<number,ChargeContact>(),positions=s.enemies.filter(ctx.active).map(e=>({id:e.id,x:e.x,y:e.y,radius:e.radius}));
   const grid=new Map<string,typeof positions>();
   for(const e of positions){const key=`${Math.floor(e.x/64)},${Math.floor(e.y/64)}`;const cell=grid.get(key)??[];cell.push(e);grid.set(key,cell);}
@@ -151,8 +155,9 @@ export function updateEnemies(s:GameState,dt:number,speedScale:number,ctx:Combat
     }
     if(e.stunUntil>s.time)continue;
     const march=e.march&&s.time<e.march.until?e.march:undefined;
+    if(hasGuardAttacks(e.kind)&&updateGuard(s,e,e.kind,pursuing&&!march,playerDistance,dt,difficulty.cap,spawn,ctx.emit))continue;
     let dx=0,dy=0;
-    const slow=e.slowUntil>s.time?CONFIG.skills.soda.factor:1;let speed=CONFIG.enemies[e.kind].speed*speedScale*slow;
+    const slow=e.slowUntil>s.time?CONFIG.skills.soda.factor:1;let speed=CONFIG.enemies[e.kind].speed*difficulty.speedScale*slow;
     if(lured){
       const x=e.lureX!-e.x,y=e.lureY!-e.y,distance=Math.hypot(x,y);
       if(distance<24)speed=0;else{dx=x/distance;dy=y/distance;}
@@ -160,7 +165,15 @@ export function updateEnemies(s:GameState,dt:number,speedScale:number,ctx:Combat
       dx=march.x;dy=march.y;
     }else if(pursuing){
       if(playerDistance>0){dx=(p.x-e.x)/playerDistance;dy=(p.y-e.y)/playerDistance;}
-      if(e.kind==='onigiri' && playerDistance>0){
+      if((e.kind==='eliteChili'||e.kind==='epicOpera'||e.kind==='epicPearl')&&playerDistance<390){
+        // The dancer circles between sweeps, the masked cook changes flank after a cut,
+        // and the cup keeps enough distance to drop another volley.
+        const orbit=((e.guardTurn??0)+e.id)%2?1:-1;
+        const away=e.kind==='epicPearl'&&playerDistance<230?-1:.26;
+        [dx,dy]=[away*dx-orbit*.87*dy,away*dy+orbit*.87*dx];
+      }else if(e.kind==='eliteSkewer'&&playerDistance<190){
+        dx=-dx;dy=-dy;
+      }else if(e.kind==='onigiri' && playerDistance>0){
         // The rice ball keeps rolling through turns. A sharp dodge can send it wide.
         const target=Math.atan2(dy,dx);
         e.wanderHeading=turnTowards(e.wanderHeading??target,target,3.6*dt);

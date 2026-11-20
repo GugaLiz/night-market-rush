@@ -6,7 +6,7 @@ test('skills survive combat interruptions and weapon contacts remain distinct in
   const result=await page.evaluate(async()=>{
     const audioUrl='/src/platform/audio.ts',typesUrl='/src/shared/types.ts';
     const {GameAudio}:typeof import('../../src/platform/audio')=await import(audioUrl);
-    const {SKILL_KINDS,DEFAULT_SETTINGS}:typeof import('../../src/shared/types')=await import(typesUrl);
+    const {SKILL_KINDS,EPIC_KINDS,DEFAULT_SETTINGS}:typeof import('../../src/shared/types')=await import(typesUrl);
     const rate=32000;
     let recording:OfflineAudioContext;
     let sources=0;
@@ -44,6 +44,9 @@ test('skills survive combat interruptions and weapon contacts remain distinct in
     }
     const peaks:Record<string,number>={};
     for(const kind of SKILL_KINDS)peaks[kind]=(await render([cast(kind)])).peak;
+    for(const kind of EPIC_KINDS)peaks[kind]=(await render([{type:'guardBeat',kind,beat:'strike',x:600,y:350}])).peak;
+    const summon:GameEvent={type:'guardBeat',kind:'epicHotpot',beat:'summon',x:580,y:350};
+    peaks.summon=(await render([summon])).peak;
     const bell=await render([cast('bell')]);
     const dispatch=await render([cast('dispatch')]);
     const pair=await render([cast('bell'),cast('dispatch'),cast('bell')]);
@@ -88,8 +91,8 @@ test('skills survive combat interruptions and weapon contacts remain distinct in
       oneTail:energy(single.data,.045,.070),crowdTail:energy(crowd.data,.045,.070),
       rearHit:energy(rear.data,.425,.470),afterCap:energy(rear.data,.665,.710),noRear:energy(crowd.data,.425,.470),
       tongsAir:tongsAir.peak,tongsContact:tongsContact.peak,fanCaught:fanCaught.sources,fanHit:fanHit.sources,
-      paused:(await render([...volley,pickup,fan,impact('fan',20),cast('vortex')],true)).peak,
-      muted:(await render([...volley,cast('express')],false,true)).peak};
+      paused:(await render([...volley,pickup,fan,impact('fan',20),cast('vortex'),summon],true)).peak,
+      muted:(await render([...volley,cast('express'),summon],false,true)).peak};
   });
   for(const [kind,peak] of Object.entries(result.peaks))expect(peak,kind).toBeGreaterThan(.014);
   expect(result.actualPair).toBe(result.expectedPair);

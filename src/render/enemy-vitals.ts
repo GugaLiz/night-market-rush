@@ -2,11 +2,11 @@ import {CONFIG, WORLD} from '../core/config';
 import {clamp} from '../core/geometry';
 import {giantJumpHeight} from '../core/giant-bun';
 import {TOSS_DURATION} from '../core/ultimates';
-import {isElite,type EnemyKind,type GameState} from '../shared/types';
+import {isElite,isEpic,isGuard,type EnemyKind,type GameState} from '../shared/types';
 
 const eliteHeight=152;
-const heights:Record<EnemyKind,number>={bun:55,onigiri:52,siumai:51,zongzi:58,box:65,bowl:75,giantBun:eliteHeight,eliteCrab:eliteHeight,eliteKettle:eliteHeight,eliteSesame:eliteHeight};
-export const enemyHeight = (kind: EnemyKind) => heights[kind];
+const heights={bun:55,onigiri:52,siumai:51,zongzi:58,box:65,bowl:75};
+export const enemyHeight = (kind:EnemyKind) => isEpic(kind)?177:isElite(kind)?eliteHeight:heights[kind];
 
 export interface VitalsRect {x:number; y:number; w:number; h:number}
 export interface EnemyVitals extends VitalsRect {
@@ -28,8 +28,8 @@ export function layoutEnemyVitals(state:GameState, reduced:boolean, fallen:reado
     const d=distance(e);
     if(d<nearestDistance){nearestDistance=d;nearest=e.id;}
   }
-  const selected=live.filter(e=>e.hp<e.maxHp || isElite(e.kind) || e.id===nearest || e.id===state.weapon.targetId);
-  selected.sort((a,b)=>Number(isElite(b.kind))-Number(isElite(a.kind)) ||
+  const selected=live.filter(e=>e.hp<e.maxHp || isGuard(e.kind) || e.id===nearest || e.id===state.weapon.targetId);
+  selected.sort((a,b)=>Number(isGuard(b.kind))-Number(isGuard(a.kind)) ||
     Number(b.hp<b.maxHp)-Number(a.hp<a.maxHp) || b.hurtAt-a.hurtAt || distance(a)-distance(b));
   const panels:EnemyVitals[]=[];
   function place(id:number,x:number,head:number,feet:number,hp:number,maxHp:number,giant:boolean,alpha:number) {
@@ -51,12 +51,12 @@ export function layoutEnemyVitals(state:GameState, reduced:boolean, fallen:reado
     const toss=!reduced && age>=0 && age<TOSS_DURATION ? Math.sin(Math.PI*age/TOSS_DURATION)*(e.tossHeight??0) : 0;
     const lift=giantJumpHeight(e,time)*(reduced?.38:1);
     const markers=(e.bellStunUntil??0)>time?21:e.stunUntil>time && !(e.chilledUntil && e.chilledUntil>time)?15:0;
-    place(e.id,e.x,e.y-enemyHeight(e.kind)-lift-toss-markers,e.y,e.hp,e.maxHp,isElite(e.kind),1);
+    place(e.id,e.x,e.y-enemyHeight(e.kind)-lift-toss-markers,e.y,e.hp,e.maxHp,isGuard(e.kind),1);
   }
   // A big sweep can remove an entire pack in one step. Keep the nearest fresh empty plaque.
   const recent=fallen.filter(e=>e.age<.72).sort((a,b)=>a.age-b.age || distance(a)-distance(b));
   for(const e of recent){
-    if(place(e.id,e.x,e.y-enemyHeight(e.kind),e.y,0,e.maxHp,isElite(e.kind),clamp((.72-e.age)/.22,0,1)))break;
+    if(place(e.id,e.x,e.y-enemyHeight(e.kind),e.y,0,e.maxHp,isGuard(e.kind),clamp((.72-e.age)/.22,0,1)))break;
   }
   return panels;
 }

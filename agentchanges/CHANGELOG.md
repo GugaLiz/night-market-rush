@@ -1038,3 +1038,47 @@
 - **实现/结果**：低于普通怪容量一半时加倍分批补怪。保留全图选点与入场预警，提前投放大招并预留泡位。旋风电扇按朝向扇出五股热浪，涡锅收拢爆发、泡菜坛挂毒、刨冰机集体碎冰。冰浪、蒸笼与杨梅的波前触敌才结算。加急三连送在第 4、8、12 趟落章伤敌。更新图鉴和试玩包的移动验收脚本，同步震屏偏好、竖屏提示的独立显示及大招音色。
 - **验证**：TypeScript、Vite 本地试玩构建、339 项单元与集成测试、37 项 Chrome 端到端测试及 7 项静态服务测试通过。八个相同开局与上一轮试玩包对照，拾取后 0.8 秒内仅计电扇击杀，由 14–20 只升至 26–32 只。四组关闭普攻的开局中，第 5 秒放杨梅汽水，3 秒后已结束预警的新怪由 6 只升至 30–36 只。旧移动脚本曾因断言存储震屏为关闭、等待隐藏的游戏画布或在竖屏状态生效前旋回而失败，更新验收目标后通过。通过局域网试玩包实测四大招的触摸拾取、命中图层、音频输出与横竖屏恢复；另在横屏简化画质下验证三种元素技能。桌面试玩包从首页开局、走位、暂停和资源加载正常。
 - **风险/后续**：本轮手机验证使用 Chrome 横屏触摸模拟。iPhone 真机的高密度战斗帧率和主观手感仍待试玩。
+
+## 2026-11-20 22:37:26 +08:00 — feature
+
+- **摘要**：图鉴按普通、精英、史诗分组。新增六种精英和五位多招式、可召援的史诗首领，部署到本地试玩。
+- **涉及文件**：
+  - `agentchanges/CHANGELOG.md`
+  - `public/assets/clay-market-bosses.webp`
+  - `public/assets/clay-market-champions.webp`
+  - `README.md`
+  - `src/core/config.ts`
+  - `src/core/enemies.ts`
+  - `src/core/game.ts`
+  - `src/core/guard-attacks.ts`
+  - `src/core/market-orders.ts`
+  - `src/core/skills.ts`
+  - `src/core/waves.ts`
+  - `src/main.ts`
+  - `src/platform/audio.ts`
+  - `src/render/assets.ts`
+  - `src/render/clay-frames.ts`
+  - `src/render/elite-aura.ts`
+  - `src/render/enemy-clay-fx.ts`
+  - `src/render/enemy-vitals.ts`
+  - `src/render/guard-telegraphs.ts`
+  - `src/render/market-stalls.ts`
+  - `src/render/renderer.ts`
+  - `src/shared/types.ts`
+  - `src/ui/catalog.ts`
+  - `src/ui/clay.css`
+  - `src/ui/game-icons.ts`
+  - `src/ui/ui.ts`
+  - `tests/e2e/elite-aura.spec.ts`
+  - `tests/e2e/loading.spec.ts`
+  - `tests/e2e/skill-audio.spec.ts`
+  - `tests/e2e/v2-ui.spec.ts`
+  - `tests/guard-attacks.test.ts`
+  - `tests/integration.test.ts`
+  - `tests/market-orders.test.ts`
+  - `tests/v4-core.test.ts`
+  - `tests/wave-guards.test.ts`
+- **原因/目标**：让玩家能一眼分清敌人等级，每隔五关面对一场有不同走位和反击机会的首领战。
+- **实现/结果**：十种精英在普通关轮换搭档。第 5、10、15、20、25 波起依次由鸳鸯锅主、糖画游龙、傩面刀削师、珍珠奶茶后、千层蒸笼塔单独守关，随后循环。史诗关停掉普通刷怪，击败首领立即换关。五位首领各有两种攻击、不同的援兵和命中音色，召援限定在场 4 只、整场 9 只。招式预警和伤害共享几何；冻结、眩晕与击败能取消未释放的攻击。实战与图鉴复用两张本轮生成、经透明裁切的软陶图集。Boss 血条显示招式名，试验场可直接选怪。
+- **验证**：TypeScript、生产及本地试玩构建、371 项单元与集成测试、39 项 Chrome 端到端测试通过。按新关卡时钟更新刷怪容量测试，加载进度断言改为按图集清单计算。首次浏览器全量亦有一次复活结算夹具超时，完整复跑通过。逐一验证十一只新怪的实战形象、预警、攻击和召援。用正式模拟器分别从五个史诗关满血开局，只控制移动，武器自动攻击并自然拾取道具，五战均在 13–16 秒内击败首领并换关。932×430 触摸模拟访问局域网试玩包，图鉴分别显示 6/10/5 张卡片，千层蒸笼塔实际扣血，页面与图集请求正常。
+- **风险/后续**：本轮手机检查为 Chrome 横屏触控模拟。五场固定开局的模拟用时不能代表玩家的平均通关时间。

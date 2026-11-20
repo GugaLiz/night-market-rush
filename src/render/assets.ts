@@ -12,19 +12,21 @@ export interface Assets {
   sprites: Record<SpriteName, Sprite>;
 }
 
+export const BOOT_IMAGES = [
+  'clay-night-market.webp', 'clay-riverside-market.webp', 'clay-chibi-home.webp', 'clay-actors.webp',
+  'clay-weapons.webp', 'clay-supplies.webp', 'clay-bun-courier-rig.webp', 'delivery-skills.webp',
+  'weapon-strikes.webp', 'clay-ultimate-fx.webp', 'clay-courier-workwear.webp', 'clay-market-mascots.webp',
+  'clay-street-snacks.webp', 'clay-soup-dumpling.webp', 'clay-elemental-tools.webp', 'clay-order-stall.webp', 'clay-market-elites.webp',
+  'clay-market-champions.webp', 'clay-market-bosses.webp',
+] as const;
+
 export async function loadAssets(onProgress?: (n: number) => void): Promise<Assets> {
-  const files = [
-    'clay-night-market.webp', 'clay-riverside-market.webp', 'clay-chibi-home.webp', 'clay-actors.webp',
-    'clay-weapons.webp', 'clay-supplies.webp', 'clay-bun-courier-rig.webp', 'delivery-skills.webp',
-    'weapon-strikes.webp', 'clay-ultimate-fx.webp', 'clay-courier-workwear.webp', 'clay-market-mascots.webp',
-    'clay-street-snacks.webp', 'clay-soup-dumpling.webp', 'clay-elemental-tools.webp', 'clay-order-stall.webp', 'clay-market-elites.webp',
-  ];
   let completed = 0;
   onProgress?.(0);
-  const [background, riverside, courierHome, atlas, weapons, supplies, rig, deliveryFields, strikes, ultimateFx, workwear, mascots, streetSnacks, soupDumpling, elementalTools, orderStall, elites] =
-    await Promise.all(files.map(name => new Promise<HTMLImageElement>((resolve, reject) => {
+  const [background, riverside, courierHome, atlas, weapons, supplies, rig, deliveryFields, strikes, ultimateFx, workwear, mascots, streetSnacks, soupDumpling, elementalTools, orderStall, elites, champions, bosses] =
+    await Promise.all(BOOT_IMAGES.map(name => new Promise<HTMLImageElement>((resolve, reject) => {
       const image = new Image();
-      image.onload = () => { onProgress?.(++completed / files.length); resolve(image); };
+      image.onload = () => { onProgress?.(++completed / BOOT_IMAGES.length); resolve(image); };
       image.onerror = () => reject(new Error(`无法加载美术资源：${name}`));
       image.src = `${import.meta.env.BASE_URL}assets/${name}`;
     })));
@@ -37,6 +39,8 @@ export async function loadAssets(onProgress?: (n: number) => void): Promise<Asse
   }
   register(mascots, clayFrames.mascots);
   register(elites, clayFrames.elites);
+  register(champions, clayFrames.champions);
+  register(bosses, clayFrames.bosses);
   register(streetSnacks, clayFrames.streetSnacks);
   register(atlas, clayFrames.ultimates);
   register(weapons, clayFrames.weapons);

@@ -269,9 +269,12 @@ describe('V4 continuous play', () => {
     game.reset(35);
     game.state.player.invulnerableUntil=1000;
     // Remove targets between batches so this checks the full schedule independently of combat aptitude.
-    for(let second=0;second<241;second++){game.state.enemies=[];game.update(1,still);}
+    for(let second=0;second<241&&game.state.wave<8;second++){game.state.enemies=[];game.update(1,still);}
     expect(game.state.wave).toBe(8);
-    expect(game.state.waveStartedAt).toBeCloseTo(240,6);
+    // The same fixture now clears the fifth street's boss at the next simulated second.
+    const ordinaryDuration=CONFIG.waves.firstDuration+5*CONFIG.waves.duration;
+    expect(game.state.waveStartedAt).toBeGreaterThan(ordinaryDuration);
+    expect(game.state.waveStartedAt).toBeLessThan(ordinaryDuration+2);
     expect(game.state.score).toBe(game.state.kills);
   });
 
