@@ -242,6 +242,37 @@ export function drawPoisonedEnemy(c:Canvas,e:Enemy,foot:number,height:number,tim
   c.restore();
 }
 
+export function drawBrittleIceRim(c:Canvas,x:number,foot:number,height:number,remaining:number,settings:Settings):void {
+  c.save();c.translate(x,foot);c.scale(height,height);
+  c.lineJoin='round';c.lineCap='round';
+  // Pick out opposite bevels of the existing shell. Its cracked center stays transparent.
+  c.beginPath();
+  c.moveTo(-.48,-.44);c.lineTo(-.34,-.84);c.lineTo(.04,-1.05);c.lineTo(.16,-.96);
+  c.moveTo(.47,-.43);c.lineTo(.50,-.32);c.lineTo(.27,.01);c.lineTo(-.05,0);
+  c.lineWidth=Math.min(.085,7/height);c.strokeStyle='#215d7b';c.stroke();
+  c.lineWidth=Math.min(.055,4.7/height);c.strokeStyle='#66e5f4';c.stroke();
+  c.lineWidth=Math.min(.021,2/height);c.strokeStyle='#f3fffe';c.stroke();
+
+  // The two chipped edges give the breakable ice a distinct silhouette even at phone scale.
+  const sheen=settings.reduceMotion?.65:.5+.5*Math.cos(remaining*turn/1.55);
+  for(const side of [-1,1]){
+    c.save();c.scale(side,1);c.translate(.46,side===1?-.35:-.51);
+    c.beginPath();c.moveTo(-.045,.115);c.lineTo(.016,-.084);
+    c.lineTo(.151,-.199);c.lineTo(.147,-.057);c.lineTo(.055,.077);c.closePath();
+    c.fillStyle='#4db7d2';c.strokeStyle='#255d79';c.lineWidth=Math.min(.042,3/height);
+    c.fill();c.stroke();
+    c.beginPath();c.moveTo(-.045,.115);c.lineTo(.074,-.064);c.lineTo(.151,-.199);
+    c.lineTo(.016,-.084);c.closePath();c.fillStyle='#d5ffff';c.fill();
+    if(settings.quality==='standard'){
+      c.globalAlpha*=.6+.4*sheen;
+      c.strokeStyle='#fffef0';c.lineWidth=Math.min(.030,2.5/height);c.beginPath();
+      c.moveTo(.016,-.084);c.lineTo(.095+.044*sheen,-.15-.035*sheen);c.stroke();
+    }
+    c.restore();
+  }
+  c.restore();
+}
+
 export function drawIceFragments(c:Canvas,x:number,y:number,t:number,seed:number,settings:Settings):void {
   const quiet=settings.reduceMotion, count=settings.quality==='simple'?3:5;
   const distance=quiet?10:26*(1-(1-t)**2);

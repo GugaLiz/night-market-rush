@@ -84,7 +84,7 @@ export interface Zone extends Vec {id:number;kind:'lure'|'cone'|'route'|'supply'
 export interface SkillEffects {hookUntil:number;dispatchUntil:number;dispatchStartedAt:number;dispatchCooldownUntil:number;[key:string]:number}
 export type GameEvent=
   {type:'dispatchClear';x:number;y:number}|
-  {type:'frostShatter';x:number;y:number}|{type:'iceShards';x:number;y:number;angle:number;reach:number}|
+  {type:'frostShatter';kind:EnemyKind;x:number;y:number;angle:number}|{type:'iceShards';x:number;y:number;angle:number;reach:number}|
   {type:'market';action:'open'|'sign'|'closing';group:MarketGroup;kind:MarketStallKind|null;x:number;y:number}|
   {type:'elementalBurst';kind:'vortex'|'frost';x:number;y:number}|
   {type:'giantLand';x:number;y:number;hop:GiantHop}|

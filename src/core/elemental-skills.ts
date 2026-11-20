@@ -128,11 +128,12 @@ export function shatterOnDash(s:GameState,dt:number,ctx:CombatContext):void {
     if(t!==null && t<=live && previous+t*dt<thaw-epsilon) contacts.push({enemy,fraction:t});
   }
   contacts.sort((a,b)=>a.fraction-b.fraction || a.enemy.id-b.enemy.id);
+  const angle=Math.atan2(dy,dx);
   for(const {enemy,fraction} of contacts){
     if(!ctx.active(enemy)) continue;
     delete enemy.frostUntil;
-    ctx.emit({type:'frostShatter',...along({x:enemy.px,y:enemy.py},enemy,fraction)});
-    ctx.damage(enemy,ELEMENTAL.frost.damage,'frost',Math.atan2(dy,dx));
+    ctx.emit({type:'frostShatter',kind:enemy.kind,angle,...along({x:enemy.px,y:enemy.py},enemy,fraction)});
+    ctx.damage(enemy,ELEMENTAL.frost.damage,'frost',angle);
     if(s.effects.frostShardDashUntil===dashUntil) continue;
     s.effects.frostShardDashUntil=dashUntil;
     sendIceShards(s,enemy,{x:dx/distance,y:dy/distance},fraction,ctx);

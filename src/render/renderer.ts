@@ -14,7 +14,7 @@ import {drawChainLink, drawFlightWake, drawPaperPuff, drawWeaponContact, drawWea
 import {drawFlyingChopsticks} from './bamboo-volley';
 import {drawMeleeWaves} from './melee-waves';
 import {drawUltimateGround,drawUltimateAir} from './ultimate-fx';
-import {drawElementalGround,drawIceFragments,drawPoisonedEnemy,drawVortexMouth} from './elemental-fx';
+import {drawBrittleIceRim,drawElementalGround,drawIceFragments,drawPoisonedEnemy,drawVortexMouth} from './elemental-fx';
 import {drawEnemyAttackGround,drawEnemyAttackDetail,drawGiantPulses,drawSnackImpact,drawSnackPursuitTrails,drawSoupShot,drawSyrupDrop,getEnemyAttackPose,enemyExpression,drawIceShell,drawBellStun} from './enemy-clay-fx';
 import {enemyHeight} from './enemy-vitals';
 import {drawGroundCoins, drawMarketBackground, drawSkillFields} from './market-floor';
@@ -28,12 +28,16 @@ const TAU=Math.PI*2;
 const ghostRadius=150;
 type DashGhost = {image: HTMLCanvasElement; x: number; y: number; time: number};
 type CrowdImpact = {x:number; y:number; age:number; power:number; direction:number};
+type SkillImpact = Extract<GameEvent,{type:'frostShatter'|'iceShards'|'dispatchClear'}> & {age:number};
+const skillImpactLifetime = {frostShatter:.90, iceShards:1.05, dispatchClear:.70};
 
 /** Canvas implementation is isolated from the deterministic simulation. */
 export class Renderer {
   private ctx: CanvasRenderingContext2D;
   private settings: Settings = {...DEFAULT_SETTINGS};
   private effects: Effect[] = [];
+  // These one-off skill cues must survive a crowd of simultaneous ordinary hit effects.
+  private skillImpacts: SkillImpact[] = [];
   private skillUses: Extract<GameEvent,{type:'skill'}>[]=[];
   private particles: Particle[] = [];
   private clock = 0;
@@ -57,7 +61,7 @@ export class Renderer {
   }
 
   setSettings(settings: Settings): void { this.settings = {...settings}; }
-  reset(): void { this.effects = []; this.skillUses=[]; this.particles = []; this.shake = 0; this.clock = 0; this.denseScene = false; this.quietSeconds = 0; this.rig.reset();this.labels.reset();this.contacts=[]; this.impact=null;this.lastImpactAt=-Infinity;this.recentDefeats=[];this.ghosts=[];this.lastStride=null; }
+  reset(): void { this.effects = []; this.skillImpacts=[]; this.skillUses=[]; this.particles = []; this.shake = 0; this.clock = 0; this.denseScene = false; this.quietSeconds = 0; this.rig.reset();this.labels.reset();this.contacts=[]; this.impact=null;this.lastImpactAt=-Infinity;this.recentDefeats=[];this.ghosts=[];this.lastStride=null; }
 
   events(events: GameEvent[]): void {
     // Count distinct defeats, not the five damage labels emitted by one weapon contact.
@@ -89,17 +93,13 @@ export class Renderer {
         if(this.skillUses.length>16)this.skillUses.shift();
       } else if (event.type === 'coin') {
         this.burst(event.x, event.y - 8, '#ffe49a', 5);
-      } else if(event.type==='dispatchClear'){
-        this.effects.push({kind:'dispatchClear',x:event.x,y:event.y,age:0,duration:.30});
+      } else if(event.type==='frostShatter'||event.type==='iceShards'||event.type==='dispatchClear'){
+        this.skillImpacts.push({...event,age:0});
       } else if(event.type==='ultimateBeat') {
         const force=event.kind==='berry'?.22:event.kind==='steamer'?.11:event.kind==='express'&&event.beat===EXPRESS.legs?.16:.065;
         this.shake=Math.max(this.shake,force);
       } else if(event.type==='elementalBurst'){
         this.shake=Math.max(this.shake,event.kind==='vortex'?.16:.10);
-      } else if(event.type==='frostShatter'){
-        this.effects.push({kind:'splitShell',x:event.x,y:event.y,age:0,duration:.28});
-      } else if(event.type==='iceShards'){
-        this.effects.push({kind:'shardLane',x:event.x,y:event.y,angle:event.angle,power:event.reach,age:0,duration:.29});
       } else if (event.type === 'kill') {
         const seed=event.victimId??Math.round(event.x);
         if(event.source==='vortex'){
@@ -167,6 +167,7 @@ export class Renderer {
     if(this.impact){this.impact.age+=dt;if(this.impact.age>.38)this.impact=null;}
     this.effects.forEach(effect => { effect.age += dt; });
     this.effects = this.effects.filter(effect => effect.age < effect.duration);
+    this.skillImpacts=this.skillImpacts.filter(hit=>(hit.age+=dt)<skillImpactLifetime[hit.type]);
     this.contacts=this.contacts.filter(hit=>(hit.age+=dt)<hit.duration);
     for (const p of this.particles) { p.age += dt; p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 70 * dt; }
     this.particles = this.particles.filter(p => p.age < p.duration);
@@ -218,15 +219,16 @@ export class Renderer {
 
   private battle(s: GameState): void {
     const c = this.ctx;
+    const simple=this.settings.quality==='simple'||this.denseScene;
     this.trackFootwork(s);
     drawSkillFields(c, s.fields, s.time, this.settings.quality === 'simple', this.settings.reduceMotion, this.assets);
     drawUltimateGround(c,s,this.settings,this.assets);
     drawElementalGround(c,s,this.settings,this.assets);
     this.skillUses=this.skillUses.filter(use=>s.time-use.time<useLifetime);
     for(const use of this.skillUses)if(use.kind==='soda'||use.kind==='bell'){
-      drawUseRipple(c,use,s.time-use.time,CONFIG.skills[use.kind].radius,this.settings.reduceMotion);
+      drawUseRipple(c,use,s.time-use.time,CONFIG.skills[use.kind].radius,this.settings.reduceMotion,simple);
     }else if(use.kind==='dispatch'){
-      drawDispatchBroadcast(c,use,s.time-use.time,CONFIG.skills.dispatch.radius,this.settings.reduceMotion);
+      drawDispatchBroadcast(c,use,s.time-use.time,CONFIG.skills.dispatch.radius,this.settings.reduceMotion,simple);
     }
     const onRoute=s.zones.some(z=>isOnPaperRoute(s.player,z,s.time));
     this.zones(s,onRoute);
@@ -291,9 +293,12 @@ export class Renderer {
     this.drawCourier(s);
     if(this.rig.bagPoint && this.rig.supplyHand)for(const use of this.skillUses){
       const field=s.elementalFields?.find(f=>f.kind===use.kind&&f.bornAt===use.time);
-      drawDeliveryUse(c,this.assets,use,s.time,this.rig.bagPoint,this.rig.supplyHand,this.settings.reduceMotion,field);
+      drawDeliveryUse(c,this.assets,use,s.time,this.rig.bagPoint,this.rig.supplyHand,this.settings.reduceMotion,field,simple);
     }
     this.projectiles(s);
+    // A later shell can shatter farther along the same lane. Keep the outgoing trail on top.
+    for(const hit of this.skillImpacts)if(hit.type!=='iceShards')this.drawSkillImpact(hit,simple);
+    for(const hit of this.skillImpacts)if(hit.type==='iceShards')this.drawSkillImpact(hit,simple);
     this.playerStatus(s);
     const impact=this.effects.find(effect=>effect.kind==='snackImpact');
     if(impact?.sprite)drawSnackImpact(c,impact.sprite,impact.x,impact.y,impact.angle??0,impact.age/impact.duration,this.settings);
@@ -414,7 +419,9 @@ export class Renderer {
     const bellStunned=(e.bellStunUntil??0)>time;
     if(frozen){
       const frostRemaining=(e.frostUntil??0)-time;
-      drawIceShell(c,e.x,foot,height,frostRemaining,s.market?.upgrade==='frost'&&frostRemaining>0);
+      const breakable=s.market?.upgrade==='frost'&&frostRemaining>0&&e.hp>0&&e.jump?.phase!=='flight'&&age>=CONFIG.spawn.warning;
+      drawIceShell(c,e.x,foot,height,frostRemaining,breakable);
+      if(breakable)drawBrittleIceRim(c,e.x,foot,height,frostRemaining,this.settings);
     }else{
       if(!bellStunned&&!pulled&&e.stunUntil>time)for(let i=0;i<3;i++){const angle=t*4+i*2.1;this.caption('✦',e.x+Math.cos(angle)*18,headY-12+Math.sin(angle)*3,14,'#fff2a1');}
       if(e.slowUntil>time){
@@ -457,6 +464,25 @@ export class Renderer {
     c.restore();
   }
 
+  private drawSkillImpact(hit:SkillImpact,simple:boolean):void {
+    const c=this.ctx;
+    const progress=hit.age/skillImpactLifetime[hit.type];
+    c.save();
+    c.globalAlpha*=Math.min(1,(1-progress)/.44);
+    if(hit.type==='frostShatter'){
+      drawSplitShell(c,hit.x,hit.y,progress,this.settings.reduceMotion,simple,enemyHeight(hit.kind),hit.angle);
+    }else if(hit.type==='iceShards'){
+      drawIceShardLane(c,hit.x,hit.y,hit.angle,hit.reach,progress,this.settings);
+    }else{
+      c.translate(hit.x,hit.y);c.rotate(Math.PI/4);
+      const gap=this.settings.reduceMotion?13:7+Math.min(1,progress/.42)*12;
+      c.lineWidth=4.5;c.strokeStyle='#2d6568';c.strokeRect(-gap,-gap,gap*2,gap*2);
+      c.lineWidth=2.2;c.strokeStyle='#b6fff0';c.strokeRect(-gap,-gap,gap*2,gap*2);
+      c.fillStyle='#ffdaa0';c.fillRect(-6,-1.5,12,3);
+    }
+    c.restore();
+  }
+
   private drawEffects(front: boolean): void {
     const c = this.ctx;
     for (const e of this.effects) {
@@ -475,14 +501,6 @@ export class Renderer {
       if(!front&&e.kind==='chainLink'&&e.from)drawChainLink(c,e.from,e,progress);
       if(front&&e.kind==='hit'){c.translate(e.x,e.y);c.strokeStyle='#fff7d8';c.lineWidth=3;for(let i=0;i<6;i++){const a=i*Math.PI/3+.2,r=8+progress*20;c.beginPath();c.moveTo(Math.cos(a)*r,Math.sin(a)*r);c.lineTo(Math.cos(a)*(r+10),Math.sin(a)*(r+10));c.stroke();}}
       if(front&&e.kind==='iceFragments')drawIceFragments(c,e.x,e.y,progress,e.power??0,this.settings);
-      if(front&&e.kind==='dispatchClear'){
-        c.translate(e.x,e.y);c.rotate(Math.PI/4);
-        const gap=this.settings.reduceMotion?13:5+progress*13;
-        c.strokeStyle='#b6fff0';c.lineWidth=2.8;c.strokeRect(-gap,-gap,gap*2,gap*2);
-        c.fillStyle='#ffdaa0';c.fillRect(-6,-1,12,2);
-      }
-      if(front&&e.kind==='splitShell')drawSplitShell(c,e.x,e.y,progress,this.settings.reduceMotion);
-      if(front&&e.kind==='shardLane')drawIceShardLane(c,e.x,e.y,e.angle??0,e.power??0,progress,this.settings);
       if(front&&e.kind==='swallowed'&&e.sprite){
         const size=enemyHeight(e.sprite)*(this.settings.reduceMotion?1:.45*(1-progress));
         this.sprite(e.sprite,e.x,e.y,size,e.facing,this.settings.reduceMotion?0:(e.angle??0)*(1+progress));

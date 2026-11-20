@@ -136,23 +136,24 @@ export function drawDeliveryPickup(c:CanvasRenderingContext2D, assets:Assets, pi
   c.restore();
 }
 
-export const useLifetime = .90;
+export const useLifetime = 1.35;
 export const cartFanOffset = {x:-36, y:7};
 
 /** Outbound route marks travel with the terminal's radio pulse, leaving the street readable. */
-export function drawDispatchBroadcast(c:CanvasRenderingContext2D, origin:Vec, age:number, range:number, quiet:boolean):void {
-  if(age<0||age>.70)return;
-  const travel=unit(age/.46);
+export function drawDispatchBroadcast(c:CanvasRenderingContext2D, origin:Vec, age:number, range:number, quiet:boolean, simple=false):void {
+  if(age<0||age>=1.12)return;
+  const travel=unit(age/.40);
   const radius=quiet?range:22+(range-22)*(1-(1-travel)**2);
   c.save();c.translate(origin.x,origin.y);c.lineCap='round';c.lineJoin='round';
-  c.globalAlpha*=unit((.70-age)/.30)*.85;
+  c.globalAlpha*=ease((1.12-age)/.48)*.91;
   c.beginPath();c.arc(0,0,radius,0,tau);
   c.lineWidth=7;c.strokeStyle='#304f5c9e';c.stroke();
   c.strokeStyle='#a9ecdc';c.lineWidth=2.5;c.stroke();
   c.setLineDash([6,10]);c.lineWidth=2;c.strokeStyle='#f6d693';
   c.beginPath();c.arc(0,0,Math.max(5,radius-8),0,tau);c.stroke();c.setLineDash([]);
-  for(let i=0;i<6;i++){
-    c.save();c.rotate(i*tau/6);c.translate(radius,0);
+  const count=simple?4:6;
+  for(let i=0;i<count;i++){
+    c.save();c.rotate(i*tau/count);c.translate(radius,0);
     c.fillStyle='#4c8380';c.strokeStyle='#f9edc0';c.lineWidth=1.5;
     c.beginPath();c.moveTo(-10,-6);c.lineTo(0,-6);c.lineTo(7,0);c.lineTo(0,6);c.lineTo(-10,6);
     c.lineTo(-4,0);c.closePath();c.fill();c.stroke();c.restore();
@@ -160,27 +161,62 @@ export function drawDispatchBroadcast(c:CanvasRenderingContext2D, origin:Vec, ag
   c.restore();
 }
 
-/** Short pressure ripples show the reach of the initial splash or bell strike. */
-export function drawUseRipple(c:CanvasRenderingContext2D,use:Use,age:number,range:number,quiet:boolean):void {
+/** One outward splash or chime, with a fading crest at the original hit radius. */
+export function drawUseRipple(c:CanvasRenderingContext2D,use:Use,age:number,range:number,quiet:boolean,simple=false):void {
   const soda=use.kind==='soda';
-  const t=unit((age-(soda?0:.08))/.48);
-  if(t<=0 || t>=1)return;
-  const radius=quiet?range:range*(1-(1-t)**2);
-  c.save();c.translate(use.x,use.y);c.lineCap='round';
-  c.globalAlpha=(1-t)*Math.min(1,t*9);c.strokeStyle=soda?'#a4e4cd':'#fbd896';c.lineWidth=2.3;
-  for(let i=0;i<6;i++){
-    const a=i*tau/6+.2;
-    c.beginPath();c.arc(0,0,radius,a,a+(soda?.45:.83));c.stroke();
-    if(soda && !quiet){
-      c.save();c.rotate(a+.61);c.fillStyle='#d3f8e8';
-      c.beginPath();c.ellipse(radius,0,3.9,1.7,0,0,tau);c.fill();c.restore();
+  const elapsed=age-(soda?0:.08), duration=soda?1.08:1.16;
+  if(elapsed<0||elapsed>=duration)return;
+  const travel=unit(elapsed/.42);
+  const radius=quiet?range:lerp(14,range,1-(1-travel)**2);
+  const count=simple?4:6, sector=tau/count;
+  c.save();c.translate(use.x,use.y);c.lineCap='round';c.lineJoin='round';
+  c.globalAlpha*=ease((duration-elapsed)/.56)*.9;
+  for(let i=0;i<count;i++){
+    const a=i*sector+.18, end=a+sector*(soda?.53:.77);
+    c.beginPath();c.arc(0,0,radius,a,end);
+    c.strokeStyle=soda?'#215f72':'#8a512b';c.lineWidth=soda?6:5.5;c.stroke();
+    c.strokeStyle=soda?'#b1f7f1':'#ffdf89';c.lineWidth=3;c.stroke();
+    if(soda){
+      c.save();c.rotate(end+.05);c.translate(radius,0);
+      c.fillStyle='#78d6db';c.strokeStyle='#2f7684';c.lineWidth=1.6;
+      c.beginPath();c.ellipse(-2,7,4,7,-.45,0,tau);c.fill();c.stroke();
+      c.fillStyle='#eeffef';c.beginPath();c.ellipse(-3,5,1.5,2.8,-.45,0,tau);c.fill();c.restore();
+    }else{
+      const innerRadius=Math.max(3,radius-(quiet?14:6+8*travel));
+      c.beginPath();c.arc(0,0,innerRadius,a+.13,end-.13);
+      c.strokeStyle='#fff0ca';c.lineWidth=2.7;c.stroke();
     }
   }
   c.restore();
 }
 
+/** Loose curls shaved from the little bowl arc out to either side of the machine. */
+function drawIceShavings(c:CanvasRenderingContext2D,x:number,y:number,age:number,quiet:boolean,simple:boolean):void {
+  if(age<.22)return;
+  const count=simple?6:10;
+  c.save();c.translate(x,y);c.lineCap='round';c.lineJoin='round';
+  for(let i=0;i<count;i++){
+    const side=i%2===0?-1:1, start=.22+(i%3)*.12;
+    const t=quiet?.70:unit((age-start)/.76);
+    if(t<=0||t>=1)continue;
+    const reach=27+(i*17)%58, rise=18+(i*31)%53;
+    const distance=8+t*reach;
+    const yOffset=t*t*(rise+10)-2*t*rise;
+    c.save();c.translate(side*distance,yOffset);c.scale(side,1);
+    c.rotate(Math.atan2(2*t*(rise+10)-2*rise,reach)+i*.39);
+    const size=.73+i%4*.13;c.scale(size,size);
+    c.globalAlpha*=quiet?.92*ease((age-.22)/.13):ease(t/.17)*ease((1-t)/.36);
+    c.beginPath();c.moveTo(-7,1);c.quadraticCurveTo(-2,-6,6,-4);
+    c.quadraticCurveTo(4,-1,8,1);c.quadraticCurveTo(2,0,-3,5);c.closePath();
+    c.fillStyle=i%3===0?'#8cddef':'#d9faff';c.fill();c.strokeStyle='#428b9d';c.lineWidth=1.45;c.stroke();
+    c.beginPath();c.moveTo(-4,.8);c.quadraticCurveTo(-.5,-2.7,3.5,-2.8);
+    c.strokeStyle='#fcfffa';c.lineWidth=1.6;c.stroke();c.restore();
+  }
+  c.restore();
+}
+
 /** The picked-up prop travels to the satchel, then is used or put down. Gameplay keeps running. */
-export function drawDeliveryUse(c:CanvasRenderingContext2D, assets:Assets, use:Use, time:number, bag:Vec, hand:Vec, quiet:boolean, field?:ElementalField):void {
+export function drawDeliveryUse(c:CanvasRenderingContext2D, assets:Assets, use:Use, time:number, bag:Vec, hand:Vec, quiet:boolean, field?:ElementalField, simple=false):void {
   const age=Math.max(0,time-use.time);
   if(age>=useLifetime)return;
   const side=use.facing.x<0?-1:1;
@@ -203,14 +239,20 @@ export function drawDeliveryUse(c:CanvasRenderingContext2D, assets:Assets, use:U
   const heldY=lerp(lerp(start.y,bag.y,collect),hand.y-4,grip);
   let x=ground?lerp(heldX,end.x,useTool):heldX;
   let y=ground?lerp(heldY,end.y,useTool)-(quiet?0:Math.sin(useTool*Math.PI)*12):heldY;
-  if(field&&!quiet){
-    const toss=ease((age-.16)/.13);
-    x=lerp(heldX,field.x,toss);
-    y=lerp(heldY,field.y-12,toss)-Math.sin(toss*Math.PI)*24;
+  const shaver=field?.kind==='frost';
+  if(field&&(!quiet||shaver)){
+    const toss=quiet?1:ease((age-.16)/.13);
+    // Leave the shaver behind the rider, clear of the signed stall and the lane ahead.
+    x=lerp(heldX,field.x-(shaver?side*50:0),toss);
+    y=lerp(heldY,field.y-(shaver?24:12),toss)-Math.sin(toss*Math.PI)*24;
   }
   const fan=use.kind==='fan', soda=use.kind==='soda';
-  const fade=unit((useLifetime-age)/.24);
-  const propAlpha=field?unit((.29-age)/.11):isUltimate(use.kind)?unit((.15-age)/.06):fan?unit((.46-age)/.11):fade;
+  const fade=ease((useLifetime-age)/.32);
+  let propAlpha=unit((.90-age)/.24);
+  if(shaver)propAlpha=fade;
+  else if(field)propAlpha=unit((.29-age)/.11);
+  else if(isUltimate(use.kind))propAlpha=unit((.15-age)/.06);
+  else if(fan)propAlpha=unit((.46-age)/.11);
   let turn=0;
   if(!quiet){
     if(soda)turn=-side*(.12+1.58*useTool*(1-ease((age-.62)/.17)));
@@ -218,11 +260,12 @@ export function drawDeliveryUse(c:CanvasRenderingContext2D, assets:Assets, use:U
     else turn=side*Math.sin(useTool*Math.PI)*.28;
   }else if(soda)turn=-side*1.28*useTool;
   c.save();c.globalAlpha=propAlpha;
-  const spr=assets.sprites[use.kind], h=fan?40:soda?37:33;
-  if(spr){
+  const spr=assets.sprites[use.kind], h=shaver?55:fan?40:soda?37:33;
+  if(spr&&propAlpha>0){
     const heldHeight=Math.min(h,(h+10)*spr.height/spr.width);
     const height=use.pickupFrom?lerp(groundIconHeight(use.kind,spr.width,spr.height),heldHeight,collect):heldHeight;
     drawSprite(c,assets,use.kind,x,y,height,turn,1,.5);
+    if(shaver)drawIceShavings(c,x,y+height*.24,age,quiet,simple);
   }
   if(soda && age>.18 && age<.66){
     const pour=Math.sin(unit((age-.18)/.48)*Math.PI);

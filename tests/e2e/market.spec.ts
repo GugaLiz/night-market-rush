@@ -1,5 +1,5 @@
 import {test,expect,type Page} from '@playwright/test';
-import type {MarketStallKind,Vec} from '../../src/shared/types';
+import type {GameEvent,MarketStallKind,Vec} from '../../src/shared/types';
 import {SAVE_KEY} from '../../src/platform/storage';
 
 async function runToStall(page:Page,kind:MarketStallKind){
@@ -38,6 +38,53 @@ test('market sign, equipment sticker, pause instructions and a fresh attempt',as
   await page.getByRole('button',{name:'重置试验'}).click();
   await expect(page.locator('.box-sticker')).toHaveCount(0);
   expect(await page.evaluate(()=>window.__gameTest.snapshot().market.completed)).toBe(0);
+});
+
+test('frost shell and shard trail stay visible through a crowd of hits and then fade',async({page})=>{
+  await page.goto('/');
+  await page.getByRole('button',{name:'配送试验场',exact:true}).click();
+  const {visible,expired}=await page.evaluate(async()=>{
+    const rendererUrl='/src/render/renderer.ts',assetsUrl='/src/render/assets.ts';
+    const {Renderer}:typeof import('../../src/render/renderer')=await import(rendererUrl);
+    const {loadAssets}:typeof import('../../src/render/assets')=await import(assetsUrl);
+    const canvas=document.body.appendChild(document.createElement('canvas'));
+    canvas.style.cssText='position:fixed;left:-2000px;top:0;width:1280px;height:720px';
+    const renderer=new Renderer(canvas,await loadAssets());
+    const state=window.__gameTest.snapshot();
+    const brush=canvas.getContext('2d')!;
+    // A horizontal dash throws shell pieces above and below the lane. Sample the upper burst
+    // and the far end of the lane separately so one effect cannot satisfy both assertions.
+    const sample=()=>[brush.getImageData(350,245,105,72).data,brush.getImageData(474,314,68,40).data];
+    const crowd=Array.from({length:60},(_,i):GameEvent=>({
+      type:'damage',id:i+1,victimId:i+1,source:'fan',x:850+i%8*8,y:480,
+      amount:10,nominal:10,time:state.time,
+    }));
+    renderer.events(crowd);
+    renderer.render(state,0,'play');
+    const background=sample();
+    renderer.events([
+      {type:'frostShatter',kind:'bun',x:400,y:355,angle:0},
+      {type:'iceShards',x:400,y:355,angle:0,reach:135},
+      ...crowd,
+    ]);
+    function advanceAndCompare(frames:number){
+      for(let i=0;i<frames;i++)renderer.render(state,.05,'play');
+      return sample().map((pixels,region)=>{
+        const before=background[region];
+        let changed=0;
+        for(let i=0;i<pixels.length;i+=4){
+          if(Math.max(Math.abs(pixels[i]-before[i]),Math.abs(pixels[i+1]-before[i+1]),Math.abs(pixels[i+2]-before[i+2]))>32)changed++;
+        }
+        return changed;
+      });
+    }
+    const visible=advanceAndCompare(12),expired=advanceAndCompare(14);
+    canvas.remove();
+    return {visible,expired};
+  });
+  expect(visible[0],'shell at 0.6 s').toBeGreaterThan(100);
+  expect(visible[1],'shards at 0.6 s').toBeGreaterThan(100);
+  expect(expired,'both regions return to their background').toEqual([0,0]);
 });
 
 test('guard releases the final stall, modal survives rotation, and both shift choices work',async({page})=>{

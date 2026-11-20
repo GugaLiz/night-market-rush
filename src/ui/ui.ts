@@ -10,7 +10,7 @@ export const practiceEnabled=import.meta.env.DEV||import.meta.env.MODE==='playte
 const previewSkills=[...ELEMENTAL_KINDS,...ULTIMATE_KINDS] as const;
 const marketDemos={marketFood:'热汤与涡锅',marketUpgrade:'配送箱改装',marketFinal:'五分钟尾单'} as const;
 const upgradeGuide={
-  frost:{name:'碎冰箱',icon:'frost',action:'冲刺撞碎带裂纹的冻怪',detail:'沿怪群冲刺，第一只碎裂的冰壳会向前射出冰片。'},
+  frost:{name:'碎冰箱',icon:'frost',action:'冲刺撞碎带裂纹的冻怪',detail:'签收时发动一次刨冰机。朝亮蓝冰壳冲刺，第一只撞碎的怪会向前射出冰片。再次拾取刨冰机可冻住新目标。'},
   brine:{name:'泡菜箱',icon:'poison',action:'让回旋餐盘飞过毒雾',detail:'餐盘沾汁后，侧移引导它在回程给沿途的追兵挂毒。'},
 } as const;
 
