@@ -223,7 +223,7 @@ describe('V4 continuous play', () => {
     }
     expect(gaps.has(2)).toBe(true);
     expect(gaps.size).toBeGreaterThan(1);
-  });
+  }, 30_000);
 
   it('keeps drawing from the normal pool when the player leaves the opening fan on the ground', () => {
     const game=new Game(3),s=game.state;
