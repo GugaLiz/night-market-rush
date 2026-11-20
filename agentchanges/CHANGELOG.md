@@ -909,3 +909,27 @@
 - **实现/结果**：首页提供唯一正式试玩链接，简述横屏操作、夜市接单与精英守关玩法，并用武器、技能和怪物各举一组图鉴例子。
 - **验证**：核对 README 链接、正式主页响应、游戏图鉴名称和键位；发布准备中已通过 TypeScript、313 项单元测试及生产构建。
 - **风险/后续**：本次推送沿用 main 分支的 GitHub Pages 工作流。
+
+## 2026-11-20 15:17:35 +08:00 — fix
+
+- **摘要**：手机横屏铺满可见窗口，保持骑手与技能等比显示，修复长按摇杆和音频中断恢复。
+- **涉及文件**：
+  - `index.html`
+  - `public/manifest.webmanifest`
+  - `src/main.ts`
+  - `src/platform/audio.ts`
+  - `src/platform/input.ts`
+  - `src/render/renderer.ts`
+  - `src/render/market-floor.ts`
+  - `src/render/frame-quality.ts`
+  - `src/ui/style.css`
+  - `src/ui/ui.ts`
+  - `tests/frame-quality.test.ts`
+  - `tests/e2e/mobile-viewport.spec.ts`
+  - `tests/e2e/mobile-audio.spec.ts`
+  - `tests/e2e/v3-movement.spec.ts`
+  - `agentchanges/CHANGELOG.md`
+- **原因/目标**：iPhone Chrome 横屏截图出现宽侧边、战斗初期画面发糊，玩家也遇到长按菜单和游戏无声。
+- **实现/结果**：触屏横向窗口完整展示战场，按视口延展夜市铺面，安全区留给可操作控件。首页和暂停页支持全屏及 iPhone 主屏启动指引。标准画质按实际帧率先减少装饰特效，再分档调整画布密度，恢复稳定后升档。触摸长按期间保持摇杆，释放手指可恢复中断的音频。
+- **验证**：TypeScript、Vite 正式构建、316 项 Vitest 和 30 项 Chrome 端到端测试通过。横屏手机浏览器栏展开和收起、平板、旋转及双指操作已模拟检查。Windows WebKit 横屏 956×365 下第一波实测画布 2868×1095，暂停和旋转通过。Chrome 音频分析器确认恢复后有信号，总静音后归零。
+- **风险/后续**：iPhone 浏览器工具栏和扬声器输出需真机确认。Windows WebKit 测试引擎未提供 Web Audio，音频行为使用 Chrome 验证。

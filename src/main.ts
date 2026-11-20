@@ -41,7 +41,7 @@ const ui:UI=new UI(document.getElementById('app')!,{
     input.setEnabled(false);audio.setScene(live?'paused':'home');
     ui.show('settings',{settings,state:live?game.state:undefined});
   },
-  previewSettings:draft=>{audio.setSettings(draft);renderer?.setSettings(draft);audio.play('ui');},
+  previewSettings:draft=>{audio.setSettings(draft);renderer?.setSettings(draft);gesture();},
   applySettings:next=>{
     settings={...next};applyPreferences();
     const persisted=storage.saveSettings(settings);leaveSettings();
@@ -123,19 +123,32 @@ const ui:UI=new UI(document.getElementById('app')!,{
   tutorial:()=>{cancelPendingStart();gesture();ui.show('tutorial',{settings});},
   requestTilt:()=>input.requestTilt().then(ok=>ok&&input.calibrate()),
   calibrate:()=>input.calibrate(),
-  fullscreen:()=>{
+  fullscreen:async()=>{
     gesture();
-    const request=document.fullscreenElement?document.exitFullscreen():ui.shell.requestFullscreen?.();
-    if(request)void request.catch(()=>ui.toast('此浏览器不支持全屏，可横屏游玩'));
-    else ui.toast('此浏览器不支持全屏，可横屏游玩');
+    try{
+      if(document.fullscreenElement){await document.exitFullscreen();return;}
+      if(document.fullscreenEnabled){
+        await document.documentElement.requestFullscreen({navigationUI:'hide'});
+        return;
+      }
+    }catch{
+      // A browser can expose fullscreen while disallowing it in the current tab.
+    }
+    const ios=/iPhone|iPad|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+    if(ios)ui.toast('点浏览器的「分享」→「添加到主屏幕」。如有「作为网页 App 打开」，请开启，再从主屏幕进入游戏。',9000);
+    else ui.toast('当前浏览器无法进入全屏，可使用浏览器菜单里的全屏选项。');
   }
 });
 const input:WebInput=new WebInput(ui.surface,()=>pause(),value=>ui.setJoystick(value),()=>dash());
+// A drag can suppress click entirely. Touch release is a fresh audio gesture after an interruption.
+ui.surface.addEventListener('touchend',()=>{
+  if(ui.currentView==='play'&&!document.hidden&&!audio.available)void audio.unlock();
+},{capture:true,passive:true});
 ui.canvas.tabIndex=-1;
 applyPreferences();
 
 function dash(){if(!live||ui.currentView!=='play'||document.hidden||rotated||game.state.ended)return;if(game.dash(input.getVector())){deliverEvents();ui.updateHUD(game.state);}ui.canvas.focus({preventScroll:true});}
-function gesture(){void audio.unlock();audio.play('ui');}
+function gesture(){void audio.unlock().then(()=>{if(!document.hidden)audio.play('ui');});}
 function cancelPendingStart(){inputRequest++;starting=false;}
 function applyPreferences(){input.setSettings(settings);audio.setSettings(settings);renderer?.setSettings(settings);}
 function leaveSettings(){
@@ -164,7 +177,6 @@ function pause(){
 async function prepareInput(request:number):Promise<boolean>{
   // Call permission request before the first await to retain the click gesture.
   const tilt=settings.mode==='tilt'?input.requestTilt():null;
-  void audio.unlock();
   const tiltAllowed=tilt?await tilt:true;
   // Navigation while a permission dialog or first sensor sample is pending
   // takes priority over the older start/resume request.
@@ -235,6 +247,7 @@ async function resume(){
   rotated=false;
   if(!live){home();return;}
   if(starting)return;starting=true;
+  void audio.unlock();
   const request=++inputRequest;
   try{if(await prepareInput(request)){if(game.state.practice)beginPlay(false);else countdown();}}finally{if(request===inputRequest)starting=false;}
 }
@@ -317,7 +330,7 @@ function frame(now:number){
   const scene=renderMode==='play'&&canInterpolate
     ?sampleBattleFrame(game.state,accumulator/CONFIG.step)
     :showRun?game.state:null;
-  renderer?.render(scene,renderMode==='pause'?0:dt*(game.state.practice&&showRun?practiceSpeed:1),renderMode);
+  renderer?.render(scene,renderMode==='pause'?0:dt*(game.state.practice&&showRun?practiceSpeed:1),renderMode,elapsed);
   requestAnimationFrame(frame);
 }
 async function boot(){

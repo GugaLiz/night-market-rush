@@ -354,6 +354,9 @@ export class UI {
     }
   }
   private button(label:string,action:string,kind='primary',extra=''){return `<button class="button ${kind}" data-action="${action}" ${extra}>${label}</button>`;}
+  private fullscreenButton(classes:string):string{
+    return `<button class="${classes}" data-action="fullscreen">${icon('fullscreen')}<span data-fullscreen-enter>全屏</span><span data-fullscreen-exit>退出全屏</span></button>`;
+  }
   private paper(content:string,classes=''){return `<section class="paper ${classes}" role="dialog" aria-modal="true" aria-labelledby="dialog-title">${content}</section>`;}
   private render():void{
     const s=this.data.state;
@@ -367,7 +370,7 @@ export class UI {
           <div class="best-card"><span>本地最佳击败</span><strong>${best?score(best.score)+' 只':'等待你的第一单'}</strong>${best?`<small>存活 ${formatTime(best.time)}</small>`:''}</div>
           ${this.button(`开始挑战 ${icon('arrow')}`,'start','primary start-button','data-primary')}
           <div class="home-secondary home-tools">${practiceEnabled?this.button('配送试验场','practice','secondary'):''}${this.button('夜市图鉴','catalog','secondary')}</div>
-          <div class="home-footer"><button class="text-button" data-action="tutorial">玩法说明</button><button class="text-button" data-action="settings">操作设置</button><button class="text-button" data-action="fullscreen" aria-label="全屏游玩">${icon('fullscreen')}全屏</button></div>
+          <div class="home-footer"><button class="text-button" data-action="tutorial">玩法说明</button><button class="text-button" data-action="settings">操作设置</button>${this.fullscreenButton('text-button')}</div>
         </section></div>`;break;
       }
       case 'loading':{
@@ -395,7 +398,7 @@ export class UI {
       case 'pause':
         this.overlay.innerHTML=this.paper(`<div class="tape" aria-hidden="true"></div><h2 id="dialog-title">已暂停</h2><div class="paper-divider"></div><p class="run-summary">第 ${s?.wave??1} 波<span>·</span>击败 ${s?.kills??0}<span>·</span>用时 ${formatTime(s?.time??0)}</p>
           ${upgrade?`<div class="upgrade-instructions"><span>${icon(upgrade.icon)}</span><div><b>${upgrade.name} · ${upgrade.action}</b><p>${upgrade.detail}</p></div></div>`:`<div class="pause-bag">${icon('rigBagSide')}</div>`}
-          ${this.button('继续挑战','resume','primary wide','data-primary')}<div class="paper-actions">${this.button('设置','settings','secondary')}${this.button('返回首页','home','secondary')}</div>`,'pause-card');break;
+          ${this.button('继续挑战','resume','primary wide','data-primary')}<div class="paper-actions">${this.button('设置','settings','secondary')}${this.fullscreenButton('button secondary')}${this.button('返回首页','home','secondary')}</div>`,'pause-card');break;
       case 'settings':this.renderSettings();break;
       case 'revive':
         this.overlay.innerHTML=this.paper(`<h2 id="dialog-title">要继续这一单吗？</h2>

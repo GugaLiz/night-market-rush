@@ -91,6 +91,12 @@ test.describe('touch dash',()=>{
     const moved={x:origin.x+55,y:origin.y,id:1},tap={x:button.x+button.width/2,y:button.y+button.height/2,id:2};
     await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[origin]});
     await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[moved]});
+    const menusSuppressed=await page.locator('#game-canvas').evaluate(canvas=>[
+      new PointerEvent('contextmenu',{pointerType:'touch',bubbles:true,cancelable:true}),
+      new MouseEvent('contextmenu',{bubbles:true,cancelable:true}),
+    ].every(menu=>!canvas.dispatchEvent(menu)));
+    expect(menusSuppressed).toBe(true);
+    expect((await page.evaluate(()=>window.__gameTest.input())).x).toBeGreaterThan(.9);
     await page.waitForTimeout(70);const before=await state(page);
     const knob=(await page.locator('.joystick-knob').boundingBox())!;
     expect(Math.abs(knob.x+knob.width/2-moved.x)).toBeLessThan(2);

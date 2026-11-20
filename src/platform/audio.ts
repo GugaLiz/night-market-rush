@@ -40,7 +40,7 @@ export class GameAudio {
 
   get available():boolean{return this.context?.state==='running';}
   async unlock():Promise<void>{
-    if(this.disposed)return;
+    if(this.disposed||this.settings.muted)return;
     try{
       if(!this.context){
         const Constructor=window.AudioContext||(window as unknown as {webkitAudioContext?:typeof AudioContext}).webkitAudioContext;
@@ -59,12 +59,24 @@ export class GameAudio {
         }
         this.setSettings(this.settings);
       }
-      if(this.context.state!=='running')await this.context.resume();
-      if(!this.scheduler){this.nextBeat=this.context.currentTime+.04;this.scheduler=setInterval(()=>this.scheduleMusic(),40);}
+      const context=this.context;
+      if(context.state!=='running')await context.resume();
+      if(this.disposed||context.state!=='running'||this.scheduler!==null)return;
+      this.nextBeat=context.currentTime+.04;
+      this.scheduler=setInterval(()=>this.scheduleMusic(),40);
     }catch{/* Muted gameplay is valid when browser audio is unavailable. */}
+  }
+  private setPlaybackSession(active:boolean):void{
+    // On iPhone the default ambient session follows the ringer switch.
+    try{
+      const session=(navigator as Navigator&{audioSession?:{type:string}}).audioSession;
+      const type=active?'playback':'auto';
+      if(session&&session.type!==type)session.type=type;
+    }catch{/* The browser may manage the session itself. */}
   }
   setSettings(settings:Settings):void{
     this.settings={...settings};if(!this.context||!this.master||!this.musicBus||!this.sfxBus)return;
+    this.setPlaybackSession(!settings.muted&&(settings.music>0||settings.sfx>0)&&this.scene!=='silent');
     const now=this.context.currentTime;
     this.master.gain.setTargetAtTime(settings.muted?0:.72,now,.02);
     this.musicBus.gain.setTargetAtTime(Math.max(0,Math.min(1,settings.music))*(this.scene==='play'?.33:.25),now,.035);
@@ -394,6 +406,7 @@ export class GameAudio {
   dispose():void{
     this.disposed=true;if(this.scheduler)clearInterval(this.scheduler);this.scheduler=null;
     this.stopSources(this.musicVoices);this.stopSources(this.sfxVoices);
+    if(this.context)this.setPlaybackSession(false);
     void this.context?.close().catch(()=>{});this.context=null;
   }
   private stopSources(sources:Set<AudioScheduledSourceNode>):void{for(const source of sources){try{source.stop();}catch{/* already stopped */}}sources.clear();}
@@ -421,7 +434,7 @@ export class GameAudio {
     source.start(at);source.stop(at+duration+.02);
   }
   private scheduleMusic():void{
-    const c=this.context;if(!c||c.state!=='running'||(this.scene!=='home'&&this.scene!=='play'))return;
+    const c=this.context;if(!c||c.state!=='running'||this.settings.muted||this.settings.music===0||(this.scene!=='home'&&this.scene!=='play'))return;
     const spacing=this.scene==='home'?.32:.235;
     if(this.nextBeat<c.currentTime-.1)this.nextBeat=c.currentTime+.03;
     // A compact original pentatonic phrase with alternating bass and brushed percussion.

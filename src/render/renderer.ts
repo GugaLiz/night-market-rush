@@ -20,6 +20,7 @@ import {enemyHeight} from './enemy-vitals';
 import {drawGroundCoins, drawMarketBackground, drawSkillFields} from './market-floor';
 import {drawMarketStalls} from './market-stalls';
 import {drawIceShardLane,drawSplitShell,drawTrayBrine} from './market-upgrades';
+import {FrameQuality} from './frame-quality';
 
 type Effect = {kind: string; x: number; y: number; age: number; duration: number; label?: string; angle?:number; sprite?:Enemy['kind']; facing?:number; power?:number; from?:Vec};
 type Particle = {x: number; y: number; vx: number; vy: number; age: number; duration: number; size: number; color: string};
@@ -34,7 +35,12 @@ const skillImpactLifetime = {frostShatter:.90, iceShards:1.05, dispatchClear:.70
 /** Canvas implementation is isolated from the deterministic simulation. */
 export class Renderer {
   private ctx: CanvasRenderingContext2D;
-  private settings: Settings = {...DEFAULT_SETTINGS};
+  private requestedSettings: Settings = DEFAULT_SETTINGS;
+  private reducedSettings: Settings = {...DEFAULT_SETTINGS, quality: 'simple'};
+  private frameQuality = new FrameQuality();
+  private get settings(): Settings {
+    return this.frameQuality.simplifyEffects ? this.reducedSettings : this.requestedSettings;
+  }
   private effects: Effect[] = [];
   // These one-off skill cues must survive a crowd of simultaneous ordinary hit effects.
   private skillImpacts: SkillImpact[] = [];
@@ -42,8 +48,6 @@ export class Renderer {
   private particles: Particle[] = [];
   private clock = 0;
   private shake = 0;
-  private denseScene = false;
-  private quietSeconds = 0;
   private rig:CourierRig;
   private labels=new DamageLabels();
   private contacts:WeaponContact[]=[];
@@ -60,8 +64,12 @@ export class Renderer {
     this.rig=new CourierRig(assets);
   }
 
-  setSettings(settings: Settings): void { this.settings = {...settings}; }
-  reset(): void { this.effects = []; this.skillImpacts=[]; this.skillUses=[]; this.particles = []; this.shake = 0; this.clock = 0; this.denseScene = false; this.quietSeconds = 0; this.rig.reset();this.labels.reset();this.contacts=[]; this.impact=null;this.lastImpactAt=-Infinity;this.recentDefeats=[];this.ghosts=[];this.lastStride=null; }
+  setSettings(settings: Settings): void {
+    if (settings.quality !== this.requestedSettings.quality) this.frameQuality.reset();
+    this.requestedSettings = {...settings};
+    this.reducedSettings = {...settings, quality: 'simple'};
+  }
+  reset(): void { this.effects = []; this.skillImpacts=[]; this.skillUses=[]; this.particles = []; this.shake = 0; this.clock = 0; this.frameQuality.reset(); this.rig.reset();this.labels.reset();this.contacts=[]; this.impact=null;this.lastImpactAt=-Infinity;this.recentDefeats=[];this.ghosts=[];this.lastStride=null; }
 
   events(events: GameEvent[]): void {
     // Count distinct defeats, not the five damage labels emitted by one weapon contact.
@@ -158,7 +166,8 @@ export class Renderer {
     this.contacts=this.contacts.slice(-28);
   }
 
-  render(state: GameState | null, dt: number, mode: 'home' | 'play' | 'pause' | 'result'): void {
+  render(state: GameState | null, dt: number, mode: 'home' | 'play' | 'pause' | 'result', elapsed = dt): void {
+    this.frameQuality.sample(elapsed, mode === 'play' && this.requestedSettings.quality === 'standard');
     dt = Math.min(.05, Math.max(0, dt));
     if(mode==='pause')dt=0;
     this.frameDt=dt;
@@ -172,20 +181,15 @@ export class Renderer {
     for (const p of this.particles) { p.age += dt; p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 70 * dt; }
     this.particles = this.particles.filter(p => p.age < p.duration);
     const rect = this.canvas.getBoundingClientRect();
-    // Reduce fill cost in crowded scenes; hysteresis avoids repeated canvas resets.
-    // This changes only pixel density, never sprite scale, warnings or collision rules.
-    if ((state?.enemies.length ?? 0) >= 40 || this.effects.length >= 24) {
-      this.denseScene = true; this.quietSeconds = 0;
-    } else if ((state?.enemies.length ?? 0) < 24 && this.effects.length < 8) {
-      this.quietSeconds += dt;
-      if (this.quietSeconds >= 3) this.denseScene = false;
-    } else this.quietSeconds = 0;
-    const dpr = Math.min(this.settings.quality === 'simple' || this.denseScene ? 1 : 2, window.devicePixelRatio || 1);
+    const dpr = this.frameQuality.pixelRatio(rect.width, rect.height, window.devicePixelRatio, this.requestedSettings.quality);
     const width = Math.max(1, Math.round(rect.width * dpr)), height = Math.max(1, Math.round(rect.height * dpr));
     if (this.canvas.width !== width || this.canvas.height !== height) { this.canvas.width = width; this.canvas.height = height; }
     const c = this.ctx;
-    c.setTransform(width / WORLD.width, 0, 0, height / WORLD.height, 0, 0);
-    c.clearRect(0, 0, WORLD.width, WORLD.height);
+    const scale = Math.min(width / WORLD.width, height / WORLD.height);
+    const viewWidth = width / scale, viewHeight = height / scale;
+    const left = (WORLD.width - viewWidth) / 2, top = (WORLD.height - viewHeight) / 2;
+    c.setTransform(scale, 0, 0, scale, -left * scale, -top * scale);
+    c.clearRect(left, top, viewWidth, viewHeight);
     c.save();
     if (this.settings.shake && !this.settings.reduceMotion && mode === 'play') {
       let dx=Math.sin(this.clock*104)*this.shake*8,dy=Math.cos(this.clock*127)*this.shake*6;
@@ -195,12 +199,12 @@ export class Renderer {
         dx-=Math.cos(direction)*kick;dy-=Math.sin(direction)*kick;
       }
       if(Math.abs(dx)+Math.abs(dy)>.05){
-        const overscan=1+Math.max(Math.abs(dx)/WORLD.width,Math.abs(dy)/WORLD.height)*2;
+        const overscan=1+Math.max(Math.abs(dx)/viewWidth,Math.abs(dy)/viewHeight)*2;
         c.translate(WORLD.width/2+dx,WORLD.height/2+dy);
         c.scale(overscan,overscan);c.translate(-WORLD.width/2,-WORLD.height/2);
       }
     }
-    drawMarketBackground(c, this.assets, state, this.settings.reduceMotion);
+    drawMarketBackground(c, this.assets, state, this.settings.reduceMotion, viewWidth, viewHeight);
     if (mode === 'home' || !state) this.home();
     else this.battle(state);
     c.restore();
@@ -219,7 +223,7 @@ export class Renderer {
 
   private battle(s: GameState): void {
     const c = this.ctx;
-    const simple=this.settings.quality==='simple'||this.denseScene;
+    const simple=this.settings.quality==='simple';
     this.trackFootwork(s);
     drawSkillFields(c, s.fields, s.time, this.settings.quality === 'simple', this.settings.reduceMotion, this.assets);
     drawUltimateGround(c,s,this.settings,this.assets);
@@ -288,7 +292,7 @@ export class Renderer {
     }
     if(onRoute)drawRouteStride(c,s.player,s.time,this.settings.reduceMotion);
     if(s.player.stampUntil>s.time){
-      drawStampWave(c,s.player,s.time,this.settings.reduceMotion,this.settings.quality==='simple'||this.denseScene);
+      drawStampWave(c,s.player,s.time,this.settings.reduceMotion,simple);
     }
     this.drawCourier(s);
     if(this.rig.bagPoint && this.rig.supplyHand)for(const use of this.skillUses){

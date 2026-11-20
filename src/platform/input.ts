@@ -16,6 +16,7 @@ export class WebInput {
   private enabled=false;
   private keys=new Set<string>();
   private pointer:number|null=null;
+  private touchJoystick=false;
   private origin={x:0,y:0};
   private stick:Vec={x:0,y:0};
   private raw:Vec={x:0,y:0};
@@ -81,7 +82,7 @@ export class WebInput {
   }
   private releaseJoystick():void {
     this.stick={x:0,y:0};
-    const id=this.pointer;this.pointer=null;
+    const id=this.pointer;this.pointer=null;this.touchJoystick=false;
     if(id!==null){try{if(this.surface.hasPointerCapture(id))this.surface.releasePointerCapture(id);}catch{/* pointer was already released */}}
     this.onJoystick?.({active:false,x:this.origin.x,y:this.origin.y,dx:0,dy:0});
   }
@@ -111,8 +112,10 @@ export class WebInput {
   };
   private keyUp=(e:KeyboardEvent)=>{this.keys.delete(e.code);};
   private contextMenu=(e:MouseEvent)=>{
-    if(!this.enabled||('pointerType' in e&&e.pointerType==='touch'))return;
+    if(!this.enabled)return;
     if(e.composedPath().includes(this.surface))e.preventDefault();
+    // Some mobile browsers report a long press as a MouseEvent without a pointer type.
+    if(('pointerType' in e&&e.pointerType==='touch')||(!('pointerType' in e)&&this.touchJoystick))return;
     this.clear();
   };
   // Adding the right button during a left drag delivers pointermove instead of pointerdown.
@@ -124,7 +127,7 @@ export class WebInput {
     if(!this.enabled||this.interruptSecondaryPress(e)||this.settings.mode!=='joystick'||this.pointer!==null||this.interactive(e.target)||e.button!==0)return;
     const rect=this.surface.getBoundingClientRect(),x=e.clientX-rect.left,y=e.clientY-rect.top;
     if((this.settings.hand==='left'&&x>rect.width*.55)||(this.settings.hand==='right'&&x<rect.width*.45)||y<rect.height*.14)return;
-    e.preventDefault();this.pointer=e.pointerId;this.origin={x,y};this.stick={x:0,y:0};
+    e.preventDefault();this.pointer=e.pointerId;this.touchJoystick=e.pointerType==='touch';this.origin={x,y};this.stick={x:0,y:0};
     try{this.surface.setPointerCapture(e.pointerId);}catch{/* touch fallback still tracks inside surface */}
     this.onJoystick?.({active:true,x,y,dx:0,dy:0});
   };

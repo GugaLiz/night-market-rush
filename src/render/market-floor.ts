@@ -9,6 +9,7 @@ const circle = Math.PI * 2;
 
 export function drawMarketBackground(
   ctx: CanvasRenderingContext2D, assets: Assets, state: GameState | null, reduceMotion: boolean,
+  viewWidth: number, viewHeight: number,
 ): void {
   const wave = state?.wave ?? 1;
   const age = state ? Math.max(0, state.time - state.waveStartedAt) : 0;
@@ -16,7 +17,28 @@ export function drawMarketBackground(
   const progress = Math.min(1, age / CONFIG.waves.transition);
   const shownWave = changing && progress < .45 ? wave - 1 : wave;
   const backdrop = shownWave % 2 === 0 ? assets.riverside : assets.background;
-  ctx.drawImage(backdrop, 0, 0, WORLD.width, WORLD.height);
+  const left = (WORLD.width - viewWidth) / 2, top = (WORLD.height - viewHeight) / 2;
+  // Keep the lanterns and stalls at their painted scale. Only the open paving
+  // between them expands when a phone or tablet shows more of the market.
+  const w = backdrop.naturalWidth, h = backdrop.naturalHeight;
+  const border = .2;
+  if (viewWidth > WORLD.width + 1) {
+    const edge = WORLD.width * border;
+    ctx.drawImage(backdrop, 0, 0, w * border, h, left, top, edge, viewHeight);
+    ctx.drawImage(backdrop, w * border, 0, w * (1 - 2 * border), h,
+      left + edge, top, viewWidth - 2 * edge, viewHeight);
+    ctx.drawImage(backdrop, w * (1 - border), 0, w * border, h,
+      left + viewWidth - edge, top, edge, viewHeight);
+  } else if (viewHeight > WORLD.height + 1) {
+    const edge = WORLD.height * border;
+    ctx.drawImage(backdrop, 0, 0, w, h * border, left, top, viewWidth, edge);
+    ctx.drawImage(backdrop, 0, h * border, w, h * (1 - 2 * border),
+      left, top + edge, viewWidth, viewHeight - 2 * edge);
+    ctx.drawImage(backdrop, 0, h * (1 - border), w, h * border,
+      left, top + viewHeight - edge, viewWidth, edge);
+  } else {
+    ctx.drawImage(backdrop, left, top, viewWidth, viewHeight);
+  }
   if (!changing) return;
 
   // Only the painted floor fades. Actors and collectible positions stay readable.
@@ -24,7 +46,7 @@ export function drawMarketBackground(
   const fade = progress < .45 ? progress / .45 : (1 - progress) / .55;
   ctx.globalAlpha = Math.min(1, fade) * (reduceMotion ? .35 : .80);
   ctx.fillStyle = '#171a2d';
-  ctx.fillRect(0, 0, WORLD.width, WORLD.height);
+  ctx.fillRect(left, top, viewWidth, viewHeight);
   if (!reduceMotion && progress < .55 && state) {
     ctx.globalAlpha = .42 * (1 - progress / .55);
     ctx.strokeStyle = '#fff3db';
