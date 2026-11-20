@@ -11,6 +11,7 @@ export class GameAudio {
   private master:GainNode|null=null;
   private musicBus:GainNode|null=null;
   private sfxBus:GainNode|null=null;
+  private combatBus:GainNode|null=null;
   private noise:AudioBuffer|null=null;
   private frictionNoise:AudioBuffer|null=null;
   private settings:Settings={...DEFAULT_SETTINGS};
@@ -27,7 +28,9 @@ export class GameAudio {
   private lastPickup=-Infinity;
   private lastCoin=-Infinity;
   private lastAttack=-Infinity;
-  private lastSkill=-Infinity;
+  private lastCast=new Map<SkillKind,number>();
+  private lastShatter=-Infinity;
+  private lastClear=-Infinity;
   private lastEnemyShot=-Infinity;
   private lastDash=-Infinity;
   private damageTime=0;
@@ -35,6 +38,7 @@ export class GameAudio {
   private lastCrowdTime=-Infinity;
   private coinNote=0;
   private sfxVoices=new Set<AudioScheduledSourceNode>();
+  private skillVoices=new Set<AudioScheduledSourceNode>();
   private musicVoices=new Set<AudioScheduledSourceNode>();
   private disposed=false;
 
@@ -48,6 +52,7 @@ export class GameAudio {
         const c=this.context=new Constructor();
         const limiter=c.createDynamicsCompressor();limiter.threshold.value=-7;limiter.knee.value=12;limiter.ratio.value=7;limiter.attack.value=.003;limiter.release.value=.15;
         this.master=c.createGain();this.musicBus=c.createGain();this.sfxBus=c.createGain();
+        this.combatBus=c.createGain();this.combatBus.connect(this.sfxBus);
         this.musicBus.connect(this.master);this.sfxBus.connect(this.master);this.master.connect(limiter);limiter.connect(c.destination);
         this.noise=c.createBuffer(1,c.sampleRate*2,c.sampleRate);
         this.frictionNoise=c.createBuffer(1,c.sampleRate*2,c.sampleRate);
@@ -81,17 +86,24 @@ export class GameAudio {
     this.master.gain.setTargetAtTime(settings.muted?0:.72,now,.02);
     this.musicBus.gain.setTargetAtTime(Math.max(0,Math.min(1,settings.music))*(this.scene==='play'?.33:.25),now,.035);
     this.sfxBus.gain.setTargetAtTime(Math.max(0,Math.min(1,settings.sfx))*.7,now,.02);
+    if(settings.muted||settings.sfx===0)this.stopSources(this.skillVoices);
   }
   setScene(scene:Scene):void{
     if(this.scene===scene)return;
     this.scene=scene;this.stopSources(this.musicVoices);
+    this.stopSources(this.skillVoices);
+    this.lastCast.clear();this.lastShatter=-Infinity;this.lastClear=-Infinity;
+    if(this.context&&this.combatBus){
+      this.combatBus.gain.cancelScheduledValues(this.context.currentTime);
+      this.combatBus.gain.setValueAtTime(1,this.context.currentTime);
+    }
     if(scene==='paused'||scene==='silent')this.stopSources(this.sfxVoices);
     this.recentKills=[];this.lastCrowdTime=-Infinity;this.coinNote=0;
     if(this.context){this.nextBeat=this.context.currentTime+.05;this.beat=0;}
     this.setSettings(this.settings);
   }
   play(event:SoundEvent):void{
-    const c=this.context;if(!c||c.state!=='running'||this.disposed||this.settings.muted)return;
+    const c=this.context;if(!c||c.state!=='running'||this.disposed||this.settings.muted||this.settings.sfx===0||this.scene==='silent')return;
     const now=c.currentTime;
     if(event==='ui'){
       if(now-this.lastUI<.075)return;this.lastUI=now;
@@ -113,8 +125,21 @@ export class GameAudio {
       return;
     }
     if(event.type==='frostShatter'){
-      this.friction(now,.10,.19,4300,1700);
-      this.note(1430,now,.12,.11,'triangle',710);
+      if(this.scene!=='play'||now-this.lastShatter<.075)return;
+      this.lastShatter=now;
+      this.skillFoley(now,.10,.24,4300,1700);
+      this.skillTone(1430,now,.12,.16,'triangle',710);
+      return;
+    }
+    if(event.type==='iceShards'){
+      if(this.scene==='play')this.skillFoley(now,.18,.24,1800,5200);
+      return;
+    }
+    if(event.type==='dispatchClear'){
+      if(this.scene!=='play'||now-this.lastClear<.12)return;
+      this.lastClear=now;
+      this.skillTone(1420,now,.055,.14,'sine',720);
+      this.skillFoley(now,.06,.18,3200,1600);
       return;
     }
     if(event.type==='dash'){if(now-this.lastDash<.15)return;this.lastDash=now;this.noiseBurst(now,.18,.2,900,3800);this.note(180,now,.12,.16,'triangle',420);return;}
@@ -126,34 +151,44 @@ export class GameAudio {
       return;
     }
     if(event.type==='elementalBurst'){
+      if(this.scene!=='play')return;
+      this.makeRoomForSkill(now);
       if(event.kind==='vortex'){
-        this.note(138,now,.38,.31,'sine',38);
-        this.friction(now,.19,.24,1850,340);
-        this.note(418,now+.025,.25,.11,'triangle',178);
+        this.skillTone(138,now,.38,.31,'sine',38);
+        this.skillFoley(now,.19,.27,1850,340);
+        this.skillTone(418,now+.025,.25,.20,'triangle',178);
       }else{
-        this.friction(now,.14,.26,5800,1500);
-        [1480,2230,2920].forEach((f,i)=>this.note(f,now+i*.028,.19-i*.03,.13-i*.022,'sine',f*.83));
+        this.skillFoley(now,.14,.29,5800,1500);
+        [1480,2230,2920].forEach((f,i)=>this.skillTone(f,now+i*.028,.19-i*.03,.17-i*.022,'sine',f*.83));
       }
       return;
     }
     if(event.type==='ultimateBeat'){
+      if(this.scene!=='play')return;
+      if(event.kind!=='express'||event.beat%EXPRESS.legsPerOrder===0)this.makeRoomForSkill(now);
       switch(event.kind){
         case 'icebox':
-          [1260,1640,2210].forEach((pitch,i)=>this.note(pitch,now+i*.045,.11,.11,'triangle',pitch*.64));
-          this.noiseBurst(now,.28,.19,3200,1100);break;
+          [1260,1640,2210].forEach((pitch,i)=>this.skillTone(pitch,now+i*.045,.15,.17,'triangle',pitch*.64));
+          this.skillFoley(now,.32,.31,3200,820);break;
         case 'steamer':
-          this.note(470,now,.10,.17,'triangle',190);this.note(107,now,.28,.22,'sine',52);
-          this.noiseBurst(now+.024,.42,.22,800,2200);break;
+          this.skillTone(470,now,.16,.24,'triangle',190);this.skillTone(126,now,.32,.29,'sine',52);
+          this.skillFoley(now+.024,.50,.35,1100,3150);break;
         case 'express':{
           const last=event.beat===EXPRESS.legs;
-          const stamp=(event.beat-1)%EXPRESS.legsPerOrder+1;
-          this.note(last?130:260+stamp*45,now,last?.23:.085,last?.25:.16,'triangle',last?55:155);
-          this.noiseBurst(now,last?.14:.055,.14,2300,610);break;
+          const delivered=event.beat%EXPRESS.legsPerOrder===0;
+          this.skillTone(delivered?210:380,now,delivered?.20:.095,delivered?.29:.15,'triangle',delivered?72:156);
+          this.skillFoley(now,delivered?.17:.09,delivered?.24:.17,2300,610);
+          if(delivered){
+            const receipt=(event.beat/EXPRESS.legsPerOrder)-1;
+            this.skillTone(midi(72+receipt*2),now+.055,.14,.18,'sine');
+            this.skillTone(midi(last?84:79),now+.15,last?.32:.16,.16,'sine');
+          }
+          break;
         }
         case 'berry':
-          this.note(970,now,.065,.23,'triangle',278);this.note(142,now+.022,.25,.28,'sine',45);
-          this.noiseBurst(now+.034,.28,.21,2400,760);
-          [520,790,630].forEach((f,i)=>this.note(f,now+.08+i*.052,.08,.08,'sine',f*1.4));break;
+          this.skillTone(970,now,.075,.30,'triangle',278);this.skillTone(188,now+.022,.32,.33,'sine',49);
+          this.skillFoley(now+.034,.32,.35,2900,760);
+          [520,790,630].forEach((f,i)=>this.skillTone(f,now+.11+i*.060,.105,.14,'sine',f*1.4));break;
       }
       return;
     }
@@ -237,11 +272,13 @@ export class GameAudio {
       if(event.amount>0)[60,67,72].forEach((n,i)=>this.note(midi(n),now+i*.06,.16,.13,'sine'));return;
     }
     if(event.type==='skill'){
-      if(now-this.lastSkill<.035&&event.kind!=='bubble')return;this.lastSkill=now;
+      if(this.scene!=='play'||now-(this.lastCast.get(event.kind)??-Infinity)<.09)return;
+      this.lastCast.set(event.kind,now);
+      this.makeRoomForSkill(now);
       this.skillSound(event.kind,now);return;
     }
     if(event.type==='fail'){
-      this.stopSources(this.sfxVoices);this.stopSources(this.musicVoices);
+      this.stopSources(this.sfxVoices);this.stopSources(this.musicVoices);this.stopSources(this.skillVoices);
       this.note(180,now,.22,.33,'triangle',70);this.noiseBurst(now,.18,.2,600);
       [64,60,55].forEach((n,i)=>this.note(midi(n),now+.16+i*.12,.25,.21,'triangle'));return;
     }
@@ -251,7 +288,16 @@ export class GameAudio {
     if(event.type==='stage'){
       [67,72].forEach((n,i)=>this.note(midi(n),now+i*.08,.16,.11,'sine'));return;
     }
-    if(event.type==='skillEnd'){this.note(680,now,.11,.09,'sine',340);}
+    if(event.type==='skillEnd'&&this.scene==='play'){
+      switch(event.kind){
+        case 'skate':this.skillFoley(now,.14,.14,1600,480);break;
+        case 'bubble':this.skillTone(625,now,.12,.14,'sine',178);break;
+        case 'heat':this.skillFoley(now,.20,.13,2400,640);break;
+        case 'stamp':this.skillTone(420,now,.08,.14,'triangle',192);break;
+        case 'hook':this.skillFoley(now,.10,.15,3400,790);this.skillTone(704,now+.08,.05,.12,'triangle');break;
+        case 'dispatch':this.skillTone(784,now,.12,.13,'sine',523);break;
+      }
+    }
   }
   private weaponRelease(kind:WeaponKind,at:number):void{
     switch(kind){
@@ -355,81 +401,160 @@ export class GameAudio {
     }
   }
   private friction(at:number,duration:number,volume:number,cutoff:number,endCutoff:number):void{
-    this.noiseBurst(at,duration,volume,cutoff,endCutoff,false,this.frictionNoise);
+    this.noiseBurst(at,duration,volume,cutoff,endCutoff,this.sfxVoices,this.frictionNoise);
+  }
+  private makeRoomForSkill(at:number):void{
+    // Give the attack a brief gap in the combat mix without cutting the weapon or music.
+    const gain=this.combatBus?.gain;
+    if(!gain)return;
+    gain.cancelScheduledValues(at);
+    gain.setTargetAtTime(.56,at,.012);
+    gain.setTargetAtTime(1,at+.21,.075);
+  }
+  private skillTone(frequency:number,at:number,duration:number,volume:number,wave:OscillatorType='triangle',endFrequency?:number):void{
+    this.note(frequency,at,duration,volume,wave,endFrequency,this.skillVoices);
+  }
+  private skillFoley(at:number,duration:number,volume:number,cutoff:number,endCutoff:number):void{
+    this.noiseBurst(at,duration,volume,cutoff,endCutoff,this.skillVoices,this.frictionNoise);
   }
   private skillSound(kind:SkillKind,at:number):void{
     switch(kind){
-      case 'icebox':this.note(640,at,.045,.12,'triangle',340);break;
-      case 'steamer':this.note(250,at,.07,.11,'triangle',165);break;
-      case 'express':this.noiseBurst(at,.08,.13,850,2750);break;
-      case 'berry':this.noiseBurst(at,.16,.11,1000,3100);break;
+      case 'icebox': // Two lid latches release before the ice front moves.
+        this.skillTone(780,at,.061,.22,'triangle',410);
+        this.skillTone(1670,at+.043,.13,.19,'sine');
+        this.skillFoley(at+.065,.15,.25,970,3900);
+        break;
+      case 'steamer':
+        this.skillTone(326,at,.085,.26,'triangle',132);
+        this.skillFoley(at+.034,.12,.25,540,2500);
+        break;
+      case 'express': // Scanner answers, then the first parcel leaves.
+        this.skillTone(1130,at,.068,.18,'sine');
+        this.skillTone(1510,at+.078,.11,.18,'sine');
+        this.skillFoley(at+.12,.26,.30,920,3100);
+        break;
+      case 'berry': // Opening the bottle and the actual burst are separate core events.
+        this.skillTone(1270,at,.044,.20,'triangle',510);
+        this.skillFoley(at+.018,.17,.32,1300,4700);
+        break;
       case 'vortex':
-        this.note(485,at,.15,.15,'triangle',156);
-        this.noiseBurst(at+.04,.65,.18,430,2300);
-        this.note(72,at+.06,.85,.20,'sine',135);
+        this.skillTone(485,at,.19,.22,'triangle',156);
+        this.skillFoley(at+.04,.67,.32,460,2300);
+        this.skillTone(132,at+.06,.85,.23,'sine',242);
+        this.skillTone(512,at+.29,.49,.13,'sine',171);
         break;
       case 'poison':
-        this.note(390,at,.08,.16,'sine',125);
-        this.noiseBurst(at+.035,.46,.14,790,2350);
-        [230,340,280].forEach((f,i)=>this.note(f,at+.075+i*.082,.09,.13,'sine',f*1.8));
+        this.skillTone(390,at,.09,.22,'sine',125);
+        this.skillFoley(at+.035,.46,.24,790,2350);
+        [230,340,280].forEach((f,i)=>this.skillTone(f,at+.075+i*.082,.12,.18,'sine',f*1.8));
         break;
       case 'frost':
-        this.friction(at,.32,.19,1540,4500);
-        [660,990,1320,1980].forEach((f,i)=>this.note(f,at+.025+i*.073,.28,.105,'sine'));
+        this.skillFoley(at,.34,.28,1540,4500);
+        [660,990,1320,1980].forEach((f,i)=>this.skillTone(f,at+.025+i*.073,.30,.15,'sine'));
         break;
       case 'fan':
-        // A switch clicks, the little motor spins up, then hot air rattles the order slip.
-        this.note(610,at+.018,.033,.11,'triangle',310);
-        this.note(103,at+.045,.33,.13,'triangle',205);
-        this.noiseBurst(at+.065,.26,.17,650,2450);
-        this.noiseBurst(at+.22,.32,.13,2150,730);
-        this.noiseBurst(at+.25,.06,.055,3450,1900);
+        this.skillTone(610,at,.04,.20,'triangle',310);
+        this.skillTone(133,at+.035,.39,.20,'triangle',285);
+        this.skillFoley(at+.055,.29,.23,650,2450);
+        this.skillFoley(at+.23,.33,.19,2150,730);
         break;
-      case 'skate':this.noiseBurst(at,.24,.12,2500,550);[67,72,76].forEach((n,i)=>this.note(midi(n),at+i*.055,.23,.13,'triangle',midi(n+2)));break;
+      case 'skate':
+        this.skillFoley(at,.27,.28,2500,550);
+        [420,550,685].forEach((f,i)=>this.skillTone(f,at+i*.072,.16,.15,'triangle',f*1.22));
+        break;
       case 'soda':
-        this.note(890,at+.04,.05,.13,'triangle',370);
-        this.noiseBurst(at+.07,.31,.14,3100,1700);
-        [.16,.25,.31].forEach((t,i)=>this.note(420+i*80,at+t,.065,.08,'sine',680+i*110));
+        this.skillTone(890,at,.05,.22,'triangle',370);
+        this.skillFoley(at+.034,.34,.28,3100,1700);
+        [.14,.24,.32].forEach((t,i)=>this.skillTone(420+i*80,at+t,.078,.13,'sine',680+i*110));
         break;
-      case 'lure':this.noiseBurst(at,.1,.1,1200,500);this.note(330,at+.08,.11,.13,'triangle',420);break;
-      case 'bubble':this.noiseBurst(at,.2,.12,4000,1700);[450,600,750].forEach((f,i)=>this.note(f,at+i*.05,.12,.11,'sine',f*1.6));break;
-      case 'cones':[0,.075,.16].forEach((t,i)=>{this.note(150-i*20,at+t,.075,.15,'triangle',70);this.noiseBurst(at+t,.045,.06,600);});break;
-      case 'bell':this.note(1568,at,.42,.14,'sine');this.note(2352,at+.02,.3,.055,'sine');break;
-      case 'route':this.noiseBurst(at,.25,.07,2200,4000);this.note(660,at+.12,.13,.11,'sine');this.note(990,at+.23,.15,.1,'sine');break;
-      case 'hook':this.note(480,at,.055,.12,'triangle');this.noiseBurst(at+.04,.23,.11,1800,3800);this.note(700,at+.25,.055,.1,'triangle');break;
-      case 'heat':this.noiseBurst(at,.12,.12,2100,900);this.noiseBurst(at+.08,.3,.07,4000,1800);this.note(220,at,.16,.08,'sine',330);break;
-      case 'dispatch':this.note(1046,at,.095,.13,'sine');this.note(784,at+.1,.095,.11,'sine');this.noiseBurst(at+.18,.12,.055,1700);break;
-      case 'stamp':this.note(130,at,.11,.22,'triangle',70);this.noiseBurst(at,.07,.15,800,350);break;
-      case 'supply':this.noiseBurst(at,.13,.11,3200,1300);[520,660,820].forEach((f,i)=>this.note(f,at+.12+i*.08,.13,.1,'triangle'));break;
+      case 'lure':
+        this.skillTone(325,at,.075,.22,'triangle',143);
+        this.skillFoley(at+.035,.09,.19,1250,510);
+        this.skillTone(915,at+.12,.25,.18,'sine',1080);
+        break;
+      case 'bubble':
+        this.skillFoley(at,.21,.21,4000,1700);
+        [450,600,750].forEach((f,i)=>this.skillTone(f,at+i*.061,.18,.17,'sine',f*1.6));
+        break;
+      case 'cones':
+        [0,.074,.17,.31].forEach((t,i)=>{
+          this.skillTone(310-i*26,at+t,.095,.20,'triangle',86);
+          this.skillFoley(at+t,.052,.15,1170,540);
+        });
+        break;
+      case 'bell':
+        [0,.19].forEach((t,i)=>{
+          this.skillTone(1319,at+t,.47,.23-i*.05,'sine');
+          this.skillTone(2135,at+t+.008,.29,.12-i*.025,'sine');
+        });
+        break;
+      case 'route':
+        this.skillFoley(at,.23,.23,2300,4200);
+        this.skillTone(659,at+.09,.13,.18,'sine');this.skillTone(988,at+.22,.22,.18,'sine');
+        break;
+      case 'hook':
+        this.skillTone(562,at,.062,.25,'triangle',292);
+        this.skillFoley(at+.035,.26,.25,1480,4500);
+        this.skillTone(1350,at+.26,.12,.17,'sine',880);
+        break;
+      case 'heat':
+        this.skillFoley(at,.12,.26,2500,730);
+        this.skillTone(230,at+.04,.32,.18,'triangle',475);
+        this.skillFoley(at+.14,.41,.19,1600,3800);
+        break;
+      case 'dispatch':
+        [1046,784,1319].forEach((f,i)=>this.skillTone(f,at+i*.105,.11,.21,'sine'));
+        this.skillFoley(at+.22,.13,.12,2800,1400);
+        break;
+      case 'stamp':
+        this.skillTone(410,at,.07,.26,'triangle',138);
+        this.skillTone(158,at+.015,.18,.28,'sine',62);
+        this.skillFoley(at,.082,.28,1890,550);
+        this.skillTone(830,at+.14,.13,.14,'sine');
+        break;
+      case 'supply':
+        this.skillFoley(at,.16,.22,3200,1300);
+        [1280,1680].forEach((f,i)=>this.skillTone(f,at+.12+i*.09,.105,.18,'sine'));
+        this.skillTone(590,at+.31,.12,.14,'triangle',320);
+        break;
+      case 'health': // Spoon against a soup bowl. The healing amount has its own rising answer.
+        this.skillTone(946,at,.22,.22,'sine');
+        this.skillTone(2150,at+.014,.12,.10,'sine');
+        this.skillTone(396,at+.105,.14,.14,'sine',545);
+        break;
+      default:return kind satisfies never;
     }
   }
   dispose():void{
     this.disposed=true;if(this.scheduler)clearInterval(this.scheduler);this.scheduler=null;
-    this.stopSources(this.musicVoices);this.stopSources(this.sfxVoices);
+    this.stopSources(this.musicVoices);this.stopSources(this.sfxVoices);this.stopSources(this.skillVoices);
     if(this.context)this.setPlaybackSession(false);
     void this.context?.close().catch(()=>{});this.context=null;
   }
   private stopSources(sources:Set<AudioScheduledSourceNode>):void{for(const source of sources){try{source.stop();}catch{/* already stopped */}}sources.clear();}
-  private track(source:AudioScheduledSourceNode,music:boolean):boolean{
-    const set=music?this.musicVoices:this.sfxVoices;
-    if(!music&&set.size>=18){const first=set.values().next().value as AudioScheduledSourceNode|undefined;if(first){try{first.stop();}catch{}set.delete(first);}}
-    set.add(source);source.onended=()=>{set.delete(source);source.disconnect();};return true;
+  private track(source:AudioScheduledSourceNode,set:Set<AudioScheduledSourceNode>):void{
+    if(set!==this.musicVoices&&set.size>=18){const first=set.values().next().value as AudioScheduledSourceNode|undefined;if(first){try{first.stop();}catch{}set.delete(first);}}
+    set.add(source);source.onended=()=>{set.delete(source);source.disconnect();};
   }
-  private note(frequency:number,at:number,duration:number,volume:number,wave:OscillatorType='triangle',endFrequency?:number,music=false):void{
-    const c=this.context,bus=music?this.musicBus:this.sfxBus;if(!c||!bus)return;
+  private voiceBus(voices:Set<AudioScheduledSourceNode>):GainNode|null{
+    if(voices===this.musicVoices)return this.musicBus;
+    return voices===this.skillVoices?this.sfxBus:this.combatBus;
+  }
+  private note(frequency:number,at:number,duration:number,volume:number,wave:OscillatorType='triangle',endFrequency?:number,voices=this.sfxVoices):void{
+    const c=this.context,bus=this.voiceBus(voices);if(!c||!bus)return;
     const o=c.createOscillator(),gain=c.createGain();o.type=wave;o.frequency.setValueAtTime(frequency,at);
     if(endFrequency)o.frequency.exponentialRampToValueAtTime(Math.max(20,endFrequency),at+duration);
     gain.gain.setValueAtTime(0,at);gain.gain.linearRampToValueAtTime(volume,at+.009);gain.gain.exponentialRampToValueAtTime(.0001,at+duration);
-    o.connect(gain);gain.connect(bus);this.track(o,music);const old=o.onended;o.onended=(e)=>{if(typeof old==='function')old.call(o,e);gain.disconnect();};
+    o.connect(gain);gain.connect(bus);this.track(o,voices);const old=o.onended;o.onended=(e)=>{if(typeof old==='function')old.call(o,e);gain.disconnect();};
     o.start(at);o.stop(at+duration+.02);
   }
-  private noiseBurst(at:number,duration:number,volume:number,cutoff:number,endCutoff?:number,music=false,buffer=this.noise):void{
-    const c=this.context,bus=music?this.musicBus:this.sfxBus;if(!c||!bus||!buffer)return;
+  private noiseBurst(at:number,duration:number,volume:number,cutoff:number,endCutoff?:number,voices=this.sfxVoices,buffer=this.noise):void{
+    const c=this.context,bus=this.voiceBus(voices);if(!c||!bus||!buffer)return;
     const source=c.createBufferSource(),filter=c.createBiquadFilter(),gain=c.createGain();source.buffer=buffer;
     filter.type='bandpass';filter.Q.value=.7;filter.frequency.setValueAtTime(cutoff,at);
     if(endCutoff)filter.frequency.exponentialRampToValueAtTime(endCutoff,at+duration);
     gain.gain.setValueAtTime(0,at);gain.gain.linearRampToValueAtTime(volume,at+.015);gain.gain.exponentialRampToValueAtTime(.0001,at+duration);
-    source.connect(filter);filter.connect(gain);gain.connect(bus);this.track(source,music);
+    source.connect(filter);filter.connect(gain);gain.connect(bus);this.track(source,voices);
     const old=source.onended;source.onended=(e)=>{if(typeof old==='function')old.call(source,e);filter.disconnect();gain.disconnect();};
     source.start(at);source.stop(at+duration+.02);
   }
@@ -442,9 +567,9 @@ export class GameAudio {
     const bass=[48,48,53,55];
     while(this.nextBeat<c.currentTime+.12){
       const i=this.beat%melody.length,at=this.nextBeat;
-      if(melody[i]){this.note(midi(melody[i]),at,spacing*1.4,.14,'triangle',undefined,true);this.note(midi(melody[i]+12),at+.005,spacing*.65,.025,'sine',undefined,true);}
-      if(i%4===0)this.note(midi(bass[Math.floor(i/8)]),at,spacing*3,.22,'sine',undefined,true);
-      if(this.scene==='play'&&i%2===1)this.noiseBurst(at,.05,.08,4500,undefined,true);
+      if(melody[i]){this.note(midi(melody[i]),at,spacing*1.4,.14,'triangle',undefined,this.musicVoices);this.note(midi(melody[i]+12),at+.005,spacing*.65,.025,'sine',undefined,this.musicVoices);}
+      if(i%4===0)this.note(midi(bass[Math.floor(i/8)]),at,spacing*3,.22,'sine',undefined,this.musicVoices);
+      if(this.scene==='play'&&i%2===1)this.noiseBurst(at,.05,.08,4500,undefined,this.musicVoices);
       this.beat++;this.nextBeat+=spacing;
     }
   }

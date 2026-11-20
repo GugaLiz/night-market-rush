@@ -1,6 +1,6 @@
 import type {Enemy,GameState} from '../shared/types';
 import type {CombatContext} from './contracts';
-import {CONFIG,WORLD} from './config';
+import {CONFIG,WORLD,enemyMinY} from './config';
 import {clamp} from './geometry';
 import {updateGiant} from './giant-bun';
 
@@ -26,6 +26,26 @@ export function interruptAttack(e:Enemy,until:number):void {
 function turnTowards(heading:number, target:number, maxTurn:number):number {
   const delta=target-heading;
   return heading+clamp(Math.atan2(Math.sin(delta),Math.cos(delta)),-maxTurn,maxTurn);
+}
+
+function crabTravel(e:Enemy,from:number,to:number):number {
+  const duration=Math.max(0,to-from);
+  const slowed=clamp(e.slowUntil-from,0,duration);
+  return CONFIG.elites.crab.speed*(duration-slowed*(1-CONFIG.skills.soda.factor));
+}
+
+function crabWallDistance(e:Enemy):number {
+  const b=WORLD.bounds;
+  const roomX=e.dashX<0?b.left+e.radius-e.x:b.right-e.radius-e.x;
+  const roomY=e.dashY<0?enemyMinY(e.kind,e.radius)-e.y:b.bottom-e.radius-e.y;
+  return Math.max(0,Math.min(e.dashX?roomX/e.dashX:Infinity,e.dashY?roomY/e.dashY:Infinity));
+}
+
+/** The centerline ends at the first wall, even when the charge is diagonal or its slow expires in flight. */
+export function crabChargeReach(e:Enemy,time:number):number {
+  const start=e.phase==='warn'?e.phaseUntil:time;
+  const end=e.phase==='warn'?start+CONFIG.elites.crab.duration:e.phaseUntil;
+  return Math.min(crabTravel(e,start,end),crabWallDistance(e));
 }
 
 /** The walking and drawing clocks share the crest of each dumpling's hop. */
@@ -94,16 +114,18 @@ function updateCook(s:GameState,e:Enemy,pursuing:boolean,distance:number,ctx:Com
   }
   return distance<tuning.range*.68;
 }
-/** Slow dispersing crowd with stable soft separation, limited charges and aimed soup shots. */
-export function updateEnemies(s:GameState,dt:number,speedScale:number,ctx:CombatContext):Map<number,number>{
-  const p=s.player,damage=new Map<number,number>(),positions=s.enemies.filter(ctx.active).map(e=>({id:e.id,x:e.x,y:e.y,radius:e.radius}));
+export interface ChargeContact {damage:number;radius:number}
+
+/** Return the active charge sweeps, including a final segment which reached a wall this step. */
+export function updateEnemies(s:GameState,dt:number,speedScale:number,ctx:CombatContext):Map<number,ChargeContact>{
+  const p=s.player,charges=new Map<number,ChargeContact>(),positions=s.enemies.filter(ctx.active).map(e=>({id:e.id,x:e.x,y:e.y,radius:e.radius}));
   const grid=new Map<string,typeof positions>();
   for(const e of positions){const key=`${Math.floor(e.x/64)},${Math.floor(e.y/64)}`;const cell=grid.get(key)??[];cell.push(e);grid.set(key,cell);}
   let reservations=s.enemies.filter(e=>(e.kind==='box'||e.kind==='eliteCrab')&&(e.phase==='warn'||e.phase==='dash')).length;
   let shotReservations=s.enemies.filter(e=>e.kind==='bowl'&&((e.shotWarnUntil??0)>0||(e.volleyRemaining??0)>0)).length;
   for(const e of s.enemies){
     const lastDx=e.x-e.px,lastDy=e.y-e.py;
-    e.px=e.x;e.py=e.y;damage.set(e.id,CONFIG.enemies[e.kind].damage);
+    e.px=e.x;e.py=e.y;
     if(e.kind==='giantBun'){updateGiant(s,e,ctx);continue;}
     if(!ctx.active(e))continue;
     const playerDistance=Math.hypot(p.x-e.x,p.y-e.y),awareness=CONFIG.awareness[e.kind];
@@ -162,11 +184,21 @@ export function updateEnemies(s:GameState,dt:number,speedScale:number,ctx:Combat
       const crab=e.kind==='eliteCrab',charge=crab?CONFIG.elites.crab:CONFIG.dash;
       if(e.phase==='warn'&&!pursuing){e.phase='chase';e.phaseUntil=s.time+charge.approach;reservations--;}
       else if(e.phase==='chase'&&pursuing&&!march&&s.time>=e.phaseUntil&&playerDistance<(crab?CONFIG.elites.crab.range:310)&&reservations<CONFIG.dash.concurrent){e.phase='warn';e.phaseUntil=s.time+charge.warning;e.dashX=dx||(dy===0?1:0);e.dashY=dy;reservations++;ctx.emit({type:'warn',x:e.x,y:e.y});}
-      else if(e.phase==='warn'&&s.time>=e.phaseUntil){e.phase='dash';e.phaseUntil=s.time+charge.duration;}
-      else if(e.phase==='dash'&&s.time>=e.phaseUntil){e.phase='recover';e.phaseUntil=s.time+charge.recovery;reservations--;}
+      else if(e.phase==='warn'&&s.time>=e.phaseUntil){e.phase='dash';e.phaseUntil=(crab?e.phaseUntil:s.time)+charge.duration;}
+      else if(!crab&&e.phase==='dash'&&s.time>=e.phaseUntil){e.phase='recover';e.phaseUntil=s.time+charge.recovery;reservations--;}
       else if(e.phase==='recover'&&s.time>=e.phaseUntil){e.phase='chase';e.phaseUntil=s.time+charge.approach;}
       if(e.phase==='warn'||e.phase==='recover')speed=0;
-      if(e.phase==='dash'){dx=e.dashX;dy=e.dashY;speed=charge.speed*slow;damage.set(e.id,charge.damage);}
+      if(e.phase==='dash'&&crab){
+        const from=Math.max(s.time-dt,e.phaseUntil-charge.duration),to=Math.min(s.time,e.phaseUntil);
+        const travel=crabTravel(e,from,to),wall=crabWallDistance(e),step=Math.min(travel,wall);
+        e.x+=step*e.dashX;e.y+=step*e.dashY;
+        if(step>0)charges.set(e.id,{damage:charge.damage,radius:CONFIG.elites.crab.halfWidth});
+        if(s.time>=e.phaseUntil-1e-9||travel>=wall){
+          e.phase='recover';e.phaseUntil=s.time+charge.recovery;reservations--;
+        }
+        continue;
+      }
+      if(e.phase==='dash'){dx=e.dashX;dy=e.dashY;speed=charge.speed*slow;charges.set(e.id,{damage:charge.damage,radius:e.radius});}
     }
     if((e.kind==='eliteKettle'||e.kind==='eliteSesame')&&updateCook(s,e,pursuing&&!march,playerDistance,ctx))speed=0;
     if(e.kind==='bowl'){
@@ -200,10 +232,10 @@ export function updateEnemies(s:GameState,dt:number,speedScale:number,ctx:Combat
     if(e.phase==='warn')facingX=e.dashX;
     if((e.shotWarnUntil??0)>0||(e.volleyRemaining??0)>0)facingX=Math.cos(e.shotAngle??0);
     if(Math.abs(facingX)>.01)e.facing=facingX<0?-1:1;
-    const x=e.x+dx*speed*dt,y=e.y+dy*speed*dt;e.x=clamp(x,WORLD.bounds.left+e.radius,WORLD.bounds.right-e.radius);e.y=clamp(y,WORLD.bounds.top+e.radius,WORLD.bounds.bottom-e.radius);
-    if(e.phase==='dash'&&(e.x!==x||e.y!==y)){e.phase='recover';e.phaseUntil=s.time+(e.kind==='eliteCrab'?CONFIG.elites.crab:CONFIG.dash).recovery;reservations--;}
+    const x=e.x+dx*speed*dt,y=e.y+dy*speed*dt;e.x=clamp(x,WORLD.bounds.left+e.radius,WORLD.bounds.right-e.radius);e.y=clamp(y,enemyMinY(e.kind,e.radius),WORLD.bounds.bottom-e.radius);
+    if(e.phase==='dash'&&(e.x!==x||e.y!==y)){e.phase='recover';e.phaseUntil=s.time+CONFIG.dash.recovery;reservations--;}
   }
-  return damage;
+  return charges;
 }
 export function updateEnemyShots(s:GameState,dt:number):void{
   const b=WORLD.bounds;s.enemyShots=(s.enemyShots??[]).filter(q=>q.expiresAt>s.time&&q.x>b.left-q.radius&&q.x<b.right+q.radius&&q.y>b.top-q.radius&&q.y<b.bottom+q.radius);

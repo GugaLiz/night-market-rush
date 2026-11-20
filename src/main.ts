@@ -3,19 +3,22 @@ import './ui/clay.css';
 import {Game} from './core/game';
 import {CONFIG} from './core/config';
 import {WEAPONS} from './core/weapons';
+import {eliteArrival} from './core/waves';
 import {WebStorage} from './platform/storage';
 import {WebInput} from './platform/input';
 import {GameAudio} from './platform/audio';
+import {SkillHaptics} from './platform/skill-haptics';
 import {UI, practiceEnabled, type View} from './ui/ui';
 import {loadAssets} from './render/assets';
 import {Renderer} from './render/renderer';
 import {sampleBattleFrame} from './render/battle-frame';
-import {RULES_VERSION, isElite, WEAPON_NAMES, type Settings, type SkillKind, type EnemyKind, type WeaponKind} from './shared/types';
+import {RULES_VERSION, isElite, WEAPON_NAMES, type Settings, type SkillKind, type EnemyKind, type WeaponKind, type Vec} from './shared/types';
 
 const storage=new WebStorage();
 const saved=storage.load();
 let settings={...saved.settings};
 const audio=new GameAudio();
+const haptics=new SkillHaptics();
 const game=new Game();
 let renderer:Renderer|undefined;
 let ready=false,live=false,starting=false,rotated=false;
@@ -41,7 +44,8 @@ const ui:UI=new UI(document.getElementById('app')!,{
     input.setEnabled(false);audio.setScene(live?'paused':'home');
     ui.show('settings',{settings,state:live?game.state:undefined});
   },
-  previewSettings:draft=>{audio.setSettings(draft);renderer?.setSettings(draft);gesture();},
+  previewSettings:draft=>{audio.setSettings(draft);applyFeedbackSettings(draft);gesture();},
+  motionChanged:applyFeedbackSettings,leavePlay:()=>haptics.stop(),
   applySettings:next=>{
     settings={...next};applyPreferences();
     const persisted=storage.saveSettings(settings);leaveSettings();
@@ -98,18 +102,20 @@ const ui:UI=new UI(document.getElementById('app')!,{
   triggerSkill:kind=>{if(!game.state.practice)return;game.triggerSkill(kind);closeLab();deliverEvents();},
   spawnEnemy:(kind,group)=>{
     if(!game.state.practice)return;
+    let secondEliteAt:Vec|undefined;
     if(isElite(kind)){
       const present=game.state.enemies.filter(e=>e.hp>0&&isElite(e.kind));
       if(present.some(e=>e.kind===kind)||present.length>=CONFIG.waves.maxElites){
         ui.toast('场上最多两种精英，每种一只');return;
       }
+      if(present.length)secondEliteAt=eliteArrival(game.state,kind,{random:Math.random});
     }
     const count=group&&!isElite(kind)?6:1;
     const p=game.state.player;
     const distance=!group&&game.state.weapon.kind==='lunchbox'?WEAPONS.lunchbox.range:150;
     for(let i=0;i<count;i++){
       const angle=group?-Math.PI/3+i*Math.PI/3:Math.atan2(p.moveDirection.y,p.moveDirection.x);
-      game.spawnEnemy(kind,{
+      game.spawnEnemy(kind,secondEliteAt??{
         x:Math.max(110,Math.min(1170,p.x+Math.cos(angle)*distance)),
         y:Math.max(135,Math.min(610,p.y+Math.sin(angle)*distance)),
       });
@@ -150,7 +156,12 @@ applyPreferences();
 function dash(){if(!live||ui.currentView!=='play'||document.hidden||rotated||game.state.ended)return;if(game.dash(input.getVector())){deliverEvents();ui.updateHUD(game.state);}ui.canvas.focus({preventScroll:true});}
 function gesture(){void audio.unlock().then(()=>{if(!document.hidden)audio.play('ui');});}
 function cancelPendingStart(){inputRequest++;starting=false;}
-function applyPreferences(){input.setSettings(settings);audio.setSettings(settings);renderer?.setSettings(settings);}
+function applyFeedbackSettings(preferences:Settings){
+  const reduced=preferences.reduceMotion||ui.systemReduceMotion.matches;
+  if(reduced||!preferences.haptics)haptics.stop();
+  renderer?.setSettings({...preferences,reduceMotion:reduced});
+}
+function applyPreferences(){input.setSettings(settings);audio.setSettings(settings);applyFeedbackSettings(settings);}
 function leaveSettings(){
   if(settingsOrigin==='pause'&&live){audio.setScene('paused');ui.show('pause',{settings,state:game.state});}
   else home();
@@ -225,10 +236,12 @@ function deliverEvents(){
     input.setEnabled(false);accumulator=0;canInterpolate=false;audio.setScene('paused');
     ui.show('closing',{state:game.state});
   }
+  const motionEnabled=!settings.reduceMotion&&!ui.systemReduceMotion.matches;
+  if(ui.currentView==='play'&&motionEnabled&&settings.haptics)haptics.play(events);
   for(const event of events){
     if(event.type==='market')continue;
     audio.play(event);
-    if(event.type==='ultimateBeat'&&event.kind==='berry'&&!settings.reduceMotion)impactHold=.03;
+    if(event.type==='ultimateBeat'&&event.kind==='berry'&&motionEnabled)impactHold=.03;
     if(event.type==='notice')ui.toast(event.message);
     else if(event.type==='weapon')ui.toast(`已换装 · ${WEAPON_NAMES[event.kind]}`);
   }
@@ -345,7 +358,7 @@ async function boot(){
       if(!rotated)ui.updateLoading(progress);
     });
     if(loading!==attempt)return;
-    renderer=new Renderer(ui.canvas,assets);renderer.setSettings(settings);ready=true;home();
+    renderer=new Renderer(ui.canvas,assets);applyFeedbackSettings(settings);ready=true;home();
   }catch(error){
     if(loading!==attempt)return;
     console.error('Asset loading failed',error);

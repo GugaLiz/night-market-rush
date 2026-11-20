@@ -1,5 +1,6 @@
 import {test,expect,type Page} from '@playwright/test';
 import type {GameState,Vec} from '../../src/shared/types';
+import {CONFIG} from '../../src/core/config';
 
 const snapshot=(page:Page)=>page.evaluate(()=>
   (window as unknown as {__gameTest:{snapshot():GameState}}).__gameTest.snapshot());
@@ -52,4 +53,27 @@ test('giant can be selected, evaded through the last telegraph and hit during re
   await until(s=>s.kills>0 || (s.enemies[0]?.hp??0)<hp);
   await page.screenshot({path:info.outputPath('retaliation.png')});
   expect(errors).toEqual([]);
+});
+
+test('different full-size elites can be placed together and inspected in the lab',async({page},info)=>{
+  const epoch=new Date('2026-01-01T00:00:00Z');
+  await page.clock.install({time:epoch});await page.clock.pauseAt(new Date(+epoch+1000));
+  await page.goto('/');
+  await page.getByRole('button',{name:'配送试验场',exact:true}).click({force:true});
+  for(const pair of [['giantBun','eliteCrab'],['eliteKettle','eliteSesame']] as const){
+    for(const kind of pair){
+      await page.getByLabel('敌人类型',{exact:true}).selectOption(kind);
+      await page.getByRole('button',{name:'生成单只',exact:true}).click({force:true});
+      if(kind===pair[0])await page.getByRole('button',{name:'试验工具',exact:true}).click({force:true});
+    }
+    await page.clock.runFor(192);
+    const {enemies}=await snapshot(page);
+    expect(enemies.map(e=>e.kind)).toEqual(pair);
+    expect(enemies.map(e=>e.radius)).toEqual(pair.map(()=>CONFIG.enemies.giantBun.radius));
+    const [first,second]=enemies;
+    expect(Math.hypot(first.x-second.x,first.y-second.y)).toBeGreaterThan(200);
+    await page.screenshot({path:info.outputPath(pair.join('-')+'.png')});
+    await page.getByRole('button',{name:'试验工具',exact:true}).click({force:true});
+    await page.getByRole('button',{name:'清空场地',exact:true}).click({force:true});
+  }
 });

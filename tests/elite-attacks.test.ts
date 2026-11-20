@@ -1,5 +1,6 @@
 import {describe,expect,it} from 'vitest';
-import {CONFIG} from '../src/core/config';
+import {CONFIG,WORLD} from '../src/core/config';
+import {crabChargeReach} from '../src/core/enemies';
 import {Game} from '../src/core/game';
 
 const still={x:0,y:0};
@@ -18,6 +19,44 @@ function until(game:Game,ready:()=>boolean){
 }
 
 describe('night market elite attacks',()=>{
+  it('spawns every elite inside the arena with the same grounded footprint as the giant',()=>{
+    const game=arena();
+    for(const kind of ['giantBun','eliteCrab','eliteKettle','eliteSesame'] as const){
+      const e=game.spawnEnemy(kind,{x:WORLD.width,y:WORLD.height});
+      expect(e.radius).toBe(CONFIG.enemies.giantBun.radius);
+      expect(e.x+e.radius).toBe(WORLD.bounds.right);
+      expect(e.y+e.radius).toBe(WORLD.bounds.bottom);
+      expect(game.spawnEnemy(kind,{x:0,y:0}).y).toBe(CONFIG.player.minY);
+    }
+  });
+
+  it('reaches the marked outer edge of a long claw charge and leaves space just beside it',()=>{
+    for(const offset of [-1,1]){
+      const game=arena(),p=game.state.player;
+      p.x=850;
+      const crab=game.spawnEnemy('eliteCrab',{x:320,y:p.y});crab.phaseUntil=0;
+      until(game,()=>crab.phase==='warn');
+      const from=crab.x,reach=crabChargeReach(crab,game.state.time);
+      expect(reach).toBeCloseTo(624);
+      p.y+=CONFIG.elites.crab.halfWidth+p.radius+offset;
+      until(game,()=>crab.phase==='recover');
+      expect(crab.x-from).toBeCloseTo(reach);
+      expect(p.hp).toBe(offset<0?100-CONFIG.elites.crab.damage:100);
+    }
+  });
+
+  it('ends a diagonal claw sweep at its warned endpoint near the wall when a slow wears off',()=>{
+    const game=arena(),s=game.state,p=s.player;
+    p.x=1100;p.y=490;p.invulnerableUntil=Infinity;
+    const crab=game.spawnEnemy('eliteCrab',{x:850,y:320});crab.phaseUntil=0;
+    crab.slowUntil=s.time+CONFIG.elites.crab.warning+.32;
+    until(game,()=>crab.phase==='warn');
+    const reach=crabChargeReach(crab,s.time),x=crab.x+reach*crab.dashX,y=crab.y+reach*crab.dashY;
+    expect(x+crab.radius).toBeCloseTo(WORLD.bounds.right);
+    until(game,()=>crab.phase==='recover');
+    expect(crab.x).toBeCloseTo(x);expect(crab.y).toBeCloseTo(y);
+  });
+
   it('charges along the warned line even after the courier turns, with crab-specific damage',()=>{
     const game=arena(),s=game.state,p=s.player;
     const crab=game.spawnEnemy('eliteCrab',{x:p.x-200,y:p.y});crab.phaseUntil=0;
@@ -32,7 +71,8 @@ describe('night market elite attacks',()=>{
 
   it('launches all five tea drops on the marked fan and attributes a fatal hit to the kettle',()=>{
     const game=arena(),s=game.state,p=s.player;
-    const kettle=game.spawnEnemy('eliteKettle',{x:p.x-230,y:p.y});kettle.shotReadyAt=0;
+    p.x=1060;
+    const kettle=game.spawnEnemy('eliteKettle',{x:p.x-810,y:p.y});kettle.shotReadyAt=0;
     until(game,()=>(kettle.shotWarnUntil??0)>s.time);
     const aim=kettle.shotAngle!;
     p.y+=130;until(game,()=>!!s.enemyShots?.length);
@@ -47,16 +87,29 @@ describe('night market elite attacks',()=>{
     until(game,()=>s.ended);expect(s.cause).toBe('eliteKettle');expect(s.lastDamage).toBe('eliteKettle');
   });
 
+  it('uses the marked tea-drop radius on the center lane while leaving the gaps between lanes open',()=>{
+    for(const offset of [-1,1]){
+      const game=arena(),s=game.state,p=s.player;
+      const kettle=game.spawnEnemy('eliteKettle',{x:p.x-350,y:p.y});kettle.shotReadyAt=0;
+      until(game,()=>(kettle.shotWarnUntil??0)>s.time);
+      p.y+=CONFIG.elites.kettle.radius+p.radius+offset;
+      until(game,()=>!!s.enemyShots?.length);
+      for(let i=0;i<100;i++)game.update(CONFIG.step,still);
+      expect(p.hp).toBe(offset<0?100-CONFIG.elites.kettle.damage:100);
+    }
+  });
+
   it('drops syrup once at the warned position and lets the courier step clear before impact',()=>{
     const game=arena(),s=game.state,p=s.player;
     const sesame=game.spawnEnemy('eliteSesame',{x:p.x-255,y:p.y});sesame.shotReadyAt=0;
     until(game,()=>!!sesame.syrupTarget);
     const first={x:p.x,y:p.y};
-    p.x+=125;until(game,()=>sesame.syrupImpactAt!==undefined);
+    p.x+=CONFIG.elites.sesame.radius+p.radius+1;until(game,()=>sesame.syrupImpactAt!==undefined);
     expect(sesame.syrupTarget).toEqual(first);expect(p.hp).toBe(100);
     game.update(.5,still);expect(sesame.syrupTarget).toBeUndefined();
     until(game,()=>!!sesame.syrupTarget);
     expect(sesame.syrupTarget).toEqual({x:p.x,y:p.y});
+    p.y+=CONFIG.elites.sesame.radius+p.radius-1;
     until(game,()=>sesame.syrupImpactAt!==undefined);
     expect(s.lastDamage).toBe('eliteSesame');expect(p.hp).toBe(100-CONFIG.elites.sesame.damage);
     p.invulnerableUntil=0;game.update(.25,still);expect(p.hp).toBe(100-CONFIG.elites.sesame.damage);

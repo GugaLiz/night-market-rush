@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title">
+  <title id="title">夜市急送外卖箱</title>
+  <defs>
+    <linearGradient id="case" x1="0" y1="0" x2=".35" y2="1" gradientUnits="objectBoundingBox">
+      <stop stop-color="#72d2ab"/>
+      <stop offset="1" stop-color="#258570"/>
+    </linearGradient>
+    <linearGradient id="lid" x1="0" y1="0" x2=".3" y2="1" gradientUnits="objectBoundingBox">
+      <stop stop-color="#a2e7b9"/>
+      <stop offset="1" stop-color="#5fbb98"/>
+    </linearGradient>
+    <linearGradient id="orange" x1="0" y1="0" x2=".2" y2="1" gradientUnits="objectBoundingBox">
+      <stop stop-color="#ffd37b"/>
+      <stop offset=".48" stop-color="#ffa146"/>
+      <stop offset="1" stop-color="#ec773c"/>
+    </linearGradient>
+    <linearGradient id="bun" x1="0" y1="0" x2=".3" y2="1" gradientUnits="objectBoundingBox">
+      <stop stop-color="#fff5cf"/>
+      <stop offset="1" stop-color="#ffd68d"/>
+    </linearGradient>
+  </defs>
+  <g stroke-linecap="round" stroke-linejoin="round">
+    <!-- Short, wide case with a separate gusset, lid rim and delivery ticket. -->
+    <path d="M9 49Q9 43 15 41L83 28Q88 27 93 29L113 37Q119 39 119 45V96Q119 102 113 104L43 117Q39 118 34 116L15 108Q9 106 9 100Z" fill="url(#case)" stroke="#23483f" stroke-width="4"/>
+    <path d="M11 48L38 58V113L17 105Q11 103 11 98Z" fill="#397d70"/>
+    <path d="M12 88L37 97V105L12 96Z" fill="#f0c891"/>
+    <path d="M41 98L116 84V92L41 106Z" fill="#ffe4ae"/>
+    <path d="M43 109L111 96" fill="none" stroke="#216f5d" stroke-width="2.5"/>
+    <path d="M10 49Q9 42 16 39L81 26Q87 25 92 27L114 36Q119 38 119 44L118 66Q118 72 112 74L46 86Q40 87 35 85L15 77Q9 74 9 68Z" fill="#ffe6b3" stroke="#294a3d" stroke-width="3.4"/>
+    <path d="M12 47L39 56V81L17 73Q13 72 13 68Z" fill="#488e77"/>
+    <path d="M18 42L82 29Q87 28 91 30L110 37L39 52L15 44Z" fill="url(#lid)"/>
+    <path d="M42 55L116 40L115 65Q115 69 111 70L47 82Q44 82 42 81Z" fill="url(#case)"/>
+    <path d="M48 56L107 44" fill="none" stroke="#b0e4bb" stroke-width="1.8"/>
+    <path d="M41 55L39 56L39 80" fill="none" stroke="#316d5d" stroke-width="2"/>
+
+    <!-- Reinforced top handle sits above the lid silhouette. -->
+    <path d="M43 38L45 24Q46 17 53 16L71 12Q78 11 81 18L87 29L78 31L74 22Q73 20 71 21L57 24Q54 24 54 27L53 37Z" fill="#347c67" stroke="#294a3d" stroke-width="3.6"/>
+    <path d="M45 25Q44 18 52 16L70 12Q76 11 79 16L80 20L52 26Q48 28 45 25Z" fill="url(#orange)" stroke="#694329" stroke-width="2.8"/>
+    <path d="M51 19L69 15" fill="none" stroke="#ffdd9c" stroke-width="2"/>
+
+    <!-- A plump steamed bun is the food mark on the front flap. -->
+    <g transform="translate(78 64) rotate(-11)">
+      <path d="M-14 3Q-14-2-9-6Q-7-8-4-9Q-3-13 0-12Q2-13 4-10Q11-8 14-1Q17 5 11 8Q6 11-3 10Q-14 10-14 3Z" fill="#2d7762" transform="translate(0 1.7)"/>
+      <path d="M-14 3Q-14-2-9-6Q-7-8-4-9Q-3-13 0-12Q2-13 4-10Q11-8 14-1Q17 5 11 8Q6 11-3 10Q-14 10-14 3Z" fill="url(#bun)"/>
+      <path d="M-4-8L-6-4M0-9V-4M4-8L7-4" fill="none" stroke="#bd824b" stroke-width="1.9"/>
+    </g>
+    <path d="M48 84L55 83V92Q55 94 53 94L50 95Q48 95 48 93ZM100 75L107 73V83Q107 85 105 85L102 86Q100 86 100 84Z" fill="url(#orange)" stroke="#6e532d" stroke-width="2"/>
+    <g transform="matrix(.88 .33 -.08 1 16 57)">
+      <path d="M0 0H17V25L14 23L11 25L8 23L5 25L2 23L0 24Z" fill="#fff1ca" stroke="#755e43" stroke-width="1.7"/>
+      <path d="M4 9H13M4 13H11" fill="none" stroke="#ba8854" stroke-width="1.8"/>
+      <path d="M3 1H14" stroke="#ef9447" stroke-width="3.6"/>
+    </g>
+  </g>
+</svg>

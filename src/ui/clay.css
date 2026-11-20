@@ -14,6 +14,10 @@
   letter-spacing:-.07em; line-height:1.12; text-shadow:0 .045em #d4b28d;
 }
 .home-card .game-title span { display:inline; color:#bd4e20; margin-left:.07em; letter-spacing:-.085em; }
+.brand-mark { display:block; width:100%; height:100%; object-fit:contain; }
+.home-brand { display:flex; align-items:center; gap:3%; container-type:inline-size; }
+.home-brand .brand-mark { flex:none; width:16%; max-width:78px; height:auto; }
+.home-card .home-brand .game-title { font-size:clamp(22px,18cqw,86px); }
 .home-description { margin:.8em 0 0; font-size:clamp(12px,1.26cqw,19px); color:#624834; line-height:1.5; }
 .best-card { border-width:0 0 1px; border-radius:0; padding:.7em 0; background:transparent; }
 .home-card .start-button { border-radius:15px; background:linear-gradient(#ffb460,#ff943f 74%); }

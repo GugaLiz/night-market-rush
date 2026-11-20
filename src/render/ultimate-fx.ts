@@ -188,13 +188,17 @@ function berryJets(c:CanvasRenderingContext2D,cast:WaveCast,time:number,assets:A
   c.restore();
 }
 
-function cornerBubbles(c:CanvasRenderingContext2D,cast:WaveCast,time:number):void {
-  const age=time-cast.bornAt-WAVES.berry.windup;
+export function drawBerryScreenEdges(
+  c: CanvasRenderingContext2D, state: GameState, left: number, top: number, width: number, height: number,
+): void {
+  const cast = state.ultimates?.find(cast => cast.kind === 'berry');
+  if (!cast) return;
+  const age=state.time-cast.bornAt-WAVES.berry.windup;
   if(age<.04||age>.43)return;
   const t=unit((age-.04)/.19),alpha=unit((.43-age)/.18)*t;
   c.save();c.globalAlpha=alpha;
   for(let i=0;i<4;i++){
-    const x=i%2===0?-6:WORLD.width+6,y=i<2?16:WORLD.height-8;
+    const x=left+(i%2===0?-6:width+6),y=top+(i<2?16:height-8);
     const r=(31+i*4)*(1+t);
     const grad=c.createRadialGradient(x-r*.22,y-r*.27,r*.1,x,y,r);
     grad.addColorStop(0,'#c5477a1c');grad.addColorStop(.72,'#b320637d');
@@ -212,7 +216,6 @@ function castTool(c:CanvasRenderingContext2D,s:GameState,cast:WaveCast,assets:As
   const heading=cast.kind==='icebox'?cast.angle:Math.atan2(s.player.moveDirection.y,s.player.moveDirection.x);
   const ground:Vec=cast.kind==='icebox'?{x:cast.x+Math.cos(heading)*26,y:cast.y+Math.sin(heading)*16}:cast;
   c.save();
-  if(cast.kind==='berry'&&!quiet)cornerBubbles(c,cast,s.time);
   const baseY=ground.y-17;
   c.globalAlpha=fade;
   const anticipation=quiet?0:Math.sin(load*Math.PI)*.14;

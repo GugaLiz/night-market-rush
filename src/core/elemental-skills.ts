@@ -1,5 +1,5 @@
 import type {ElementalField, ElementalKind, Enemy, GameState, Vec} from '../shared/types';
-import {WORLD} from './config';
+import {WORLD,enemyMinY} from './config';
 import type {CombatContext} from './contracts';
 import {interruptAttack, stunEnemy} from './enemies';
 import {clamp, distanceSquared, relativeSweep, segmentDistanceSquared, sweepContact} from './geometry';
@@ -47,7 +47,7 @@ function pullEnemy(enemy:Enemy, field:ElementalField, now:number, dt:number):voi
   const heading = distance<.01?enemy.id*2.4:Math.atan2(y,x);
   const angle = heading+dt*(.48+(1.65+enemy.id%5*.18)*(1-clamp(distance/275,0,1)));
   enemy.x = clamp(field.x+Math.cos(angle)*radius, bounds.left+enemy.radius, bounds.right-enemy.radius);
-  enemy.y = clamp(field.y+Math.sin(angle)*radius, bounds.top+enemy.radius, bounds.bottom-enemy.radius);
+  enemy.y = clamp(field.y+Math.sin(angle)*radius, enemyMinY(enemy.kind,enemy.radius), bounds.bottom-enemy.radius);
 }
 
 export function coatEnemy(enemy:Enemy, now:number):void {

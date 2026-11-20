@@ -24,6 +24,7 @@ registerAtlas('clay-market-elites.webp',clayFrames.elites);
 registerAtlas('clay-street-snacks.webp',clayFrames.streetSnacks);
 registerAtlas('clay-bun-courier-rig.webp',{rigBag:clayFrames.rig.rigBag,rigBagSide:clayFrames.rig.rigBagSide});
 artwork.set('health',`<img class="atlas-icon" data-icon="health" alt="" src="${asset('clay-soup-dumpling.webp')}">`);
+artwork.set('brand',`<img class="brand-mark" alt="" src="${import.meta.env.BASE_URL}icons/delivery-box.svg">`);
 
 const symbols:Record<string,string> = {
   pause:'<path d="M8 5v14M16 5v14"/>',

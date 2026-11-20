@@ -19,6 +19,7 @@ export function sanitizeSettings(value:unknown):Settings {
     music:clamp(s.music,DEFAULT_SETTINGS.music),sfx:clamp(s.sfx,DEFAULT_SETTINGS.sfx),
     muted:bool('muted',DEFAULT_SETTINGS.muted),reduceMotion:bool('reduceMotion',DEFAULT_SETTINGS.reduceMotion),
     shake:bool('shake',DEFAULT_SETTINGS.shake),quality:pick('quality',['standard','simple'],DEFAULT_SETTINGS.quality),
+    haptics:bool('haptics',bool('shake',DEFAULT_SETTINGS.haptics)),
   };
 }
 
@@ -80,7 +81,10 @@ export class WebStorage {
         this.protectedData=!this.preserve(raw,'recovery');
       }
       // Keep the original raw record if any settings had to be repaired.
-      if(JSON.stringify(this.current.settings)!==JSON.stringify(parsed.settings)){
+      // Previous saves predate the separate motor preference. Adding its default is a normal upgrade.
+      const storedSettings=isObject(parsed.settings)&&!Object.hasOwn(parsed.settings,'haptics')
+        ? {...parsed.settings,haptics:this.current.settings.haptics} : parsed.settings;
+      if(JSON.stringify(this.current.settings)!==JSON.stringify(storedSettings)){
         this.protectedData=!this.preserve(raw,'settings-recovery')||this.protectedData;
       }
     }catch{this.protectedData=!this.preserve(raw,'recovery');}

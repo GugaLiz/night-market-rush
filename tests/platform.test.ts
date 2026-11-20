@@ -1,6 +1,7 @@
 import {describe,it,expect,vi} from 'vitest';
 import {WebStorage,SAVE_KEY,sanitizeSettings,type StorageLike} from '../src/platform/storage';
 import {WebInput} from '../src/platform/input';
+import {SkillHaptics} from '../src/platform/skill-haptics';
 import {DEFAULT_SETTINGS,RULES_VERSION,type BestRecord} from '../src/shared/types';
 
 class MemoryStore implements StorageLike {
@@ -9,6 +10,26 @@ class MemoryStore implements StorageLike {
   setItem(key:string,value:string){if(this.denied)throw new Error('quota');this.values.set(key,value);}
 }
 const record=(score:number,time=10,rulesVersion=RULES_VERSION):BestRecord=>({score,time,rulesVersion,date:'2026-11-18T00:00:00Z'});
+
+it('keeps a strong vibration when a delivery bounces in the same or the following simulation step',()=>{
+  const vibrate=vi.fn(()=>true);
+  vi.stubGlobal('navigator',{vibrate,userActivation:{hasBeenActive:true}});
+  vi.stubGlobal('document',{hidden:false});
+  const clock=vi.spyOn(performance,'now').mockReturnValue(1000);
+  try{
+    const haptics=new SkillHaptics();
+    const turn={type:'ultimateBeat',kind:'express',beat:1,x:0,y:0} as const;
+    const blast={...turn,kind:'berry'} as const;
+    haptics.play([turn,blast]);haptics.play([turn]);
+    expect(vibrate).toHaveBeenCalledTimes(1);
+    clock.mockReturnValue(2000);
+    haptics.play([turn]);
+    expect(vibrate).toHaveBeenCalledTimes(2);
+    haptics.stop();haptics.stop();
+    expect(vibrate).toHaveBeenCalledTimes(3);
+    expect(vibrate).toHaveBeenLastCalledWith(0);
+  }finally{clock.mockRestore();vi.unstubAllGlobals();}
+});
 
 describe('browser steering',()=>{
   it('reverses a long drag locally and restores held directions after overlapping keys and touch release',()=>{
@@ -118,6 +139,17 @@ describe('browser storage boundary',()=>{
     expect(s.data.settings.music).toBe(DEFAULT_SETTINGS.music);
     expect(s.saveSettings({...DEFAULT_SETTINGS,hand:'right',muted:true})).toBe(true);
     expect(new WebStorage(store).load().settings).toMatchObject({hand:'right',muted:true});
+  });
+  it('upgrades a previous motion preference without treating the save as damaged',()=>{
+    const {haptics: _newPreference,...previous}=DEFAULT_SETTINGS;
+    const store=new MemoryStore();
+    store.setItem(SAVE_KEY,JSON.stringify({version:1,settings:{...previous,shake:false},best:record(21),tutorialSeen:true}));
+    const upgraded=new WebStorage(store);
+    const {settings}=upgraded.load();
+    expect(settings).toMatchObject({shake:false,haptics:false});
+    expect([...store.values.keys()]).toEqual([SAVE_KEY]);
+    expect(upgraded.saveSettings({...settings,haptics:true})).toBe(true);
+    expect(new WebStorage(store).load()).toMatchObject({settings:{shake:false,haptics:true},best:{score:21}});
   });
   it('does not overwrite an unknown future schema, but lets current session change',()=>{
     const store=new MemoryStore();const raw=JSON.stringify({version:4,precious:'future progress'});store.setItem(SAVE_KEY,raw);

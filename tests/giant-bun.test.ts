@@ -23,7 +23,7 @@ describe('giant bun landing and the open flour wave',()=>{
     const g=arena(),e=g.spawnEnemy('giantBun',{x:1080,y:360}),p=g.state.player;
     tick(g);expect(e.jump?.phase).toBe('warn');
     const first={...e.jump!.target};
-    expect(e.jump!.until-e.jump!.startedAt).toBeCloseTo(.65);
+    expect(e.jump!.until-e.jump!.startedAt).toBeCloseTo(CONFIG.giant.warning);
     p.x=750;p.y=360;tick(g,20);
     expect(e.jump!.target).toEqual(first);
     wait(g,()=>e.jump!.phase==='flight');

@@ -4,7 +4,8 @@ import {giantJumpHeight} from '../core/giant-bun';
 import {TOSS_DURATION} from '../core/ultimates';
 import {isElite,type EnemyKind,type GameState} from '../shared/types';
 
-const heights:Record<EnemyKind,number>={bun:55,onigiri:52,siumai:51,zongzi:58,box:65,bowl:75,giantBun:152,eliteCrab:85,eliteKettle:91,eliteSesame:83};
+const eliteHeight=152;
+const heights:Record<EnemyKind,number>={bun:55,onigiri:52,siumai:51,zongzi:58,box:65,bowl:75,giantBun:eliteHeight,eliteCrab:eliteHeight,eliteKettle:eliteHeight,eliteSesame:eliteHeight};
 export const enemyHeight = (kind: EnemyKind) => heights[kind];
 
 export interface VitalsRect {x:number; y:number; w:number; h:number}
@@ -31,13 +32,15 @@ export function layoutEnemyVitals(state:GameState, reduced:boolean, fallen:reado
   selected.sort((a,b)=>Number(isElite(b.kind))-Number(isElite(a.kind)) ||
     Number(b.hp<b.maxHp)-Number(a.hp<a.maxHp) || b.hurtAt-a.hurtAt || distance(a)-distance(b));
   const panels:EnemyVitals[]=[];
-  function place(id:number,x:number,head:number,hp:number,maxHp:number,giant:boolean,alpha:number) {
+  function place(id:number,x:number,head:number,feet:number,hp:number,maxHp:number,giant:boolean,alpha:number) {
     const width=giant?106:84, height=giant?25:22, gap=5;
-    const above=clamp(head-height-gap,77,WORLD.height-100);
+    // At the top of the street there is no room between a tall head and the HUD.
+    const below=giant&&head-height-gap<77;
+    const anchor=below?feet+gap:head-height-gap;
     // Keep the plaque close to its owner. Compact crowded gauges only when full plaques would overlap.
     for(const [dy,w,h] of [[0,width,height],[-height-3,width,height],[-2*(height+3),width,height],[10,36,8]]){
       if(hp===0 && h<10)continue;
-      const panel={id,x:clamp(x-w/2,12,WORLD.width-w-12),y:clamp(above+dy,77,WORLD.height-100),w,h,hp,maxHp,alpha};
+      const panel={id,x:clamp(x-w/2,12,WORLD.width-w-12),y:clamp(anchor+(below?Math.abs(dy):dy),77,WORLD.height-100),w,h,hp,maxHp,alpha};
       if(occupied.some(box=>near(box,panel)))continue;
       panels.push(panel);occupied.push(panel);return true;
     }
@@ -48,12 +51,12 @@ export function layoutEnemyVitals(state:GameState, reduced:boolean, fallen:reado
     const toss=!reduced && age>=0 && age<TOSS_DURATION ? Math.sin(Math.PI*age/TOSS_DURATION)*(e.tossHeight??0) : 0;
     const lift=giantJumpHeight(e,time)*(reduced?.38:1);
     const markers=(e.bellStunUntil??0)>time?21:e.stunUntil>time && !(e.chilledUntil && e.chilledUntil>time)?15:0;
-    place(e.id,e.x,e.y-enemyHeight(e.kind)-lift-toss-markers,e.hp,e.maxHp,isElite(e.kind),1);
+    place(e.id,e.x,e.y-enemyHeight(e.kind)-lift-toss-markers,e.y,e.hp,e.maxHp,isElite(e.kind),1);
   }
   // A big sweep can remove an entire pack in one step. Keep the nearest fresh empty plaque.
   const recent=fallen.filter(e=>e.age<.72).sort((a,b)=>a.age-b.age || distance(a)-distance(b));
   for(const e of recent){
-    if(place(e.id,e.x,e.y-enemyHeight(e.kind),0,e.maxHp,isElite(e.kind),clamp((.72-e.age)/.22,0,1)))break;
+    if(place(e.id,e.x,e.y-enemyHeight(e.kind),e.y,0,e.maxHp,isElite(e.kind),clamp((.72-e.age)/.22,0,1)))break;
   }
   return panels;
 }

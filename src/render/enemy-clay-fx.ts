@@ -1,7 +1,8 @@
 import {CONFIG,WORLD} from '../core/config';
 import {clamp} from '../core/geometry';
 import {giantJumpHeight,giantPulseLifetime,giantPulseRadius} from '../core/giant-bun';
-import {siumaiHop} from '../core/enemies';
+import {crabChargeReach,siumaiHop} from '../core/enemies';
+import {enemyHeight} from './enemy-vitals';
 import {isElite} from '../shared/types';
 import type {Enemy,EnemyShot,GameState,Player,Settings} from '../shared/types';
 import type {Assets} from './assets';
@@ -23,6 +24,13 @@ function chevron(c:Canvas,x:number,extent:number){
   c.beginPath();c.moveTo(x-extent,-extent);c.lineTo(x,0);c.lineTo(x-extent,extent);c.stroke();
 }
 
+/** A prop painted into the sprite follows the same foot pivot, tilt and squash as its owner. */
+function toolPosition(e:Enemy,time:number,settings:Settings,side:number,up:number){
+  const height=enemyHeight(e.kind),pose=getEnemyAttackPose(e,time,settings);
+  const dx=e.facing*side*height,dy=-up*height,cos=Math.cos(pose.tilt),sin=Math.sin(pose.tilt);
+  return {x:e.x+(dx*cos-dy*sin)*pose.scaleX,y:e.y-pose.lift+(dx*sin+dy*cos)*pose.scaleY};
+}
+
 function syrupLanding(c:Canvas,e:Enemy,time:number,settings:Settings):void {
   if(!e.syrupTarget)return;
   const {warning,radius,fade}=CONFIG.elites.sesame;
@@ -39,6 +47,7 @@ function syrupLanding(c:Canvas,e:Enemy,time:number,settings:Settings):void {
   }else{
     const t=clamp(age/fade,0,1),r=radius*(settings.reduceMotion?.94:.28+.72*(1-(1-t)**3));
     c.globalAlpha=(1-t)**.75;
+    arc(c,0,0,radius,0,turn,'#ffc783c2',3);
     c.beginPath();
     for(let i=0;i<=40;i++){
       const a=i*turn/40,edge=r*(.80+.11*Math.cos(a*5+.6)+.07*Math.cos(a*3));
@@ -58,12 +67,13 @@ function syrupLanding(c:Canvas,e:Enemy,time:number,settings:Settings):void {
 export function drawSyrupDrop(c:Canvas,e:Enemy,time:number,settings:Settings):void {
   if(!e.syrupTarget||(e.shotWarnUntil??0)<=time)return;
   const u=clamp(1-((e.shotWarnUntil??time)-time)/CONFIG.elites.sesame.warning,0,1);
-  const startX=e.x+e.facing*32,startY=e.y-53,end=e.syrupTarget;
+  const {x:startX,y:startY}=toolPosition(e,time,settings,.416,.575),end=e.syrupTarget;
   const x=settings.reduceMotion?end.x:startX+(end.x-startX)*u;
   const y=settings.reduceMotion?end.y-19:startY+(end.y-startY)*u-420*u*(1-u);
   c.save();c.translate(x,y);
   if(!settings.reduceMotion)c.rotate(Math.atan2(end.y-startY-420*(1-2*u),end.x-startX));
-  c.scale(.59+.41*u,.59+.41*u);
+  const scale=.84+.53*u;
+  c.scale(scale,scale);
   c.fillStyle='#b2693e';c.strokeStyle='#ffcf85';c.lineWidth=2.2;c.beginPath();
   c.moveTo(-16,0);c.bezierCurveTo(-7,-1,-5,-9,2,-8);c.bezierCurveTo(12,-7,13,7,2,8);
   c.bezierCurveTo(-6,8,-8,1,-16,0);c.fill();c.stroke();
@@ -97,9 +107,10 @@ export function drawEnemyAttackGround(c:Canvas,e:Enemy,time:number,settings:Sett
     }
     if(heavy){
       c.strokeStyle='#ffe3aece';c.lineWidth=2;c.setLineDash([8,12]);
-      for(const a of [start,end])pathline(c,Math.cos(a)*radius,Math.sin(a)*radius,Math.cos(a)*380,Math.sin(a)*380);
+      const street=Math.hypot(floor.right-floor.left,floor.bottom-floor.top);
+      for(const a of [start,end])pathline(c,Math.cos(a)*radius,Math.sin(a)*radius,Math.cos(a)*street,Math.sin(a)*street);
       c.setLineDash([]);c.rotate(j.gapAngle);
-      for(const offset of [78,100]){c.strokeStyle='#fff0cc';c.lineWidth=3;chevron(c,offset,7);}
+      for(const offset of [radius+12,radius+34]){c.strokeStyle='#fff0cc';c.lineWidth=3;chevron(c,offset,7);}
       c.rotate(-j.gapAngle);
     }
     if(j.phase==='flight'){
@@ -110,12 +121,18 @@ export function drawEnemyAttackGround(c:Canvas,e:Enemy,time:number,settings:Sett
   }else if((e.kind==='box'||e.kind==='eliteCrab') && (e.phase==='warn'||e.phase==='dash')){
     const crab=e.kind==='eliteCrab',attack=crab?CONFIG.elites.crab:CONFIG.dash;
     const seconds=e.phase==='dash'?clamp(e.phaseUntil-time,0,attack.duration):attack.duration;
-    const length=attack.speed*seconds*(e.slowUntil>time?CONFIG.skills.soda.factor:1);
-    if(length<2)return;
+    const length=crab?crabChargeReach(e,time):attack.speed*seconds*(e.slowUntil>time?CONFIG.skills.soda.factor:1);
+    if(!crab&&length<2)return;
+    const half=crab?CONFIG.elites.crab.halfWidth:e.radius;
     c.save();clipFloor(c);c.translate(e.x,e.y);c.rotate(Math.atan2(e.dashY,e.dashX));
-    c.fillStyle=e.phase==='dash'?'#ff925662':'#ed6d5055';c.fillRect(0,-e.radius,length,e.radius*2);
+    c.fillStyle=e.phase==='dash'?'#ff925662':'#ed6d5055';
     c.strokeStyle=crab?'#ffd091':'#ffa476';c.lineWidth=crab?3:1.6;
-    pathline(c,0,-e.radius,length,-e.radius);pathline(c,0,e.radius,length,e.radius);
+    if(crab){
+      c.beginPath();c.roundRect(-half,-half,length+2*half,2*half,half);c.fill();c.stroke();
+    }else{
+      c.fillRect(0,-half,length,2*half);
+      pathline(c,0,-half,length,-half);pathline(c,0,half,length,half);
+    }
     c.strokeStyle='#ffdb92';c.lineWidth=3;c.lineJoin='round';
     for(const offset of [0,12])if(length>offset+10)chevron(c,length-offset,6);
     if(!crab&&e.phase==='warn'){
@@ -132,22 +149,24 @@ export function drawEnemyAttackGround(c:Canvas,e:Enemy,time:number,settings:Sett
       const ramp=e.phase==='warn'?clamp(1-(e.phaseUntil-time)/attack.warning,0,1):1;
       for(const side of [-1,1]){
         c.strokeStyle='#d96c45';c.lineWidth=4;c.beginPath();
-        c.moveTo(length*.26,side*e.radius);c.quadraticCurveTo(length*.42,side*(e.radius+4),length*.50,side*e.radius*.47*(1-ramp*.55));c.stroke();
+        c.moveTo(length*.26,side*half);c.quadraticCurveTo(length*.42,side*half,length*.50,side*half*.47*(1-ramp*.55));c.stroke();
       }
     }
     c.restore();
   }else if(e.kind==='eliteKettle' && (e.shotWarnUntil??0)>time){
-    const {spread,shots,speed,lifetime,warning}=CONFIG.elites.kettle;
+    const {spread,shots,speed,lifetime,warning,radius}=CONFIG.elites.kettle;
     const progress=clamp(1-((e.shotWarnUntil??time)-time)/warning,0,1);
     c.save();clipFloor(c);c.translate(e.x,e.y);c.rotate(e.shotAngle??0);
-    c.fillStyle='rgba(223,144,66,'+(.12+progress*.16)+')';
-    c.beginPath();c.moveTo(0,0);c.arc(0,0,86,-spread/2,spread/2);c.closePath();c.fill();
     c.lineCap='round';
     for(let i=0;i<shots;i++){
       const a=spread*(i/(shots-1)-.5);
-      c.save();c.rotate(a);c.strokeStyle='#fbd399b0';c.lineWidth=2;
+      c.save();c.rotate(a);
+      // Each tea drop sweeps a separate lane. Leave the gaps clear all the way to the kerb.
+      c.lineWidth=radius*2;c.strokeStyle='rgba(233,167,69,'+(.12+progress*.17)+')';
+      pathline(c,0,0,speed*lifetime,0);
+      c.strokeStyle='#fbd399c2';c.lineWidth=2;
       c.setLineDash([4,16]);pathline(c,22,0,speed*lifetime,0);c.setLineDash([]);
-      c.strokeStyle='#ffe5ab';chevron(c,54+progress*10,4.4);c.restore();
+      c.strokeStyle='#ffe5ab';chevron(c,104+progress*10,7);c.restore();
     }
     c.restore();
   }else if(e.kind==='bowl' && (e.shotWarnUntil??0)>time){
@@ -290,7 +309,7 @@ export function drawSnackPursuitTrails(c:Canvas,s:GameState,settings:Settings):v
   }
 }
 
-export function drawEnemyAttackDetail(c:Canvas,e:Enemy,time:number,settings:Settings,p:Player){
+export function drawEnemyAttackDetail(c:Canvas,e:Enemy,time:number,settings:Settings,p:Player,shots:readonly EnemyShot[]=[]){
   if(e.stunUntil>time||(e.frostUntil??0)>time||e.hp<=0)return;
   if(e.kind==='bowl'&&((e.shotWarnUntil??0)>time||(e.volleyRemaining??0)>0)){
     const u=(e.shotWarnUntil??0)>time?clamp(1-((e.shotWarnUntil??time)-time)/CONFIG.ranged.warning,0,1):1;
@@ -303,17 +322,33 @@ export function drawEnemyAttackDetail(c:Canvas,e:Enemy,time:number,settings:Sett
   }
   if(e.kind==='eliteKettle'&&(e.shotWarnUntil??0)>time){
     const u=clamp(1-((e.shotWarnUntil??time)-time)/CONFIG.elites.kettle.warning,0,1);
-    c.save();c.translate(e.x+e.facing*39,e.y-62);c.scale(e.facing,1);
+    const spout=toolPosition(e,time,settings,.51,.64);
+    c.save();c.translate(spout.x,spout.y);c.scale(e.facing,1);
     c.lineCap='round';c.strokeStyle='#ffdfacca';c.lineWidth=2.4;
     const rise=settings.reduceMotion?6:5+u*9;
     c.beginPath();c.moveTo(0,-3);c.bezierCurveTo(7,-8,-3,-9,5,-8-rise);c.stroke();
     c.fillStyle='#f1b45e';c.beginPath();c.ellipse(2,1,3+u*4,2+u*2,-.3,0,turn);c.fill();c.restore();
+  }else if(e.kind==='eliteKettle'){
+    // Follow only this pot's freshly released fan. The tea balls themselves stay at their hitboxes.
+    const jet=shots.find(q=>q.ownerId===e.id&&q.kind==='tea'&&time-q.bornAt<.26&&
+      Math.cos(Math.atan2(q.vy,q.vx)-(e.shotAngle??0))>.99);
+    if(jet){
+      const spout=toolPosition(e,time,settings,.51,.64);
+      c.save();c.globalAlpha*=1-clamp((time-jet.bornAt)/.26,0,1);
+      c.lineCap='round';c.strokeStyle='#a76c34';c.lineWidth=7;
+      c.beginPath();c.moveTo(spout.x,spout.y);
+      c.quadraticCurveTo(spout.x+e.facing*25,spout.y-9,jet.x,jet.y);c.stroke();
+      c.lineWidth=2.4;c.strokeStyle='#ffe0a0';c.stroke();c.restore();
+    }
   }
   if(e.kind==='eliteCrab'&&e.phase==='warn'){
     const u=clamp(1-(e.phaseUntil-time)/CONFIG.elites.crab.warning,0,1);
-    c.save();c.translate(e.x,e.y-64);c.lineCap='round';c.lineWidth=2.4;
+    c.save();c.lineCap='round';c.lineWidth=3;
     for(const side of [-1,1]){
-      c.strokeStyle='#ffde95';c.beginPath();c.moveTo(side*34,-1);c.quadraticCurveTo(side*39,-2-u*3,side*42,-10-u*4);c.stroke();
+      const tip=toolPosition(e,time,settings,side*.42,.86);
+      const out=side*e.facing;
+      c.strokeStyle='#ffde95';c.beginPath();c.moveTo(tip.x,tip.y);
+      c.quadraticCurveTo(tip.x+out*6,tip.y-2-u*3,tip.x+out*10,tip.y-11-u*5);c.stroke();
     }
     c.restore();
   }
@@ -334,7 +369,8 @@ export function drawEnemyAttackDetail(c:Canvas,e:Enemy,time:number,settings:Sett
     c.beginPath();c.moveTo(14,-12);c.quadraticCurveTo(31,0,15,12);c.stroke();
     c.restore();
   }else if((e.kind==='box'||e.kind==='eliteCrab') && e.phase==='dash'){
-    c.save();c.translate(e.x,e.y-19);c.rotate(Math.atan2(e.dashY,e.dashX));
+    c.save();c.translate(e.x,e.y-(e.kind==='eliteCrab'?32:19));c.rotate(Math.atan2(e.dashY,e.dashX));
+    if(e.kind==='eliteCrab')c.scale(1.65,1.65);
     if(e.kind==='box'){
       const curl=settings.reduceMotion?2:2+3*Math.sin(time*16);
       c.lineCap='round';c.strokeStyle='#895d43';c.lineWidth=5.6;
@@ -452,6 +488,8 @@ export function drawGiantPulses(c:Canvas,s:GameState,settings:Settings,assets:As
 export function drawSoupShot(c:Canvas,q:EnemyShot){
   const tea=q.kind==='tea';
   c.save();c.translate(q.x,q.y);
+  // The painted drop has a seven-unit belly; grow the visible threat with its collision radius.
+  if(tea)c.scale(q.radius/7,q.radius/7);
   c.fillStyle='#3726293e';c.beginPath();c.ellipse(0,3,8,3.6,0,0,turn);c.fill();
   c.rotate(Math.atan2(q.vy,q.vx));c.fillStyle=tea?'#b77b3d':'#f29e38';c.strokeStyle=tea?'#78482f':'#773e2d';c.lineWidth=2;
   c.beginPath();c.moveTo(-19,0);c.bezierCurveTo(-6,-3,-1,-10,6,-7);

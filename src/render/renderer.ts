@@ -1,7 +1,7 @@
 import {CONFIG, WORLD} from '../core/config';
 import {DEFAULT_SETTINGS, isElite, SKILL_NAMES, ULTIMATE_KINDS, WEAPON_NAMES} from '../shared/types';
 import {isOnPaperRoute} from '../core/geometry';
-import {EXPRESS,TOSS_DURATION} from '../core/ultimates';
+import {TOSS_DURATION} from '../core/ultimates';
 import type {ElementalField, Enemy, GameEvent, GameState, Settings, Vec, WeaponKind} from '../shared/types';
 import type {Assets, SpriteName} from './assets';
 import {drawSprite} from './sprite';
@@ -13,19 +13,24 @@ import {WEAPONS} from '../core/weapons';
 import {drawChainLink, drawFlightWake, drawPaperPuff, drawWeaponContact, drawWeaponRelease, type WeaponContact} from './weapon-effects';
 import {drawFlyingChopsticks} from './bamboo-volley';
 import {drawMeleeWaves} from './melee-waves';
-import {drawUltimateGround,drawUltimateAir} from './ultimate-fx';
+import {drawUltimateGround,drawUltimateAir,drawBerryScreenEdges} from './ultimate-fx';
 import {drawBrittleIceRim,drawElementalGround,drawIceFragments,drawPoisonedEnemy,drawVortexMouth} from './elemental-fx';
 import {drawEnemyAttackGround,drawEnemyAttackDetail,drawGiantPulses,drawSnackImpact,drawSnackPursuitTrails,drawSoupShot,drawSyrupDrop,getEnemyAttackPose,enemyExpression,drawIceShell,drawBellStun} from './enemy-clay-fx';
 import {enemyHeight} from './enemy-vitals';
+import {drawEliteAura} from './elite-aura';
 import {drawGroundCoins, drawMarketBackground, drawSkillFields} from './market-floor';
 import {drawMarketStalls} from './market-stalls';
 import {drawIceShardLane,drawSplitShell,drawTrayBrine} from './market-upgrades';
 import {FrameQuality} from './frame-quality';
+import {skillCameraOffset} from './skill-camera';
 
 type Effect = {kind: string; x: number; y: number; age: number; duration: number; label?: string; angle?:number; sprite?:Enemy['kind']; facing?:number; power?:number; from?:Vec};
 type Particle = {x: number; y: number; vx: number; vy: number; age: number; duration: number; size: number; color: string};
 const COLORS: Record<string, string> = {fan:'#b6f8ec',skate:'#ffd56c',soda:'#79f3ce',lure:'#ffd891',bubble:'#c2eeff',cones:'#ffb466',bell:'#fff2b0',route:'#82ecd2',hook:'#a1dfde',heat:'#ffb378',dispatch:'#b5c7ff',stamp:'#ffcc9e',supply:'#ffe8b4'};
 const TAU=Math.PI*2;
+// The tea spout and syrup ladle extend left in the source artwork.
+const spriteFacing = (name: SpriteName, facing: number) =>
+  (name === 'eliteKettle' || name === 'eliteSesame' ? -facing : facing) < 0 ? -1 : 1;
 const ghostRadius=150;
 type DashGhost = {image: HTMLCanvasElement; x: number; y: number; time: number};
 type CrowdImpact = {x:number; y:number; age:number; power:number; direction:number};
@@ -103,11 +108,6 @@ export class Renderer {
         this.burst(event.x, event.y - 8, '#ffe49a', 5);
       } else if(event.type==='frostShatter'||event.type==='iceShards'||event.type==='dispatchClear'){
         this.skillImpacts.push({...event,age:0});
-      } else if(event.type==='ultimateBeat') {
-        const force=event.kind==='berry'?.22:event.kind==='steamer'?.11:event.kind==='express'&&event.beat===EXPRESS.legs?.16:.065;
-        this.shake=Math.max(this.shake,force);
-      } else if(event.type==='elementalBurst'){
-        this.shake=Math.max(this.shake,event.kind==='vortex'?.16:.10);
       } else if (event.type === 'kill') {
         const seed=event.victimId??Math.round(event.x);
         if(event.source==='vortex'){
@@ -191,13 +191,15 @@ export class Renderer {
     c.setTransform(scale, 0, 0, scale, -left * scale, -top * scale);
     c.clearRect(left, top, viewWidth, viewHeight);
     c.save();
-    if (this.settings.shake && !this.settings.reduceMotion && mode === 'play') {
+    if (state && this.settings.shake && !this.settings.reduceMotion && mode === 'play') {
       let dx=Math.sin(this.clock*104)*this.shake*8,dy=Math.cos(this.clock*127)*this.shake*6;
       if(this.impact){
         const {age,power,direction}=this.impact;
         const kick=Math.cos(age*79)*Math.exp(-age*17)*power*8;
         dx-=Math.cos(direction)*kick;dy-=Math.sin(direction)*kick;
       }
+      const recoil = skillCameraOffset(state);
+      if (recoil) { dx = recoil.x; dy = recoil.y; }
       if(Math.abs(dx)+Math.abs(dy)>.05){
         const overscan=1+Math.max(Math.abs(dx)/viewWidth,Math.abs(dy)/viewHeight)*2;
         c.translate(WORLD.width/2+dx,WORLD.height/2+dy);
@@ -208,6 +210,9 @@ export class Renderer {
     if (mode === 'home' || !state) this.home();
     else this.battle(state);
     c.restore();
+    if (state && mode !== 'home' && !this.settings.reduceMotion) {
+      drawBerryScreenEdges(c, state, left, top, viewWidth, viewHeight);
+    }
   }
 
   private home(): void {
@@ -244,7 +249,7 @@ export class Renderer {
       const age = s.time - e.spawnAt;
       if (age < CONFIG.spawn.warning) {
         c.save(); c.strokeStyle = '#ffbd79'; c.fillStyle = '#38242d55'; c.lineWidth = 3;
-        const radius=e.kind==='giantBun'?56:isElite(e.kind)?e.radius+15:25;
+        const radius=isElite(e.kind)?56:25;
         c.setLineDash([5, 5]); c.beginPath(); c.ellipse(e.x, e.y, radius, radius*.48, 0, 0, Math.PI * 2); c.fill(); c.stroke(); c.restore();
       }
       if(age>=CONFIG.spawn.warning)drawEnemyAttackGround(c,e,s.time,this.settings);
@@ -406,7 +411,7 @@ export class Renderer {
     const dir=strike?.angle??0,foot=e.y-posed.lift-toss;
     c.save();
     if(age<CONFIG.spawn.warning)c.globalAlpha=.2+.6*Math.max(0,age)/CONFIG.spawn.warning;
-    const shade=giant?38:isElite(e.kind)?e.radius+5:e.kind==='bowl'?26:18;
+    const shade=isElite(e.kind)?38:e.kind==='bowl'?26:18;
     this.shadow(e.x,e.y,shade*(1-.003*(posed.lift+toss)),.24-.0014*(posed.lift+toss));
     c.save();c.translate(e.x+Math.cos(dir)*recoil*13,foot+Math.sin(dir)*recoil*9);
     if(swallowed>0&&!reduced){
@@ -415,9 +420,14 @@ export class Renderer {
     }
     c.scale((1+.08*recoil)*posed.scaleX,(1-.08*recoil)*posed.scaleY);
     const tilt=posed.tilt+Math.cos(dir)*recoil*.18;
+    if(isElite(e.kind)&&age>=CONFIG.spawn.warning){
+      c.save();c.rotate(tilt);c.scale(spriteFacing(sprite,e.facing),1);
+      drawEliteAura(c,e,e.kind,this.assets.sprites[sprite],height,time,this.settings);
+      c.restore();
+    }
     this.sprite(sprite,0,0,height,e.facing,tilt);
     c.restore();
-    if(age>=CONFIG.spawn.warning)drawEnemyAttackDetail(c,e,time,this.settings,s.player);
+    if(age>=CONFIG.spawn.warning)drawEnemyAttackDetail(c,e,time,this.settings,s.player,s.enemyShots);
     if(!hurt&&!strike&&time-e.hurtAt<.13){c.strokeStyle='#fff2bb';c.lineWidth=2;c.beginPath();c.ellipse(e.x,foot-height*.45,height*.42,height*.48,0,0,Math.PI*2);c.stroke();}
     const headY=foot-height*posed.scaleY;
     const bellStunned=(e.bellStunUntil??0)>time;
@@ -688,9 +698,7 @@ export class Renderer {
   }
 
   private sprite(name: SpriteName, x: number, y: number, height: number, facing = 1, angle = 0): void {
-    // The tea spout and syrup ladle extend left in the source artwork.
-    const flip=name==='eliteKettle'||name==='eliteSesame'?-facing:facing;
-    drawSprite(this.ctx,this.assets,name,x,y,height,angle,flip);
+    drawSprite(this.ctx,this.assets,name,x,y,height,angle,spriteFacing(name,facing));
   }
 
   private burst(x: number, y: number, color: string, count: number): void {

@@ -1,10 +1,10 @@
 import {WEAPON_KINDS,type Enemy,type EnemyKind,type GameEvent,type GameState,type Pickup,type SkillKind,type Vec,type WeaponKind,type DamageSource} from '../shared/types';
-import {CONFIG,WORLD,difficultyAt,pickupReach} from './config';
+import {CONFIG,WORLD,difficultyAt,pickupReach,enemyMinY} from './config';
 import {clamp,distanceSquared,isOnPaperRoute,relativeSweep,sweepContact,segmentDistanceSquared} from './geometry';
 import type {CombatContext} from './contracts';
 import {updateWeapons} from './weapons';
 import {activateSkill,canCollectPickup,isPlayerInvulnerable,restorePlayerHealth,updateSkills} from './skills';
-import {updateEnemies,updateEnemyShots} from './enemies';
+import {updateEnemies,updateEnemyShots,type ChargeContact} from './enemies';
 import {collectCoins,dropCoins} from './rewards';
 import {advanceWave,spawnMarketEnemies} from './waves';
 import {driftPickup,launchPickup,skillContact} from './pickup-motion';
@@ -31,7 +31,7 @@ export class Game {
   private batch=0;private openingPlaced=false;private dropsSinceFan=0;private waveDemo=false;
   private nextUltimateAt=8;private ultimateIndex=0;
   private nextHealthAt=0;
-  private dispatchWasActive=false;private contactDamage=new Map<number,number>();
+  private dispatchWasActive=false;private chargeContacts=new Map<number,ChargeContact>();
   private ctx:CombatContext={damage:(e,a,source,impactAngle)=>this.damage(e,a,source,impactAngle),emit:e=>this.emit(e),id:()=>this.nextId++,random:()=>this.random(),push:(e,o,d)=>this.push(e,o,d),active:e=>this.active(e),spawnPickup:(k,p,extra)=>this.addPickup(k,p,extra)};
   constructor(seed=Date.now()){this.reset(seed);}
   reset(seed=Date.now(),practice=false):void {
@@ -173,7 +173,7 @@ export class Game {
   clearArena():void{const s=this.state;delete s.eliteWave;s.market.offer=null;s.market.receipt=null;s.market.expired=null;s.giantPulses=[];s.ultimates=[];s.elementalFields=[];s.enemies=[];s.pickups=[];s.weaponDrops=[];s.projectiles=[];s.meleeWaves=[];s.enemyShots=[];s.zones=[];s.coins=[];s.fields=[];s.combo=0;s.comboUntil=0;this.waveDemo=false;s.player.dashUntil=0;s.player.dashReadyAt=0;s.player.sprintTime=0;s.player.sprintMultiplier=1;s.weapon.attack=null;s.weapon.targetId=null;}
   spawnEnemy(kind:EnemyKind,position?:Vec):Enemy {
     const cfg=CONFIG.enemies[kind],p=position??{x:this.state.player.x+140,y:this.state.player.y};
-    const x=clamp(p.x,WORLD.bounds.left+cfg.radius,WORLD.bounds.right-cfg.radius),y=clamp(p.y,WORLD.bounds.top+cfg.radius,WORLD.bounds.bottom-cfg.radius);
+    const x=clamp(p.x,WORLD.bounds.left+cfg.radius,WORLD.bounds.right-cfg.radius),y=clamp(p.y,enemyMinY(kind,cfg.radius),WORLD.bounds.bottom-cfg.radius);
     const facing=this.state.practice?(x<this.state.player.x?1:-1):(this.random()<.5?-1:1);
     const e:Enemy={id:this.nextId++,kind,x,y,px:x,py:y,radius:cfg.radius,spawnAt:this.state.practice?this.state.time-CONFIG.spawn.warning:this.state.time,slowUntil:0,phase:'chase',phaseUntil:this.state.time+CONFIG.spawn.warning+CONFIG.dash.approach,dashX:0,dashY:0,facing,hp:cfg.hp,maxHp:cfg.hp,hurtAt:-100,stunUntil:0,stunStartedAt:-100,bellResistUntil:0,contactSuppressedUntil:0,skateHitAt:-100,shotReadyAt:this.state.time+1.2+this.nextId%5*.3,shotWarnUntil:0,shotAngle:0};
     if(kind==='eliteCrab')e.phaseUntil=this.state.time+CONFIG.spawn.warning+.45;
@@ -206,7 +206,7 @@ export class Game {
       }
       this.schedulePickups();this.scheduleWeapon();this.scheduleHealth();
     }
-    this.contactDamage=updateEnemies(s,dt,difficulty.speedScale,this.ctx);
+    this.chargeContacts=updateEnemies(s,dt,difficulty.speedScale,this.ctx);
     updateEnemyShots(s,dt);
     for(const pickup of s.pickups)driftPickup(pickup,s.seed,s.time,dt);
     updateSkills(s,dt,this.ctx,input);
@@ -300,10 +300,11 @@ export class Game {
         &&distanceSquared(p,e.syrupTarget)<=(p.radius+CONFIG.elites.sesame.radius)**2){
         contacts.push({id:e.id,kind:e.kind,t:1,amount:CONFIG.elites.sesame.damage,source:e.kind,shot:false});
       }
-      const t=relativeSweep({x:p.px,y:p.py},p,{x:e.px,y:e.py},e,p.radius+e.radius);
+      const charge=this.chargeContacts.get(e.id);
+      const t=relativeSweep({x:p.px,y:p.py},p,{x:e.px,y:e.py},e,p.radius+(charge?.radius??e.radius));
       if(t!==null){
-        const amount=this.contactDamage.get(e.id)??CONFIG.enemies[e.kind].damage;
-        const source=e.kind==='box'&&amount===CONFIG.dash.damage?'dash':e.kind;
+        const amount=charge?.damage??CONFIG.enemies[e.kind].damage;
+        const source=e.kind==='box'&&charge?'dash':e.kind;
         const dx=p.px-e.px+t*((p.x-p.px)-(e.x-e.px)),dy=p.py-e.py+t*((p.y-p.py)-(e.y-e.py));
         contacts.push({id:e.id,kind:e.kind,t,amount,source,shot:false,impactAngle:Math.atan2(dy,dx)});
       }
@@ -351,7 +352,7 @@ export class Game {
     }
     return total;
   }
-  private push(e:Enemy,origin:Vec,distance:number){const dx=e.x-origin.x,dy=e.y-origin.y,n=Math.hypot(dx,dy);const ux=n?dx/n:(e.id%2?1:-1),uy=n?dy/n:0;e.x=clamp(e.x+ux*distance,WORLD.bounds.left+e.radius,WORLD.bounds.right-e.radius);e.y=clamp(e.y+uy*distance,WORLD.bounds.top+e.radius,WORLD.bounds.bottom-e.radius);}
+  private push(e:Enemy,origin:Vec,distance:number){const dx=e.x-origin.x,dy=e.y-origin.y,n=Math.hypot(dx,dy);const ux=n?dx/n:(e.id%2?1:-1),uy=n?dy/n:0;e.x=clamp(e.x+ux*distance,WORLD.bounds.left+e.radius,WORLD.bounds.right-e.radius);e.y=clamp(e.y+uy*distance,enemyMinY(e.kind,e.radius),WORLD.bounds.bottom-e.radius);}
   private addPickup(kind:SkillKind,position:Vec,extra:Partial<Pickup>={}):Pickup|null {
     const active=this.state.pickups.filter(p=>!p.retiringUntil);
     if(!extra.groupId && (kind==='health' ? active.some(p=>p.kind==='health') : active.filter(p=>!p.groupId&&p.kind!=='health').length>=CONFIG.pickup.cap))return null;

@@ -74,12 +74,12 @@ const enemyGuide:Record<EnemyKind,Omit<CatalogEntry,'short'>>={
     detail:`${contactStats('bowl')} · 每发汤弹 ${CONFIG.ranged.damage}`,
   },
   giantBun:{
-    role:'精英 · 三连坐', description:'前两跳躲开地上的落点圈。第三跳会掀起面粉浪，提前对准圈上标出的缺口，穿过去后回身反击。',
+    role:'精英 · 三连坐', description:'金色斗气随巨包起跳。前两跳移出整圈落点，第三跳对准面粉浪的缺口穿过去，趁它落地回身反击。',
     detail:`生命 ${CONFIG.enemies.giantBun.hp} · 前两跳各 ${CONFIG.enemies.giantBun.damage} · 末跳面粉浪 ${CONFIG.giant.finalDamage}`,
   },
-  eliteCrab:{role:'精英 · 锁线冲锋',description:'蟹钳夹紧时会锁定一条直线。横移让过它，再趁它刹车时追击。',detail:`生命 ${CONFIG.enemies.eliteCrab.hp} · 冲锋伤害 ${CONFIG.elites.crab.damage}`},
-  eliteKettle:{role:'精英 · 扇形茶弹',description:'壶嘴转向后会向前方分道喷茶。拉开距离，从茶弹之间的空隙穿过。',detail:`生命 ${CONFIG.enemies.eliteKettle.hp} · 单发茶弹 ${CONFIG.elites.kettle.damage}`},
-  eliteSesame:{role:'精英 · 定点糖浆',description:'汤勺举起时，脚下会出现糖浆落点。看到预警就移出圈外，落击后再回身攻击。',detail:`生命 ${CONFIG.enemies.eliteSesame.hp} · 糖浆伤害 ${CONFIG.elites.sesame.damage}`},
+  eliteCrab:{role:'精英 · 锁线冲锋',description:'朱红斗气聚到蟹钳时，宽冲锋带锁定方向。横着跑出带边，趁蟹钳王刹车时追击。',detail:`生命 ${CONFIG.enemies.eliteCrab.hp} · 冲锋伤害 ${CONFIG.elites.crab.damage}`},
+  eliteKettle:{role:'精英 · 扇形茶弹',description:`翡翠青斗气围住壶身。壶嘴瞄准后，${CONFIG.elites.kettle.shots} 路茶弹沿地面标线扇形散开。拉开距离，从两道茶线之间穿过。`,detail:`生命 ${CONFIG.enemies.eliteKettle.hp} · 单发茶弹 ${CONFIG.elites.kettle.damage}`},
+  eliteSesame:{role:'精英 · 定点糖浆',description:'莓紫斗气跟着汤勺升起。脚下的大圈会锁定糖浆落点，持续朝最近的圈边走，落击后再折返。',detail:`生命 ${CONFIG.enemies.eliteSesame.hp} · 糖浆伤害 ${CONFIG.elites.sesame.damage}`},
 };
 
 const enemyKinds=Object.keys(ENEMY_NAMES) as EnemyKind[];

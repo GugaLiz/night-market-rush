@@ -10,7 +10,7 @@ const snackTray=['bun','onigiri','siumai','bun','zongzi','onigiri','bun','siumai
 
 const headliners:readonly EliteKind[]=['eliteCrab','giantBun','eliteKettle','eliteSesame'];
 
-function eliteArrival(s:GameState,kind:EliteKind,ctx:CombatContext):Vec {
+export function eliteArrival(s:GameState,kind:EliteKind,ctx:Pick<CombatContext,'random'>):Vec {
   const r=CONFIG.enemies[kind].radius,b=WORLD.bounds;
   const points:Vec[]=[];
   for(let row=0;row<3;row++)for(let col=0;col<5;col++){

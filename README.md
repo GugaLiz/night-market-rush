@@ -1,4 +1,4 @@
-# 夜市急送
+# <img src="public/icons/delivery-box.svg" width="38" height="38" alt=""> 夜市急送
 
 **[在线试玩《夜市急送》](https://gugaliz.github.io/night-market-rush/)** · 手机请横屏游玩
 

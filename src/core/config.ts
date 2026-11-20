@@ -1,4 +1,4 @@
-import type {EnemyKind, Pickup} from '../shared/types';
+import {isElite,type EnemyKind,type Pickup} from '../shared/types';
 
 /** Coordinates are game units, never display pixels. All adapters use this view. */
 export const WORLD = {
@@ -11,6 +11,7 @@ export const WORLD = {
 
 const S = WORLD.shortSide;
 const soupRange=820;
+const eliteRadius=34;
 export const CONFIG = {
   step: 1 / 60,
   player: {
@@ -26,10 +27,10 @@ export const CONFIG = {
     zongzi: {speed: .078 * S, radius:12, coins:1, hp:38, damage:8},
     box: {speed: .065 * S, radius: .022 * S, coins:2, hp:60, damage:12},
     bowl: {speed: .045 * S, radius: .040 * S, coins:3, hp:120, damage:18},
-    giantBun: {speed:0, radius:34, coins:12, hp:520, damage:20},
-    eliteCrab: {speed:62, radius:29, coins:12, hp:500, damage:14},
-    eliteKettle: {speed:40, radius:26, coins:12, hp:440, damage:12},
-    eliteSesame: {speed:36, radius:28, coins:12, hp:460, damage:12},
+    giantBun: {speed:0, radius:eliteRadius, coins:12, hp:520, damage:20},
+    eliteCrab: {speed:62, radius:eliteRadius, coins:12, hp:500, damage:14},
+    eliteKettle: {speed:40, radius:eliteRadius, coins:12, hp:440, damage:12},
+    eliteSesame: {speed:36, radius:eliteRadius, coins:12, hp:460, damage:12},
   } satisfies Record<EnemyKind, {speed: number; radius: number; coins:number; hp:number; damage:number}>,
   awareness: {
     bun: {notice:190, release:270},
@@ -45,15 +46,15 @@ export const CONFIG = {
   },
   dash: {warning: 1.1, duration: .5, recovery: 1.5, speed: .38 * S, damage:20, approach: 4, concurrent: 1},
   giant: {
-    warning:.65, finalWarning:1, flight:.45, between:.32, recovery:2.35,
-    stompRadius:65, localDuration:.20, printLifetime:3.15, pulseSpeed:690, pulseHalfWidth:14,
+    warning:.85, finalWarning:1, flight:.45, between:.32, recovery:2.35,
+    stompRadius:92, localDuration:.20, printLifetime:3.15, pulseSpeed:690, pulseHalfWidth:14,
     gapHalfAngle:Math.PI*.22, finalDamage:24,
   },
   ranged: {warning:.9,interval:5,speed:145,damage:8,radius:6,cap:12,lifetime:6.5,range:soupRange,concurrent:2},
   elites: {
-    crab: {range:450, warning:.85, duration:.65, recovery:1.2, approach:2.1, speed:545, damage:26},
-    kettle: {range:680, warning:.95, interval:3.4, shots:5, spread:Math.PI*.38, speed:238, radius:7, damage:15, lifetime:3.6},
-    sesame: {range:620, warning:1.05, interval:3.1, radius:60, damage:22, fade:.32},
+    crab: {range:650, warning:1.1, duration:.96, recovery:1.35, approach:2.1, speed:650, halfWidth:56, damage:26},
+    kettle: {range:900, warning:1.2, interval:3.6, shots:5, spread:Math.PI*.60, speed:255, radius:14, damage:15, lifetime:4.2},
+    sesame: {range:840, warning:1.35, interval:3.4, radius:120, damage:22, fade:.32},
   },
   skills: {
     health: {amount:25, cooldown:15},
@@ -77,6 +78,11 @@ export const CONFIG = {
   rewards: {coinGrace:.42, attractionRadius:110, attractionSpeed:535, collectRadius:15, cap:96, comboDuration:2.4},
   reviveProtection: 3,
 } as const;
+
+/** Keep the tall elite silhouettes on the same open paving as the courier. */
+export function enemyMinY(kind:EnemyKind,radius:number):number {
+  return Math.max(WORLD.bounds.top+radius,isElite(kind)?CONFIG.player.minY:WORLD.bounds.top);
+}
 
 /** Distance between the rider's feet and the drop's ground position, in world units. */
 export function pickupReach(item:Pick<Pickup,'groupId'>):number {

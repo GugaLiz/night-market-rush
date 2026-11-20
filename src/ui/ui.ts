@@ -18,6 +18,7 @@ export type View = 'home'|'loading'|'tutorial'|'countdown'|'play'|'pause'|'setti
 export interface UIActions {
   start:()=>void; resume:()=>void; pause:()=>void; settings:()=>void; dash:()=>void;
   applySettings:(settings:Settings)=>void; previewSettings:(settings:Settings)=>void;
+  motionChanged:(settings:Settings)=>void; leavePlay:()=>void;
   cancelSettings:()=>void; home:()=>void; abandon:()=>void; retry:()=>void;
   revive:()=>void; endRun:()=>void; resolveClosing:(choice:'settle'|'night')=>void;
   demo:(kind:'pickup'|'wave'|'giantBun'|typeof previewSkills[number]|keyof typeof marketDemos)=>void;
@@ -65,7 +66,7 @@ export class UI {
   private clusterKills=0;
   private burstUntil=0;
   private lastPulse=-1;
-  private systemReduceMotion=window.matchMedia('(prefers-reduced-motion: reduce)');
+  readonly systemReduceMotion=window.matchMedia('(prefers-reduced-motion: reduce)');
   private timeEl:HTMLElement;
   private hpValue:HTMLElement;
   private hpFill:HTMLElement;
@@ -147,6 +148,7 @@ export class UI {
     this._shell.addEventListener('change',this.handleChange);
     this._shell.addEventListener('pointerdown',this.handleDashPointer,{passive:false});
     document.addEventListener('keydown',this.handleKeydown);
+    this.systemReduceMotion.addEventListener('change',this.onSystemMotionChange);
     this.show('loading',{progress:0});
   }
   get canvas(){return this._canvas;}
@@ -157,7 +159,10 @@ export class UI {
   show(view:View,data:ViewData={}):void{
     const previous=this.view;
     if(previous==='settings'&&view!=='settings'){this.tiltRequest++;this.tiltBusy=false;}
-    if(previous==='play'&&view!=='play') this.focusBeforeModal=document.activeElement instanceof HTMLElement?document.activeElement:null;
+    if(previous==='play'&&view!=='play'){
+      this.actions.leavePlay();
+      this.focusBeforeModal=document.activeElement instanceof HTMLElement?document.activeElement:null;
+    }
     this.view=view;this.data={...this.data,...data};
     if(data.settings){this.settings=clone(data.settings);}
     if(view==='settings'&&previous!=='settings'&&previous!=='rotate'){this.draft=clone(data.settings??this.settings);this.tab='operation';this.defaultConfirm=false;this.cancelConfirm=false;}
@@ -365,7 +370,7 @@ export class UI {
       case 'home':{
         const best=this.data.best;
         this.overlay.innerHTML=`<div class="home-vignette"></div><div class="home-layout"><section class="home-card">
-          <h1 class="game-title">夜市<span>急送</span></h1>
+          <div class="home-brand">${icon('brand')}<h1 class="game-title">夜市<span>急送</span></h1></div>
           <p class="home-description">穿过食物小妖，抢到外卖道具，给自己清出一条路。</p>
           <div class="best-card"><span>本地最佳击败</span><strong>${best?score(best.score)+' 只':'等待你的第一单'}</strong>${best?`<small>存活 ${formatTime(best.time)}</small>`:''}</div>
           ${this.button(`开始挑战 ${icon('arrow')}`,'start','primary start-button','data-primary')}
@@ -375,7 +380,7 @@ export class UI {
       }
       case 'loading':{
         if(!this.overlay.querySelector('.loading-card')){
-          this.overlay.innerHTML=this.paper(`<div class="loading-bag">${icon('rigBagSide')}</div><h2 id="dialog-title">夜市正在开张</h2><p class="muted">人物、道具和好心情，准备就绪就出发。</p>
+          this.overlay.innerHTML=this.paper(`<div class="loading-bag">${icon('brand')}</div><h2 id="dialog-title">夜市正在开张</h2><p class="muted">人物、道具和好心情，准备就绪就出发。</p>
             <div class="load-track" role="progressbar" aria-label="加载进度" aria-valuemin="0" aria-valuemax="100"><i></i></div><p class="loading-percent"></p>
             <div class="loading-error" hidden><p class="error-text" role="alert"></p>${this.button('重试','retry')}</div>`,'loading-card');
         }
@@ -397,7 +402,7 @@ export class UI {
         this.overlay.innerHTML=`<div class="countdown" aria-live="assertive"><span>准备出发</span><strong>${this.data.count??1}</strong><p>${this.settings.mode==='tilt'?'保持舒适姿势，倾斜手机移动':'移动躲避，触碰道具反击'}</p></div>`;break;
       case 'pause':
         this.overlay.innerHTML=this.paper(`<div class="tape" aria-hidden="true"></div><h2 id="dialog-title">已暂停</h2><div class="paper-divider"></div><p class="run-summary">第 ${s?.wave??1} 波<span>·</span>击败 ${s?.kills??0}<span>·</span>用时 ${formatTime(s?.time??0)}</p>
-          ${upgrade?`<div class="upgrade-instructions"><span>${icon(upgrade.icon)}</span><div><b>${upgrade.name} · ${upgrade.action}</b><p>${upgrade.detail}</p></div></div>`:`<div class="pause-bag">${icon('rigBagSide')}</div>`}
+          ${upgrade?`<div class="upgrade-instructions"><span>${icon(upgrade.icon)}</span><div><b>${upgrade.name} · ${upgrade.action}</b><p>${upgrade.detail}</p></div></div>`:`<div class="pause-bag">${icon('brand')}</div>`}
           ${this.button('继续挑战','resume','primary wide','data-primary')}<div class="paper-actions">${this.button('设置','settings','secondary')}${this.fullscreenButton('button secondary')}${this.button('返回首页','home','secondary')}</div>`,'pause-card');break;
       case 'settings':this.renderSettings();break;
       case 'revive':
@@ -459,7 +464,11 @@ export class UI {
   }
 
   private segments<T extends string>(field:string,values:Array<[T,string]>,selected:T){return `<div class="segments" role="group" aria-label="${field==='mode'?'操作方式':field==='hand'?'操作手位':field==='quality'?'特效质量':field==='sensitivity'?'灵敏度':'摇杆大小'}">${values.map(([value,label])=>`<button class="segment ${selected===value?'selected':''}" data-setting="${field}" data-value="${value}" aria-pressed="${selected===value}">${selected===value?icon('check'):''}${label}</button>`).join('')}</div>`;}
-  private toggle(field:'muted'|'reduceMotion'|'shake',label:string,disabled=false){const checked=this.draft[field];return `<div class="setting-row"><label for="setting-${field}">${label}</label><button id="setting-${field}" class="toggle ${checked?'on':''}" role="switch" aria-checked="${checked}" data-toggle="${field}" ${disabled?'disabled':''}><span>${checked?'开启':'关闭'}</span><i></i></button></div>`;}
+  private onSystemMotionChange=()=>{
+    this.actions.motionChanged(this.view==='settings'?this.draft:this.settings);
+    if(this.view==='settings'&&this.tab==='display')this.renderSettings();
+  };
+  private toggle(field:'muted'|'reduceMotion'|'shake'|'haptics',label:string,disabled=false){const checked=this.draft[field]&&!disabled;return `<div class="setting-row"><label for="setting-${field}">${label}</label><button id="setting-${field}" class="toggle ${checked?'on':''}" role="switch" aria-checked="${checked}" data-toggle="${field}" ${disabled?'disabled':''}><span>${checked?'开启':'关闭'}</span><i></i></button></div>`;}
   private renderSettings():void{
     let body='';const d=this.draft;
     if(this.tab==='operation'){
@@ -471,7 +480,14 @@ export class UI {
       for(const [field,label] of [['music','音乐音量'],['sfx','音效音量']] as const)body+=`<div class="setting-row range-row"><label for="setting-${field}">${label}</label><div class="range-control"><input id="setting-${field}" type="range" min="0" max="100" value="${Math.round(d[field]*100)}" data-range="${field}" aria-label="${label}" ${d.muted?'disabled':''}><output for="setting-${field}">${Math.round(d[field]*100)}%</output></div></div>`;
       body+='<p class="setting-note">音量可即时试听；取消将恢复原来的声音设置。</p>';
     }else{
-      body=this.toggle('reduceMotion','减少动态')+this.toggle('shake','画面震动',d.reduceMotion)+`<div class="setting-row"><span>特效质量</span>${this.segments('quality',[['standard','标准'],['simple','简化']],d.quality)}</div><p class="setting-note">${d.reduceMotion?'减少动态已关闭震屏。':''}简化特效保留敌人预警和技能判定。</p>`;
+      const reduced=d.reduceMotion||this.systemReduceMotion.matches;
+      const supportsVibration=typeof navigator.vibrate==='function';
+      const note=this.systemReduceMotion.matches?'系统的减少动态设置已关闭震屏和设备振动。':
+        d.reduceMotion?'减少动态已关闭震屏和设备振动。':
+        !supportsVibration?'此浏览器仅提供声音和画面反馈。':'大招释放和急送落地时会触发振动。';
+      body=this.toggle('reduceMotion','减少动态')+this.toggle('shake','画面震动',reduced)+
+        this.toggle('haptics','设备振动',reduced||!supportsVibration)+
+        `<div class="setting-row"><span>特效质量</span>${this.segments('quality',[['standard','标准'],['simple','简化']],d.quality)}</div><p class="setting-note">${note}简化特效保留敌人预警和技能判定。</p>`;
     }
     this.overlay.innerHTML=this.paper(`<div class="settings-title"><span class="tiny-ticket" aria-hidden="true"></span><h2 id="dialog-title">设置</h2><span class="tiny-ticket" aria-hidden="true"></span></div><div class="settings-tabs" role="tablist" aria-label="设置类别">${([['operation','操作'],['sound','声音'],['display','画面']] as const).map(([tab,label])=>`<button role="tab" aria-selected="${this.tab===tab}" class="tab ${this.tab===tab?'selected':''}" data-tab="${tab}">${label}</button>`).join('')}</div><div class="settings-content" role="tabpanel">${body}</div>${this.defaultConfirm?`<div class="inline-confirm" role="alert"><span>恢复默认设置？最佳纪录不会被删除。</span><div>${this.button('取消','default-cancel','secondary compact')}${this.button('恢复默认','default-confirm','primary compact')}</div></div>`:''}${this.cancelConfirm?`<div class="inline-confirm" role="alert"><span>放弃未应用的修改？</span><div>${this.button('继续编辑','keep-editing','secondary compact')}${this.button('放弃修改','discard-settings','primary compact')}</div></div>`:''}<div class="settings-footer"><button class="text-button" data-action="defaults">恢复默认</button><div>${this.button('取消','cancel-settings','secondary')}${this.button('应用','apply-settings','primary','data-primary')}</div></div>`,'settings-card');
   }
@@ -497,7 +513,7 @@ export class UI {
     if(button.dataset.speed){this.data.speed=Number(button.dataset.speed);this.actions.setSpeed(this.data.speed);this.renderLab();return;}
     if(button.dataset.tab){this.tab=button.dataset.tab as typeof this.tab;this.renderSettings();this.overlay.querySelector<HTMLElement>(`[data-tab="${this.tab}"]`)?.focus();return;}
     if(button.dataset.setting){void this.changeSetting(button.dataset.setting as keyof Settings,button.dataset.value!);return;}
-    if(button.dataset.toggle){const key=button.dataset.toggle as 'muted'|'reduceMotion'|'shake';this.draft[key]=!this.draft[key];if(this.draft.reduceMotion)this.draft.shake=false;this.actions.previewSettings(clone(this.draft));this.renderSettings();this.overlay.querySelector<HTMLElement>(`[data-toggle="${key}"]`)?.focus();return;}
+    if(button.dataset.toggle){const key=button.dataset.toggle as 'muted'|'reduceMotion'|'shake'|'haptics';this.draft[key]=!this.draft[key];this.actions.previewSettings(clone(this.draft));this.renderSettings();this.overlay.querySelector<HTMLElement>(`[data-toggle="${key}"]`)?.focus();return;}
     switch(button.dataset.action){
       case 'dash':if(event.detail===0)this.actions.dash();break;case 'start':this.actions.start();break;case 'resume':this.actions.resume();break;case 'pause':this.actions.pause();break;
       case 'settings':this.actions.settings();break;case 'home':this.actions.home();break;case 'abandon':this.actions.abandon();break;
@@ -566,5 +582,5 @@ export class UI {
       else if(!event.shiftKey&&(document.activeElement===last||!this.overlay.contains(document.activeElement))){event.preventDefault();first.focus();}
     }
   };
-  dispose(){if(this.toastTimer)window.clearTimeout(this.toastTimer);document.removeEventListener('keydown',this.handleKeydown);this._shell.removeEventListener('click',this.handleClick);this._shell.removeEventListener('input',this.handleInput);this._shell.removeEventListener('change',this.handleChange);this._shell.removeEventListener('pointerdown',this.handleDashPointer);}
+  dispose(){if(this.toastTimer)window.clearTimeout(this.toastTimer);this.systemReduceMotion.removeEventListener('change',this.onSystemMotionChange);document.removeEventListener('keydown',this.handleKeydown);this._shell.removeEventListener('click',this.handleClick);this._shell.removeEventListener('input',this.handleInput);this._shell.removeEventListener('change',this.handleChange);this._shell.removeEventListener('pointerdown',this.handleDashPointer);}
 }

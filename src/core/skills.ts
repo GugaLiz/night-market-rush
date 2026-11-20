@@ -1,6 +1,6 @@
 import {isElite, type Enemy, type GameState, type Pickup, type SkillKind, type Vec, type Zone} from '../shared/types';
 import type {CombatContext} from './contracts';
-import {CONFIG, WORLD, pickupReach} from './config';
+import {CONFIG, WORLD, pickupReach, enemyMinY} from './config';
 import {clamp, distanceSquared, segmentDistanceSquared, sweepContact} from './geometry';
 import {igniteFan, spillSoda, updateSkillFields} from './skill-fields';
 import {castUltimate,updateUltimates} from './ultimates';
@@ -9,7 +9,7 @@ import {castElemental, shatterOnDash, updateElementalFields, updateElementalStat
 
 const bounds = WORLD.bounds;
 const inside = (p:Vec,r=16):boolean => p.x>=bounds.left+r&&p.x<=bounds.right-r&&p.y>=bounds.top+r&&p.y<=bounds.bottom-r;
-const legal = (p:Vec,r=16):Vec => ({x:clamp(p.x,bounds.left+r,bounds.right-r),y:clamp(p.y,bounds.top+r,bounds.bottom-r)});
+const legal = (p:Vec,r=16,top=bounds.top+r):Vec => ({x:clamp(p.x,bounds.left+r,bounds.right-r),y:clamp(p.y,top,bounds.bottom-r)});
 const facing = (s:GameState):Vec => {
   const d=s.player.moveDirection, length=Math.hypot(d.x,d.y);
   return length>.01?{x:d.x/length,y:d.y/length}:{x:s.player.facing||1,y:0};
@@ -155,7 +155,7 @@ function updateCones(s:GameState,dt:number,ctx:CombatContext):void {
     const side=Math.abs(along)>.001?Math.sign(along):(e.id%2?1:-1);
     const angle=Math.atan2(ny,nx)+side*Math.min(.12,dt*2.3);
     const reach=cone.radius+e.radius+.6;
-    const point=legal({x:cone.x+Math.cos(angle)*reach,y:cone.y+Math.sin(angle)*reach},e.radius);
+    const point=legal({x:cone.x+Math.cos(angle)*reach,y:cone.y+Math.sin(angle)*reach},e.radius,enemyMinY(e.kind,e.radius));
     e.x=point.x;e.y=point.y;
   }
 }

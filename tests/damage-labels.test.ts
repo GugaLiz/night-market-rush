@@ -2,6 +2,7 @@ import {describe, expect, it} from 'vitest';
 import {Game} from '../src/core/game';
 import type {Assets} from '../src/render/assets';
 import {DamageLabels} from '../src/render/damage-labels';
+import {enemyHeight,layoutEnemyVitals} from '../src/render/enemy-vitals';
 import type {GameEvent} from '../src/shared/types';
 
 type PaintedText = {value:string; font:string; x:number; y:number; alpha:number};
@@ -36,6 +37,18 @@ const playerHit=(id:number,amount:number):GameEvent=>({
 });
 
 describe('enemy health on the battle canvas',()=>{
+  it('keeps giant-sized elite health plaques outside the body at the top and in the open street',()=>{
+    const {game}=fixture();
+    const crab=game.spawnEnemy('eliteCrab',{x:300,y:160});
+    const kettle=game.spawnEnemy('eliteKettle',{x:800,y:380});
+    for(const kind of ['eliteCrab','eliteKettle','eliteSesame'] as const){
+      expect(enemyHeight(kind)).toBe(enemyHeight('giantBun'));
+    }
+    const panels=layoutEnemyVitals(game.state,false,[],[]);
+    expect(panels.find(p=>p.id===crab.id)!.y).toBeGreaterThan(crab.y);
+    const top=panels.find(p=>p.id===kettle.id)!;
+    expect(top.y+top.h).toBeLessThan(kettle.y-enemyHeight(kettle.kind));
+  });
   it('paints only the remaining health after hitting a bun',()=>{
     const {game,update,paint,hp}=fixture();
     game.spawnEnemy('bun',{x:750,y:370});

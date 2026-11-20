@@ -933,3 +933,54 @@
 - **实现/结果**：触屏横向窗口完整展示战场，按视口延展夜市铺面，安全区留给可操作控件。首页和暂停页支持全屏及 iPhone 主屏启动指引。标准画质按实际帧率先减少装饰特效，再分档调整画布密度，恢复稳定后升档。触摸长按期间保持摇杆，释放手指可恢复中断的音频。
 - **验证**：TypeScript、Vite 正式构建、316 项 Vitest 和 30 项 Chrome 端到端测试通过。横屏手机浏览器栏展开和收起、平板、旋转及双指操作已模拟检查。Windows WebKit 横屏 956×365 下第一波实测画布 2868×1095，暂停和旋转通过。Chrome 音频分析器确认恢复后有信号，总静音后归零。
 - **风险/后续**：iPhone 浏览器工具栏和扬声器输出需真机确认。Windows WebKit 测试引擎未提供 Web Audio，音频行为使用 Chrome 验证。
+
+## 2026-11-20 15:55:17 +08:00 — feature
+
+- **摘要**：为 21 种技能补充声音、镜头及触觉反馈，使用统一的外卖箱品牌图标，扩大四种精英的体型和攻击区域，并用贴身斗气区分它们。
+- **涉及文件**：
+  - `README.md`
+  - `docs/ASSET_PROVENANCE.md`
+  - `index.html`
+  - `public/favicon.ico`
+  - `public/icons/app-192.png`
+  - `public/icons/app-512.png`
+  - `public/icons/apple-touch-icon.png`
+  - `public/icons/delivery-box.svg`
+  - `public/icons/favicon.svg`
+  - `public/icons/maskable-512.png`
+  - `public/manifest.webmanifest`
+  - `src/core/config.ts`
+  - `src/core/elemental-skills.ts`
+  - `src/core/enemies.ts`
+  - `src/core/game.ts`
+  - `src/core/skills.ts`
+  - `src/core/waves.ts`
+  - `src/main.ts`
+  - `src/platform/audio.ts`
+  - `src/platform/skill-haptics.ts`
+  - `src/platform/storage.ts`
+  - `src/render/elite-aura.ts`
+  - `src/render/enemy-clay-fx.ts`
+  - `src/render/enemy-vitals.ts`
+  - `src/render/renderer.ts`
+  - `src/render/skill-camera.ts`
+  - `src/render/ultimate-fx.ts`
+  - `src/shared/types.ts`
+  - `src/ui/catalog.ts`
+  - `src/ui/clay.css`
+  - `src/ui/game-icons.ts`
+  - `src/ui/ui.ts`
+  - `tests/damage-labels.test.ts`
+  - `tests/e2e/elite-aura.spec.ts`
+  - `tests/e2e/giant-bun.spec.ts`
+  - `tests/e2e/skill-audio.spec.ts`
+  - `tests/e2e/skill-feedback.spec.ts`
+  - `tests/elite-attacks.test.ts`
+  - `tests/giant-bun.test.ts`
+  - `tests/platform.test.ts`
+  - `tests/skill-camera.test.ts`
+  - `agentchanges/CHANGELOG.md`
+- **原因/目标**：玩家在战斗中难以分辨技能发动，标签页缺少图标，希望同时辨认两只体型与巨包相近的精英，以及它们各自的攻击范围。
+- **实现/结果**：技能音效使用独立声源预算。冰浪、蒸笼、杨梅汽水与急送的反馈跟随实际释放和落地事件；设备振动与震屏独立可调，并遵循减少动态设置。品牌矢量用于游戏、README、ICO 和主屏幕图标。四种精英标准身高统一为 152，普通怪维持原尺寸。巨包金焰、蟹朱红、铜壶翡翠青、芝麻莓紫，侧焰随身体和招式移动，减少动态或冻结时保留静态轮廓。同步扩大冲锋、茶弹、糖浆、前两跳落点的判定及预警，试验场第二只精英使用守关选点，避开第一只。
+- **验证**：TypeScript、Vite 生产构建、329 项 Vitest、关闭开发热重载的 37 项 Chrome 端到端测试全部通过。首次整合测试期间有页面重载和计时断言失败，使用独立测试服务完成全套复测。真实 Web Audio 波形覆盖全部技能，着点和振动请求在模拟横屏浏览器中对齐。实战渲染验证四种斗气的颜色、两精英同场、贴图高度、血条避让、宽冲锋与扇形轨道的安全空隙。按部署子路径检查 ICO、SVG、主屏 PNG 与 Web App manifest。
+- **风险/后续**：本地试玩版。实际振动手感和扬声器音色需真机确认；无 Web Vibration 接口时游戏通过声音和画面反馈。
