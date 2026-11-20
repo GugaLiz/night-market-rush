@@ -10,7 +10,7 @@ import {drawPackingWrap,drawPaperRoute,drawRetrievalHook,drawRouteStride,drawSta
 import {DamageLabels} from './damage-labels';
 import {drawDeliveryPickup, drawDeliveryUse, drawDispatchBroadcast, drawPickupReach, drawUseRipple, nearestPickupHint, useLifetime} from './delivery-skills';
 import {WEAPONS} from '../core/weapons';
-import {drawChainLink, drawFlightWake, drawPaperPuff, drawWeaponContact, drawWeaponRelease, type WeaponContact} from './weapon-effects';
+import {drawChainLink, drawFlightWake, drawPaperPuff, drawWeaponContact, drawWeaponRelease, TONG_PRESS_TIME, type WeaponContact} from './weapon-effects';
 import {drawFlyingChopsticks} from './bamboo-volley';
 import {drawMeleeWaves} from './melee-waves';
 import {drawUltimateGround,drawUltimateAir,drawBerryScreenEdges} from './ultimate-fx';
@@ -24,7 +24,9 @@ import {drawIceShardLane,drawSplitShell,drawTrayBrine} from './market-upgrades';
 import {FrameQuality} from './frame-quality';
 import {skillCameraOffset} from './skill-camera';
 
-type Effect = {kind: string; x: number; y: number; age: number; duration: number; label?: string; angle?:number; sprite?:Enemy['kind']; facing?:number; power?:number; from?:Vec};
+type ContactReaction = 'tongs'|'chopsticks'|'fan';
+type Contact = WeaponContact | (Omit<WeaponContact,'kind'> & {kind:'fan'});
+type Effect = {kind: string; x: number; y: number; age: number; duration: number; label?: string; angle?:number; sprite?:Enemy['kind']; facing?:number; power?:number; from?:Vec; reaction?:ContactReaction};
 type Particle = {x: number; y: number; vx: number; vy: number; age: number; duration: number; size: number; color: string};
 const COLORS: Record<string, string> = {fan:'#b6f8ec',skate:'#ffd56c',soda:'#79f3ce',lure:'#ffd891',bubble:'#c2eeff',cones:'#ffb466',bell:'#fff2b0',route:'#82ecd2',hook:'#a1dfde',heat:'#ffb378',dispatch:'#b5c7ff',stamp:'#ffcc9e',supply:'#ffe8b4'};
 const TAU=Math.PI*2;
@@ -36,6 +38,22 @@ type DashGhost = {image: HTMLCanvasElement; x: number; y: number; time: number};
 type CrowdImpact = {x:number; y:number; age:number; power:number; direction:number};
 type SkillImpact = Extract<GameEvent,{type:'frostShatter'|'iceShards'|'dispatchClear'}> & {age:number};
 const skillImpactLifetime = {frostShatter:.90, iceShards:1.05, dispatchClear:.70};
+
+// Applied around the same body landmarks for surviving and defeated enemies.
+function poseContact(c:CanvasRenderingContext2D,kind:Contact['kind'],age:number,angle:number,height:number):void {
+  if(kind==='tongs'){
+    const release=Math.min(1,Math.max(0,(age-TONG_PRESS_TIME)/.088));
+    const pinch=(1-release)**2-.43*Math.sin(Math.PI*release);
+    c.translate(0,-height*.46);
+    c.rotate(angle);c.scale(1-.34*pinch,1+.22*pinch);c.rotate(-angle);
+    c.translate(0,height*.46);
+  }else if(kind==='chopsticks'||kind==='fan'){
+    // Bend about planted feet. A shot into the screen foreshortens the body.
+    const t=Math.min(1,age/(kind==='fan'?.27:.16));
+    const lean=Math.min(1,t/.12)*(1-t)**2*(kind==='fan'?.57:.42);
+    c.transform(1,0,-Math.cos(angle)*lean,1-Math.sin(angle)*lean*.5,0,0);
+  }
+}
 
 /** Canvas implementation is isolated from the deterministic simulation. */
 export class Renderer {
@@ -55,7 +73,7 @@ export class Renderer {
   private shake = 0;
   private rig:CourierRig;
   private labels=new DamageLabels();
-  private contacts:WeaponContact[]=[];
+  private contacts:Contact[]=[];
   private frameDt=0;
   private impact:CrowdImpact|null=null;
   private lastImpactAt=-Infinity;
@@ -75,6 +93,13 @@ export class Renderer {
     this.reducedSettings = {...settings, quality: 'simple'};
   }
   reset(): void { this.effects = []; this.skillImpacts=[]; this.skillUses=[]; this.particles = []; this.shake = 0; this.clock = 0; this.frameQuality.reset(); this.rig.reset();this.labels.reset();this.contacts=[]; this.impact=null;this.lastImpactAt=-Infinity;this.recentDefeats=[];this.ghosts=[];this.lastStride=null; }
+
+  private contactFor(id:number|undefined,maxAge:number):Contact|undefined {
+    for(let i=this.contacts.length-1;i>=0;i--){
+      const hit=this.contacts[i];
+      if(hit.seed===id&&hit.age<=maxAge)return hit;
+    }
+  }
 
   events(events: GameEvent[]): void {
     // Count distinct defeats, not the five damage labels emitted by one weapon contact.
@@ -117,11 +142,15 @@ export class Renderer {
         }
         const ultimate=ULTIMATE_KINDS.some(kind=>kind===event.source);
         const launched=ultimate||crowd&&Math.hypot(originX-event.x,originY-event.y)<260;
-        const strike=this.contacts.find(hit=>hit.seed===event.victimId&&hit.age===0);
+        const strike=this.contactFor(event.victimId,0);
         const angle=event.impactAngle??strike?.angle??(launched?Math.atan2(event.y-originY,event.x-originX)+Math.sin(seed)*.24:seed*2.40);
-        const power=ultimate?(event.source==='berry'?65:48)+seed%23:launched?42+seed%29:strike?22:12;
+        const source=event.source;
+        const reaction=source==='tongs'||source==='chopsticks'||source==='fan'?source:undefined;
+        const singleDistance=reaction==='fan'?50:reaction==='tongs'?40:reaction==='chopsticks'?30:strike?22:12;
+        const power=ultimate?(source==='berry'?65:48)+seed%23:launched?Math.max(singleDistance,42+seed%29):singleDistance;
         this.burst(event.x,event.y-16,launched?'#ffdb86':'#ffe6a0',launched?5:4);
-        this.effects.push({kind:'defeat',x:event.x,y:event.y,age:0,duration:ultimate?.46:launched?.41:.25,sprite:event.kind,facing:event.facing,angle,power});
+        const duration=ultimate?.46:launched?.41:reaction==='tongs'?.35:.25;
+        this.effects.push({kind:'defeat',x:event.x,y:event.y,age:0,duration,sprite:event.kind,facing:event.facing,angle,power,reaction});
       } else if(event.type==='damage') {
         if((event.burstIndex??1)!==1)continue;
         if(event.victimId===0){
@@ -135,6 +164,9 @@ export class Renderer {
           this.contacts.push({kind:event.source as WeaponKind,x:event.x,y,angle:event.impactAngle??0,seed:event.victimId,
             age:0,duration:event.source==='sword'||event.source==='lunchbox'?.34:.27,featured});
           this.shake=Math.max(this.shake,.08);
+        }else if(event.source==='fan'){
+          this.contacts.push({kind:'fan',x:event.x,y:event.y-28,angle:event.impactAngle??0,seed:event.victimId,
+            age:0,duration:.27,featured:false});
         }else if(event.source==='frost'){
           this.effects.push({kind:'iceFragments',x:event.x,y:event.y-23,power:event.victimId,age:0,duration:.38});
         }else if(event.source==='poison'){
@@ -279,7 +311,7 @@ export class Renderer {
     for(const e of enemies)this.enemy(e,s,vortex);
     if(vortex)drawVortexMouth(c,vortex,s.time,this.settings.reduceMotion,this.assets);
     this.drawEffects(true);
-    for(const hit of this.contacts)drawWeaponContact(c,hit,this.settings,this.assets.strikes);
+    for(const hit of this.contacts)if(hit.kind!=='fan')drawWeaponContact(c,hit,this.settings,this.assets.strikes);
     for (const p of this.particles) {
       c.globalAlpha = 1 - p.age / p.duration; c.fillStyle = p.color;
       c.beginPath(); c.arc(p.x, p.y, p.size * (1 - .4 * p.age / p.duration), 0, Math.PI * 2); c.fill();
@@ -404,8 +436,10 @@ export class Renderer {
     const swallowed=pulled&&vortex?Math.max(0,1-Math.hypot(e.x-vortex.x,e.y-vortex.y)/90):0;
     const height=enemyHeight(e.kind)*(bun&&low&&!hurt?.84:1);
     const posed=getEnemyAttackPose(e,time,this.settings);
-    const strike=time-e.hurtAt<.21?this.contacts.find(hit=>hit.seed===e.id&&hit.age<=.21):undefined;
-    const recoil=strike&&!reduced?Math.sin(Math.PI*strike.age/.21)*(1-strike.age/.21):0;
+    const strike=time-e.hurtAt<.27?this.contactFor(e.id,.27):undefined;
+    const impulseAge=strike?Math.max(0,strike.age-(strike.kind==='tongs'?TONG_PRESS_TIME:0)):0;
+    const impulse=Math.min(1,impulseAge/.21);
+    const recoil=strike&&!reduced?Math.sin(Math.PI*impulse)*(1-impulse):0;
     const launchAge=time-(e.tossAt??-Infinity);
     const toss=launchAge>=0&&launchAge<TOSS_DURATION&&!reduced?Math.sin(Math.PI*launchAge/TOSS_DURATION)*(e.tossHeight??0):0;
     const dir=strike?.angle??0,foot=e.y-posed.lift-toss;
@@ -419,6 +453,7 @@ export class Renderer {
       c.scale(1-.55*swallowed,1-.55*swallowed);
     }
     c.scale((1+.08*recoil)*posed.scaleX,(1-.08*recoil)*posed.scaleY);
+    if(strike&&!reduced)poseContact(c,strike.kind,strike.age,dir,height);
     const tilt=posed.tilt+Math.cos(dir)*recoil*.18;
     if(isElite(e.kind)&&age>=CONFIG.spawn.warning){
       c.save();c.rotate(tilt);c.scale(spriteFacing(sprite,e.facing),1);
@@ -520,11 +555,12 @@ export class Renderer {
         this.sprite(e.sprite,e.x,e.y,size,e.facing,this.settings.reduceMotion?0:(e.angle??0)*(1+progress));
       }
       if(front&&e.kind==='defeat'&&e.sprite){
-        const motion=this.settings.reduceMotion?0:progress;
+        const delay=e.reaction==='tongs'?TONG_PRESS_TIME:0;
+        const motion=this.settings.reduceMotion?0:Math.max(0,(e.age-delay)/(e.duration-delay));
         const distance=e.power??12, angle=e.angle??0, push=1-(1-motion)**2;
         const height=enemyHeight(e.sprite);
         const face=isElite(e.sprite)&&e.sprite!=='giantBun'?e.sprite:e.sprite+(e.sprite==='box'||e.sprite==='bowl'?'Low':'Hurt');
-        const hop=Math.sin(motion*Math.PI)*distance*.82;
+        const hop=Math.sin(motion*Math.PI)*distance*(e.reaction==='chopsticks'?.35:.82);
         const x=e.x+Math.cos(angle)*distance*push, groundY=e.y+Math.sin(angle)*distance*push*.6;
         const spin=Math.cos(angle)*motion*(distance>35?1.25:.45);
         const size=height*(1+Math.sin(motion*Math.PI)*.08-motion*.34);
@@ -533,7 +569,10 @@ export class Renderer {
           c.globalAlpha=alpha*.25;
           this.sprite(face,x-(x-e.x)*.22,groundY-hop*.70,size*.94,e.facing,spin*.8);
         }
-        c.globalAlpha=alpha*.96;this.sprite(face,x,groundY-hop,size,e.facing,spin);
+        c.globalAlpha=this.settings.reduceMotion?alpha:(1-motion)*.96;
+        c.translate(x,groundY-hop);
+        if(e.reaction&&!this.settings.reduceMotion)poseContact(c,e.reaction,e.age,angle,size);
+        this.sprite(face,0,0,size,e.facing,spin);
       }
       if(!front&&e.kind==='skid'&&!this.settings.reduceMotion){
         c.translate(e.x,e.y);c.rotate(e.angle??0);c.lineCap='round';

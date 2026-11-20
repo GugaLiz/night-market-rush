@@ -31,10 +31,10 @@ const item=(id:number,kind:SkillKind,x=700,y=370,extra:Partial<Pickup>={}):Picku
 describe('V2 skill mechanics',()=>{
   it('fan damages a durable enemy, pushes survivors and excludes spawning enemies',()=>{
     const {s,activate}=fixture();s.enemies=[enemy(1),{...enemy(2),spawnAt:12}];activate('fan');
-    expect(s.enemies[0].hp).toBe(30);expect(s.enemies[0].x).toBe(730);expect(s.enemies[1].hp).toBe(120);
+    expect(s.enemies[0].hp).toBe(120-CONFIG.skills.fan.damage);expect(s.enemies[0].x).toBe(730);expect(s.enemies[1].hp).toBe(120);
   });
   it('fan catches fast enemies crossing its radius between simulation positions',()=>{
-    const {s,activate}=fixture();s.enemies=[{...enemy(1,800),px:500}];activate('fan');expect(s.enemies[0].hp).toBe(30);
+    const {s,activate}=fixture();s.enemies=[{...enemy(1,865),px:410}];activate('fan');expect(s.enemies[0].hp).toBe(120-CONFIG.skills.fan.damage);
   });
   it('skate shares a per-enemy debounce and keeps the center dangerous',()=>{
     const {s,activate,step}=fixture();s.enemies=[enemy(1,775),enemy(2,640,370,'bun')];activate('skate');
@@ -354,9 +354,10 @@ describe('skill and battle integration',()=>{
     game.state.weapon.readyAt=Infinity;game.state.player.invulnerableUntil=Infinity;game.triggerSkill('dispatch');
     for(let i=0;i<244;i++)game.update(1/60,{x:0,y:0});
     expect(game.state.stage).toBe(3);expect(game.state.enemies).toHaveLength(0);expect(game.state.effects.dispatchCooldownUntil).toBeCloseTo(95);
-    game.update(1,{x:0,y:0});expect(game.state.enemies).toHaveLength(0);
-    game.update(.65,{x:0,y:0});expect(game.state.enemies).toHaveLength(8);
-    game.update(.5,{x:0,y:0});expect(game.state.enemies).toHaveLength(8);
+    // At stage 3 one batch interval is about 0.8 s. Time spent holding orders earns no backlog.
+    game.update(.68,{x:0,y:0});expect(game.state.enemies).toHaveLength(0);
+    game.update(.12,{x:0,y:0});expect(game.state.enemies).toHaveLength(16);
+    game.update(.5,{x:0,y:0});expect(game.state.enemies).toHaveLength(16);
     expect(game.drainEvents().some(event=>event.type==='wave')).toBe(false);
   });
   it('bell expiry leaves a box in recovery before it resumes an ordinary chase',()=>{

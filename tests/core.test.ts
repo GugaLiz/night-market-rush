@@ -30,7 +30,7 @@ describe('HP and damage events',()=>{
     const before=structuredClone(g.state);g.update(1,zero);g.healPlayer();g.triggerSkill('fan');expect(g.state).toEqual(before);expect(g.drainEvents()).toEqual([]);
   });
   it('a surviving enemy stays dangerous after an attack, while fan damage is real and bounded',()=>{
-    const g=lab();const e=threat(g,'bowl');g.triggerSkill('fan');expect(e.hp).toBe(30);expect(g.state.kills).toBe(0);
+    const g=lab();const e=threat(g,'bowl');g.triggerSkill('fan');expect(e.hp).toBe(e.maxHp-CONFIG.skills.fan.damage);expect(g.state.kills).toBe(0);
     e.x=g.state.player.x;e.y=g.state.player.y;g.update(1/60,zero);expect(g.state.player.hp).toBe(82);
     g.triggerSkill('fan');expect(g.state.enemies).toHaveLength(0);expect(g.state.kills).toBe(1);
   });
@@ -68,6 +68,20 @@ describe('movement and seeded simulation',()=>{
     ctx.random=()=>{throw new Error('over-cap spawn');};
     spawnMarketEnemies(s,{...difficulty,cap:1},6,spawn,ctx);
     expect(s.enemies).toHaveLength(1);
+  });
+  it('restocks the street with warned, attackable enemies within three seconds of a crowd clear',()=>{
+    const g=new Game(7),s=g.state;
+    s.weapon.readyAt=Infinity;s.player.invulnerableUntil=Infinity;
+    tick(g,5);
+    const original=new Set(s.enemies.map(e=>e.id));
+    expect(original.size).toBeGreaterThanOrEqual(30);
+    g.drainEvents();g.triggerSkill('berry');tick(g,3);
+    const cleared=g.drainEvents().filter(e=>e.type==='kill'&&e.source==='berry'&&original.has(e.victimId!));
+    expect(cleared.length).toBeGreaterThanOrEqual(30);
+    const reinforcements=s.enemies.filter(e=>!original.has(e.id)&&s.time-e.spawnAt>=CONFIG.spawn.warning);
+    expect(reinforcements.length).toBeGreaterThanOrEqual(24);
+    expect(new Set(reinforcements.map(e=>e.spawnAt)).size).toBeGreaterThan(1);
+    expect(s.enemies.length).toBeLessThanOrEqual(difficultyAt(s.time).cap-CONFIG.waves.maxElites);
   });
   it('uses the interior and all quadrants for reinforcements before and after a normal wave transition',()=>{
     for(const seed of [7,29,81,1907]){

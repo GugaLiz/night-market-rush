@@ -138,6 +138,56 @@ export function drawDeliveryPickup(c:CanvasRenderingContext2D, assets:Assets, pi
 
 export const useLifetime = 1.35;
 export const cartFanOffset = {x:-36, y:7};
+export const fanSetDownAt = .18;
+
+/** Keep the stand and outer grille still while the painted rotor picks up speed. */
+export function drawWorkingFan(c:CanvasRenderingContext2D,assets:Assets,x:number,y:number,height:number,tilt:number,age:number,quiet:boolean):void {
+  const sprite=assets.sprites.fan;
+  if(!sprite)return;
+  drawSprite(c,assets,'fan',x,y,height,tilt,1,.5);
+  if(quiet)return;
+  const scale=height/sprite.height;
+  // Hub and blade aperture in the cropped clay fan artwork.
+  const hubX=107,hubY=87,bladeWidth=60,bladeHeight=66;
+  const ramp=.22,spinUp=Math.min(ramp,age);
+  const angle=3*age+14*(spinUp*spinUp/(2*ramp)+Math.max(0,age-ramp));
+  c.save();c.translate(x,y);c.rotate(tilt);c.scale(scale,scale);
+  c.translate(hubX-sprite.width/2,hubY-sprite.height/2);
+  c.scale(bladeWidth,bladeHeight);
+  c.beginPath();c.arc(0,0,1,0,tau);c.clip();c.rotate(angle);
+  c.drawImage(sprite.image,sprite.x+hubX-bladeWidth,sprite.y+hubY-bladeHeight,
+    bladeWidth*2,bladeHeight*2,-1,-1,2,2);
+  c.restore();
+}
+
+function drawFanCatch(c:CanvasRenderingContext2D,source:Vec,bag:Vec,age:number,quiet:boolean):void {
+  if(age>=.22)return;
+  const gather=ease(age/.10);
+  c.save();c.lineCap='round';
+  if(age<.10){
+    c.save();
+    c.translate(quiet?source.x:lerp(source.x,bag.x,gather),quiet?source.y:lerp(source.y,bag.y,gather));
+    c.rotate(Math.atan2(bag.y-source.y,bag.x-source.x));
+    const radius=shellRadius('fan');
+    if(!quiet)c.scale(1-.74*gather,1-.90*gather);
+    c.globalAlpha*=1-gather*.9;
+    for(const side of [-1,1]){
+      c.beginPath();c.arc(0,0,radius,side*Math.PI*.5-.88,side*Math.PI*.5+.88);
+      c.strokeStyle='#408e80';c.lineWidth=5;c.stroke();
+      c.strokeStyle='#e0ffe6';c.lineWidth=2.5;c.stroke();
+    }
+    c.restore();
+  }
+  const close=quiet?1:ease((age-.035)/.04);
+  c.translate(bag.x,bag.y+4);c.globalAlpha*=ease((.22-age)/.08);
+  c.fillStyle='#8c5539';c.strokeStyle='#ffda8d';c.lineWidth=1.6;
+  c.beginPath();c.roundRect(-4,-5-(1-close)*4,8,7,2);c.fill();c.stroke();
+  if(!quiet && close>.85){
+    c.strokeStyle='#fff4cc';c.lineWidth=2;
+    c.beginPath();c.moveTo(-8,-1);c.lineTo(-12,-4);c.moveTo(8,-1);c.lineTo(12,-4);c.stroke();
+  }
+  c.restore();
+}
 
 /** Outbound route marks travel with the terminal's radio pulse, leaving the street readable. */
 export function drawDispatchBroadcast(c:CanvasRenderingContext2D, origin:Vec, age:number, range:number, quiet:boolean, simple=false):void {
@@ -225,7 +275,10 @@ export function drawDeliveryUse(c:CanvasRenderingContext2D, assets:Assets, use:U
     : ground ? {x:use.x+side*21,y:use.y-6}
     : hand;
   const start=use.pickupFrom ? {x:use.pickupFrom.x+2,y:use.pickupFrom.y+groundIconY} : bag;
-  if(use.pickupFrom&&!quiet&&age<.16){
+  const fan=use.kind==='fan', soda=use.kind==='soda';
+  if(fan&&use.pickupFrom){
+    drawFanCatch(c,start,bag,age,quiet);
+  }else if(use.pickupFrom&&!quiet&&age<.16){
     const t=unit(age/.16),r=shellRadius(use.kind)*(1+t*.22);
     c.save();c.translate(start.x-2,start.y);c.lineCap='round';
     c.strokeStyle='#b6ffdc';c.lineWidth=3-2*t;c.globalAlpha=.75*(1-t);
@@ -234,7 +287,8 @@ export function drawDeliveryUse(c:CanvasRenderingContext2D, assets:Assets, use:U
     }
     c.restore();
   }
-  const collect=ease(age/.10), grip=ease((age-.08)/.09), useTool=ease((age-.17)/.21);
+  const collect=ease(age/.10), grip=ease((age-.08)/.09);
+  const useTool=fan?ease((age-.07)/(fanSetDownAt-.07)):ease((age-.17)/.21);
   const heldX=lerp(lerp(start.x,bag.x,collect),hand.x,grip);
   const heldY=lerp(lerp(start.y,bag.y,collect),hand.y-4,grip);
   let x=ground?lerp(heldX,end.x,useTool):heldX;
@@ -246,13 +300,12 @@ export function drawDeliveryUse(c:CanvasRenderingContext2D, assets:Assets, use:U
     x=lerp(heldX,field.x-(shaver?side*50:0),toss);
     y=lerp(heldY,field.y-(shaver?24:12),toss)-Math.sin(toss*Math.PI)*24;
   }
-  const fan=use.kind==='fan', soda=use.kind==='soda';
   const fade=ease((useLifetime-age)/.32);
   let propAlpha=unit((.90-age)/.24);
   if(shaver)propAlpha=fade;
   else if(field)propAlpha=unit((.29-age)/.11);
   else if(isUltimate(use.kind))propAlpha=unit((.15-age)/.06);
-  else if(fan)propAlpha=unit((.46-age)/.11);
+  else if(fan)propAlpha=quiet||age>=fanSetDownAt?0:1;
   let turn=0;
   if(!quiet){
     if(soda)turn=-side*(.12+1.58*useTool*(1-ease((age-.62)/.17)));
@@ -264,7 +317,8 @@ export function drawDeliveryUse(c:CanvasRenderingContext2D, assets:Assets, use:U
   if(spr&&propAlpha>0){
     const heldHeight=Math.min(h,(h+10)*spr.height/spr.width);
     const height=use.pickupFrom?lerp(groundIconHeight(use.kind,spr.width,spr.height),heldHeight,collect):heldHeight;
-    drawSprite(c,assets,use.kind,x,y,height,turn,1,.5);
+    if(fan)drawWorkingFan(c,assets,x,y,height,turn,age,quiet);
+    else drawSprite(c,assets,use.kind,x,y,height,turn,1,.5);
     if(shaver)drawIceShavings(c,x,y+height*.24,age,quiet,simple);
   }
   if(soda && age>.18 && age<.66){

@@ -6,13 +6,22 @@ import {stunEnemy} from './enemies';
 
 type WaveKind = WaveCast['kind'];
 export const WAVES = {
-  icebox:  {windup:.20, travel:.35, fade:.27, damage:85, push:34},
-  steamer: {windup:.13, travel:.65, fade:.24, damage:100, push:48},
-  berry:   {windup:.18, travel:.33, fade:.26, damage:144, push:56},
+  icebox:  {windup:.20, travel:.35, fade:.27, damage:132, push:34},
+  steamer: {windup:.13, travel:.65, fade:.24, damage:156, push:48},
+  berry:   {windup:.18, travel:.33, fade:.26, damage:186, push:56},
 } as const satisfies Record<WaveKind,{windup:number;travel:number;fade:number;damage:number;push:number}>;
 // Four crossings deliver one order. The third order lands exactly 15 seconds after pickup.
-export const EXPRESS = {windup:.12, leg:1.24, legs:12, legsPerOrder:4, fade:.40, radius:37, damage:58, landingDamage:92, landingRadius:110} as const;
+export const EXPRESS = {
+  windup:.12, leg:1.24, legs:12, legsPerOrder:4, fade:.40,
+  radius:70, damage:124, orderRadius:132, orderDamage:148, landingRadius:188, landingDamage:186,
+} as const;
 export const TOSS_DURATION=.24;
+
+/** A signed order hits the entire printed seal when the parcel actually lands. */
+export function expressSealRadius(leg:number):number {
+  if(leg===EXPRESS.legs)return EXPRESS.landingRadius;
+  return leg>0&&leg%EXPRESS.legsPerOrder===0?EXPRESS.orderRadius:0;
+}
 
 function tossEnemy(e:Enemy,now:number,height:number,frozen=false):void {
   e.tossAt=now;e.tossHeight=height*(e.kind==='giantBun'?.42:1);
@@ -143,19 +152,21 @@ function updateExpress(s:GameState,cast:ExpressCast,input:Vec,dt:number,ctx:Comb
   cast.y=start.y+dy*t;
   const legEnd=cast.legStart+EXPRESS.leg;
   const arrived=s.time+1e-9>=legEnd,leg=cast.landings.length;
-  const finalLeg=leg===EXPRESS.legs,heavy=arrived&&finalLeg;
+  const sealRadius=expressSealRadius(leg);
   const from=clamp((cast.legStart-s.time+dt)/dt,0,1),to=clamp((legEnd-s.time+dt)/dt,0,1);
   for(const e of s.enemies){
     if(!ctx.active(e)||cast.hitIds.includes(e.id))continue;
-    // Hold damage inside the final seal for touchdown so the lane cannot spend its heavier hit early.
-    if(finalLeg&&!arrived && Math.hypot(e.x-cast.target.x,e.y-cast.target.y)<=EXPRESS.landingRadius+e.radius)continue;
+    // A promised signature lands on the printed beat and cannot double-hit on this pass.
+    const inSeal=sealRadius>0&&Math.hypot(e.x-cast.target.x,e.y-cast.target.y)<=sealRadius+e.radius;
+    if(inSeal&&!arrived)continue;
     const ex=e.x-e.px,ey=e.y-e.py;
     const touches=relativeSweep({x:cast.px,y:cast.py},cast,{x:e.px+from*ex,y:e.py+from*ey},{x:e.px+to*ex,y:e.py+to*ey},EXPRESS.radius+e.radius)!==null;
-    const inLanding=heavy && Math.hypot(e.x-cast.x,e.y-cast.y)<=EXPRESS.landingRadius+e.radius;
+    const inLanding=arrived&&inSeal;
     if(!touches&&!inLanding)continue;
     const side=(e.y-start.y)*dx-(e.x-start.x)*dy>=0?1:-1;
     const outward=inLanding?cast:{x:e.x+side*dy/distance,y:e.y-side*dx/distance};
-    if(ctx.damage(e,inLanding?EXPRESS.landingDamage:EXPRESS.damage,'express',Math.atan2(e.y-outward.y,e.x-outward.x))){
+    const damage=inLanding?(leg===EXPRESS.legs?EXPRESS.landingDamage:EXPRESS.orderDamage):EXPRESS.damage;
+    if(ctx.damage(e,damage,'express',Math.atan2(e.y-outward.y,e.x-outward.x))){
       cast.hitIds.push(e.id);
       if(e.hp>0){
         ctx.push(e,outward,inLanding?54:32);

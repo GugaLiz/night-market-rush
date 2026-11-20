@@ -111,7 +111,7 @@ function umbrella(s:GameState,a:WeaponAttack,dt:number,ctx:CombatContext):void {
   a.blocked=true;
   if(hit.shot)s.enemyShots=s.enemyShots?.filter(q=>q.id!==hit.shot!.id);
   else if(hit.enemy){const e=hit.enemy;e.contactSuppressedUntil=s.time+.15;
-    if(!a.hitIds.includes(e.id)&&a.hitIds.length<WEAPONS.umbrella.limit){a.hitIds.push(e.id);ctx.damage(e,WEAPONS.umbrella.damage,'umbrella',Math.atan2(e.y-p.y,e.x-p.x));}if(e.hp>0)ctx.push(e,p,24);
+    if(!a.hitIds.includes(e.id)&&a.hitIds.length<WEAPONS.umbrella.limit){a.hitIds.push(e.id);ctx.damage(e,WEAPONS.umbrella.damage,'umbrella',Math.atan2(e.y-p.y,e.x-p.x),a.id);}if(e.hp>0)ctx.push(e,p,24);
   }
   ctx.emit({type:'defend',kind:'umbrella',x:p.x,y:p.y,victimId:hit.enemy?.id??hit.shot!.ownerId});
 }
@@ -126,7 +126,7 @@ function updateProjectiles(s:GameState,dt:number,ctx:CombatContext):void {
         const cfg=WEAPONS.lunchbox,list=s.enemies.filter(e=>ctx.active(e)&&e.hp>0&&!q.hitIds.includes(e.id)&&distance(e,q)<=q.radius+e.radius)
           .sort((a,b)=>distance(a,q)-distance(b,q)||a.id-b.id).slice(0,Math.max(0,cfg.limit-q.hitIds.length));
         for(const e of list){
-          q.hitIds.push(e.id);ctx.damage(e,cfg.damage,'lunchbox',Math.atan2(e.y-q.y,e.x-q.x));
+          q.hitIds.push(e.id);ctx.damage(e,cfg.damage,'lunchbox',Math.atan2(e.y-q.y,e.x-q.x),q.attackId);
         }
         remove.add(q.id);
       }continue;
@@ -139,7 +139,7 @@ function updateProjectiles(s:GameState,dt:number,ctx:CombatContext):void {
       const impactAngle=Math.atan2(target.y-q.y,target.x-q.x);
       ctx.emit({type:'chainLink',fromX:q.x,fromY:q.y,x:target.x,y:target.y});
       q.x=target.x;q.y=target.y;q.hitIds.push(target.id);
-      ctx.damage(target,RANGED_HITS.talisman[q.hits],'talisman',impactAngle);
+      ctx.damage(target,RANGED_HITS.talisman[q.hits],'talisman',impactAngle,q.attackId);
       q.hits++;q.nextHitAt=s.time+.1;if(q.hits>=RANGED_HITS.talisman.length)remove.add(q.id);continue;
     }
     if(q.kind==='spirit'){
@@ -180,7 +180,7 @@ function updateProjectiles(s:GameState,dt:number,ctx:CombatContext):void {
       const damage=q.kind==='chopsticks'||q.kind==='spirit'?RANGED_HITS[q.kind][q.hits]
         :q.kind==='tray'&&q.phase==='return'?RANGED_HITS.trayReturn:WEAPONS[q.kind].damage;
       if(!damage)break;
-      hitList.push(e.id);q.hits++;ctx.damage(e,damage,q.kind,Math.atan2(q.vy,q.vx));
+      hitList.push(e.id);q.hits++;ctx.damage(e,damage,q.kind,Math.atan2(q.vy,q.vx),q.attackId);
       if(e.hp>0&&(q.brined||(brineAt!==null&&t+1e-9>=brineAt)))coatEnemy(e,s.time-dt+duration*t);
       if(q.kind==='talisman'){q.phase='chain';q.x=e.x;q.y=e.y;q.nextHitAt=s.time+.1;break;}
       if(q.kind==='bag'||(q.kind==='chopsticks'||q.kind==='spirit')&&q.hits>=RANGED_HITS[q.kind].length){remove.add(q.id);break;}

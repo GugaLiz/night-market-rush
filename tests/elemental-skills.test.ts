@@ -69,7 +69,7 @@ describe('elemental delivery skills',()=>{
   it('lets poison linger when a target leaves and ticks on one clock across overlapping casts',()=>{
     const game=practice(),s=game.state,p=s.player;
     const enemy=toughBowl(game,{x:p.x+70,y:p.y});
-    const outside=toughBowl(game,{x:p.x+330,y:p.y});
+    const outside=toughBowl(game,{x:p.x+ELEMENTAL.poison.radius+35,y:p.y});
     game.triggerSkill('poison');
     ticks(game,40);expect(enemy.hp).toBe(400-ELEMENTAL.poison.damage);
     const next=enemy.poisonNextAt!;
@@ -89,9 +89,9 @@ describe('elemental delivery skills',()=>{
     const game=practice(),s=game.state,p=s.player;
     const near=game.spawnEnemy('box',{x:p.x-82,y:p.y});
     near.hp=near.maxHp=225;near.phase='dash';near.phaseUntil=2;near.dashX=1;
-    const far=game.spawnEnemy('bowl',{x:p.x+325,y:p.y});
+    const far=game.spawnEnemy('bowl',{x:p.x+450,y:p.y});
     far.shotWarnUntil=2;far.volleyRemaining=0;
-    const outside=toughBowl(game,{x:p.x-455,y:p.y});
+    const outside=toughBowl(game,{x:p.x-ELEMENTAL.frost.radius-38,y:p.y});
     game.triggerSkill('frost');
     ticks(game,7);expect(near.frostUntil).toBe(ELEMENTAL.frost.duration);
     expect(near.phase).toBe('recover');expect(far.frostUntil).toBeUndefined();
@@ -125,7 +125,7 @@ describe('elemental delivery skills',()=>{
 
   it('credits one kill when an enemy shatters on its next poison tick',()=>{
     const game=practice(),s=game.state,p=s.player;
-    const enemy=game.spawnEnemy('bowl',{x:p.x+60,y:p.y});
+    const enemy=toughBowl(game,{x:p.x+60,y:p.y});
     game.triggerSkill('frost');game.triggerSkill('poison');ticks(game,179);
     enemy.hp=5;enemy.poisonNextAt=enemy.frostUntil;
     ticks(game,1);

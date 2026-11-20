@@ -5,9 +5,9 @@ import {interruptAttack, stunEnemy} from './enemies';
 import {clamp, distanceSquared, relativeSweep, segmentDistanceSquared, sweepContact} from './geometry';
 
 export const ELEMENTAL = {
-  vortex: {duration:3.2, fade:.55, blastRadius:150, damage:108, offset:165},
-  poison: {duration:5.5, fade:.45, radius:230, growth:.55, interval:.5, linger:3, damage:12},
-  frost:  {duration:3, fade:.55, radius:370, growth:.8, damage:68, shardReach:135, shardRadius:12, shardDamage:24},
+  vortex: {duration:3.2, fade:.55, blastRadius:200, damage:138, offset:165},
+  poison: {duration:4.8, fade:.45, radius:345, growth:.55, interval:.40, linger:1.6, damage:24},
+  frost:  {duration:3, fade:.55, radius:475, growth:.65, damage:112, shardReach:135, shardRadius:12, shardDamage:24},
 } as const;
 
 const bounds = WORLD.bounds;

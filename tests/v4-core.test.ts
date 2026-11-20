@@ -70,8 +70,8 @@ describe('V4 continuous play', () => {
       }
       expect(fanAt).toBeGreaterThan(.4);
       expect(fanAt).toBeLessThan(1.8);
-      expect(fanKills.size).toBeGreaterThanOrEqual(12);
-      expect(s.coins.length+s.collectedCoins).toBeGreaterThanOrEqual(12);
+      expect(fanKills.size).toBeGreaterThanOrEqual(22);
+      expect(s.coins.length+s.collectedCoins).toBeGreaterThanOrEqual(22);
       expect(s.enemies.length).toBeGreaterThanOrEqual(3);
       expect(s.pickups.some(p=>p.id===other.id)).toBe(true);
     }
@@ -230,6 +230,8 @@ describe('V4 continuous play', () => {
     s.player.invulnerableUntil=1000;
     run(game,1);
     const fan=s.pickups.find(p=>p.kind==='fan')!;
+    // This case leaves the fan on the street, even if its drift crosses the idle rider.
+    fan.readyAt=Infinity;
     s.pickups=[fan];
     let consecutiveSupport=0;
     for(let frame=0;frame<60*40&&consecutiveSupport<3;frame++){

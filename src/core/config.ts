@@ -60,7 +60,7 @@ export const CONFIG = {
     health: {amount:25, cooldown:15},
     stamp: {duration:12},
     supply: {duration:12},
-    fan: {radius:130, fullRadius:250, damage:90},
+    fan: {radius:155, fullRadius:365, damage:108},
     skate: {duration:4, inner:38, outer:140, damage:20, interval:.5},
     soda: {radius:260, duration:3, factor:.35, poolRadius:108, sidePoolRadius:78},
     lure: {radius:270, targets:10},
@@ -71,7 +71,7 @@ export const CONFIG = {
     cones: {minCount:5, maxCount:8, duration:10, radius:21},
   },
   spawn: {warning:.6, safeDistance:.22*S, gap:43, attempts:48, openingCount:40},
-  pickup: {radius: .027 * S, reach:56, choiceReach:42, driftMin:90, driftMax:115, firstAt: .35, interval: 4, emptyGrace: 2, cap: 4},
+  pickup: {radius: .027 * S, reach:56, choiceReach:42, driftMin:90, driftMax:115, firstAt:.35, interval:3, emptyGrace:2, cap:4, firstUltimate:6, ultimateInterval:12},
   weapons: {projectileCap:24, dropFirst:4, dropInterval:12, dropRadius:12, pickupReach:42},
   // V4 tuning values for the night-market adaptation. The video only establishes visible outcomes.
   waves: {firstDuration:36, duration:34, eliteLead:6, maxElites:2, transition:1.65},
@@ -103,10 +103,10 @@ function mix(a: number, b: number, t: number): number {
 
 /** Continuous rates at boundaries; no unbounded escalation after five minutes. */
 export function difficultyAt(time: number): Difficulty {
-  if (time < 30) return {stage: 1, cap: 45, interval: mix(.30, .24, time / 30), speedScale: 1, weights: [1, 0, 0]};
-  if (time < 90) return {stage: 2, cap: 70, interval: mix(.24, .20, (time - 30) / 60), speedScale: mix(1, 1.05, (time - 30) / 12), weights: [.85, .05, .10]};
-  if (time < 180) return {stage: 3, cap: 90, interval: mix(.20, .16, (time - 90) / 90), speedScale: mix(1.05, 1.1, (time - 90) / 15), weights: [.80, .08, .12]};
-  return {stage: 4, cap: 100, interval: mix(.16, .14, (time - 180) / 120), speedScale: mix(1.1, 1.15, (time - 180) / 20), weights: [.78, .08, .14]};
+  if (time < 30) return {stage: 1, cap: 45, interval: mix(.14, .12, time / 30), speedScale: 1, weights: [1, 0, 0]};
+  if (time < 90) return {stage: 2, cap: 70, interval: mix(.12, .10, (time - 30) / 60), speedScale: mix(1, 1.05, (time - 30) / 12), weights: [.85, .05, .10]};
+  if (time < 180) return {stage: 3, cap: 90, interval: mix(.10, .088, (time - 90) / 90), speedScale: mix(1.05, 1.1, (time - 90) / 15), weights: [.80, .08, .12]};
+  return {stage: 4, cap: 100, interval: mix(.088, .08, (time - 180) / 120), speedScale: mix(1.1, 1.15, (time - 180) / 20), weights: [.78, .08, .14]};
 }
 
 

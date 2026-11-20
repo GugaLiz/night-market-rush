@@ -1,6 +1,6 @@
 import {ENEMY_NAMES, SKILL_KINDS, SKILL_NAMES, WEAPON_KINDS, WEAPON_NAMES, type EnemyKind, type SkillKind, type WeaponKind} from '../shared/types';
 import {CONFIG} from '../core/config';
-import {EXPRESS} from '../core/ultimates';
+import {EXPRESS,WAVES} from '../core/ultimates';
 import {ELEMENTAL} from '../core/elemental-skills';
 import {MELEE_WEAPONS} from '../core/melee';
 import {RANGED_HITS, WEAPONS} from '../core/weapons';
@@ -24,11 +24,11 @@ export const SKILL_GUIDE:Record<SkillKind,CatalogEntry>={
   poison:{short:'毒雾泡菜坛',role:'毒雾蚀血',description:'开坛后，青绿色酸雾在脚下铺开。把追兵引进雾里，再绕到另一边，沾上的毒汁会继续扣血。',detail:`雾区半径 ${ELEMENTAL.poison.radius} · 留场 ${ELEMENTAL.poison.duration} 秒 · 每 ${ELEMENTAL.poison.interval} 秒扣 ${ELEMENTAL.poison.damage} 血 · 离开后持续 ${ELEMENTAL.poison.linger} 秒`},
   frost:{short:'冰封刨冰机',role:'冰封碎裂',description:'附近的怪从近到远依次裹上一层冰壳，冻在原地。趁这时穿过包围，冰壳碎开时还会对怪物造成伤害。',detail:`冻结半径 ${ELEMENTAL.frost.radius} · ${ELEMENTAL.frost.growth} 秒扩散 · 第 ${ELEMENTAL.frost.duration} 秒碎冰，造成 ${ELEMENTAL.frost.damage} 伤害`},
   health:{short:'暖心汤包',role:'恢复生命',description:'受伤后，附近的空地会飘来带红心的汤包。迎上它就能回血，满血经过会留在街上。',detail:`每个最多恢复 ${CONFIG.skills.health.amount} 点生命 · 拾取 ${CONFIG.skills.health.cooldown} 秒后可再次投递`},
-  icebox:{short:'保冷箱',role:'定向冰浪',description:'开箱前转身对准怪群，碎冰分三层向前涌出。浪头触到的敌人受伤并短暂冻结。',detail:'前方 180° · 蓄力 0.20 秒 · 命中 85 · 冻结 0.75 秒'},
-  steamer:{short:'蒸笼开席',role:'全场扩散',description:'揭盖后热汽从脚边向场外推开。近处的怪先被掀起，可以跟着浪头往外跑。',detail:'波前用时 0.65 秒 · 每只最多 100 伤害'},
-  express:{short:'加急三连送',role:'跨场折返',description:'快递包连续送三单，每单横穿四程。折返时移动可引导下一程，最后一单落地时盖下重章。',detail:`持续约 ${Math.round(EXPRESS.windup+EXPRESS.legs*EXPRESS.leg)} 秒 · 每程对同一怪最多造成 ${EXPRESS.damage} 伤害 · 末次盖章半径 ${EXPRESS.landingRadius}、伤害 ${EXPRESS.landingDamage}`},
-  berry:{short:'杨梅汽水',role:'开瓶炸屏',description:'气泡收紧，瓶盖弹起。莓红汽水从瓶口向全场溅开，近处的敌人先受击。',detail:'开瓶 0.18 秒 · 扩散 0.33 秒 · 每只最多 144 伤害'},
-  fan:{short:'旋风电扇',role:'热风伤敌',description:'电扇卷起餐盒的热气，小票随风飘向外围，带出五处风卷。可以继续跑，把追来的怪引进热风。',detail:`主圈半径 ${CONFIG.skills.fan.fullRadius} · 留地 2.8 秒 · 每只最多 ${CONFIG.skills.fan.damage} 伤害`},
+  icebox:{short:'保冷箱',role:'定向冰浪',description:'开箱前转身对准怪群，冰浪能把前方半场的普通怪一举清掉。扛住浪头的精英会短暂冻结。',detail:`前方 180° · 蓄力 ${WAVES.icebox.windup.toFixed(2)} 秒 · 命中 ${WAVES.icebox.damage} · 冻结 0.75 秒`},
+  steamer:{short:'蒸笼开席',role:'全场扩散',description:'揭盖后，滚热的蒸汽从脚边一直掀到街角。近处先腾出空地，跟着浪头往外跑。',detail:`波前用时 ${WAVES.steamer.travel} 秒 · 命中 ${WAVES.steamer.damage}`},
+  express:{short:'加急三连送',role:'跨场折返',description:'快递包每趟横穿都扫开一条路。折返时移动可引导下一程，每送完四程落地盖章，第三单的章最大。',detail:`持续约 ${Math.round(EXPRESS.windup+EXPRESS.legs*EXPRESS.leg)} 秒 · 沿途 ${EXPRESS.damage} 伤害 · 前两单盖章半径 ${EXPRESS.orderRadius}、伤害 ${EXPRESS.orderDamage} · 尾单半径 ${EXPRESS.landingRadius}、伤害 ${EXPRESS.landingDamage}`},
+  berry:{short:'杨梅汽水',role:'开瓶炸屏',description:'瓶盖一弹，杨梅汽水从瓶口泼向全场。莓红浪头一到，整排普通怪就会被掀飞。',detail:`开瓶 ${WAVES.berry.windup} 秒 · 扩散 ${WAVES.berry.travel} 秒 · 命中 ${WAVES.berry.damage}`},
+  fan:{short:'旋风电扇',role:'热风清场',description:'迎着怪群接住电扇。脚边先腾起一圈热浪，五股热风再沿你面向的一侧扫开；还在追你的怪也会被卷进去。',detail:`主圈半径 ${CONFIG.skills.fan.fullRadius} · 留地 2.8 秒 · 每只最多 ${CONFIG.skills.fan.damage} 伤害`},
   skate:{short:'滑板环绕',role:'绕身打怪',description:'三块滑板绕着骑手行进，持续击打环带内的怪物。钻进内圈的怪需要走位躲开。',detail:`环带 ${CONFIG.skills.skate.inner}–${CONFIG.skills.skate.outer} · 持续 4 秒 · 每只每 0.5 秒 ${CONFIG.skills.skate.damage} 伤害`},
   soda:{short:'汽水缓速',role:'地面减速',description:'汽水溅湿附近敌人，并在地上留下三片蓝色水洼。后来走进水洼的怪也会减速。',detail:`溅射半径 ${CONFIG.skills.soda.radius} · 水洼持续 3 秒 · 速度降至 35%`},
   lure:{short:'试吃保温盒',role:'诱导追踪',description:'在地面留下试吃盒，吸引附近追踪者；不能解除已锁定冲刺。',detail:`半径 ${CONFIG.skills.lure.radius} · 最多吸引 ${CONFIG.skills.lure.targets} 只 · 持续 4 秒`},

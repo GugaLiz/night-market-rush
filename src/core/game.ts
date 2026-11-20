@@ -29,17 +29,17 @@ export class Game {
   private randomState=1;private nextId=1;private nextEnemyAt=.35;private nextPickupAt=1;private nextWeaponAt=4;
   private emptySince=0;private events:GameEvent[]=[];private weaponBag:WeaponKind[]=[];
   private batch=0;private openingPlaced=false;private dropsSinceFan=0;private waveDemo=false;
-  private nextUltimateAt=8;private ultimateIndex=0;
+  private nextUltimateAt:number=CONFIG.pickup.firstUltimate;private ultimateIndex=0;
   private nextHealthAt=0;
   private dispatchWasActive=false;private chargeContacts=new Map<number,ChargeContact>();
-  private ctx:CombatContext={damage:(e,a,source,impactAngle)=>this.damage(e,a,source,impactAngle),emit:e=>this.emit(e),id:()=>this.nextId++,random:()=>this.random(),push:(e,o,d)=>this.push(e,o,d),active:e=>this.active(e),spawnPickup:(k,p,extra)=>this.addPickup(k,p,extra)};
+  private ctx:CombatContext={damage:(...args)=>this.damage(...args),emit:e=>this.emit(e),id:()=>this.nextId++,random:()=>this.random(),push:(e,o,d)=>this.push(e,o,d),active:e=>this.active(e),spawnPickup:(k,p,extra)=>this.addPickup(k,p,extra)};
   constructor(seed=Date.now()){this.reset(seed);}
   reset(seed=Date.now(),practice=false):void {
     const stableSeed=Number.isFinite(seed)?seed>>>0:1;
     this.randomState=stableSeed||0x6d2b79f5;this.nextId=1;this.nextEnemyAt=.35;this.nextPickupAt=CONFIG.pickup.firstAt;this.nextWeaponAt=CONFIG.weapons.dropFirst;
     this.emptySince=0;this.events=[];this.weaponBag=[];this.dispatchWasActive=false;
     this.batch=0;this.openingPlaced=false;this.dropsSinceFan=0;this.waveDemo=false;
-    this.nextUltimateAt=8;this.ultimateIndex=0;
+    this.nextUltimateAt=CONFIG.pickup.firstUltimate;this.ultimateIndex=0;
     this.nextHealthAt=0;
     this.state={market:newMarket(),ultimates:[],elementalFields:[],seed:stableSeed,time:0,score:0,kills:0,stage:1,wave:1,waveStartedAt:0,coins:[],collectedCoins:0,combo:0,comboUntil:0,revivesUsed:0,fields:[],ended:false,cause:null,practice,
       player:{...WORLD.start,px:WORLD.start.x,py:WORLD.start.y,vx:0,vy:0,facing:1,radius:CONFIG.player.radius,skateUntil:0,hp:100,maxHp:100,invulnerableUntil:0,hurtAt:-100,bubbleUntil:0,heatUntil:0,stampUntil:0,moveDirection:{x:1,y:0},sprintTime:0,sprintMultiplier:1,dashUntil:0,dashReadyAt:0,dashDirection:{x:1,y:0}},
@@ -198,9 +198,12 @@ export class Game {
       if(!dispatch&&s.eliteWave!==s.wave&&s.time>=this.nextEnemyAt&&s.time>=s.market.reprieveUntil){
         const spawn=(kind:EnemyKind,at:Vec)=>this.spawnEnemy(kind,at);
         const opening=this.batch===0&&s.time<1&&s.enemies.length===0;
-        const count=opening?CONFIG.spawn.openingCount:batchSize*(this.batch%3===2?2:1);
         // Survivors carry into the next wave, where two distinct guards may need to enter.
-        spawnMarketEnemies(s,{...difficulty,cap:difficulty.cap-CONFIG.waves.maxElites},count,spawn,this.ctx);
+        const cap=difficulty.cap-CONFIG.waves.maxElites;
+        // Warnings count toward occupancy, so a clear refills over several visible arrivals.
+        const doubleBatch=s.enemies.length<cap/2 || this.batch%3===2;
+        const count=opening?CONFIG.spawn.openingCount:batchSize*(doubleBatch?2:1);
+        spawnMarketEnemies(s,{...difficulty,cap},count,spawn,this.ctx);
         this.batch++;
         this.nextEnemyAt=s.time+batchInterval;
       }
@@ -333,13 +336,13 @@ export class Game {
     this.emit({type:'damage',id:this.nextId++,victimId:0,source:hit.source,amount,nominal:hit.amount,x:p.x,y:p.y,time:s.time,impactAngle:hit.impactAngle});
     if(p.hp<=0){s.ended=true;s.cause=hit.kind;p.vx=0;p.vy=0;p.sprintTime=0;p.sprintMultiplier=1;this.emit({type:'fail',kind:hit.kind,x:p.x,y:p.y,source:hit.source,amount});}
   }
-  private damage(enemy:Enemy,amount:number,source:DamageSource,impactAngle?:number):number {
+  private damage(enemy:Enemy,amount:number,source:DamageSource,impactAngle?:number,attackId?:number):number {
     if(this.state.ended||!this.active(enemy)||!Number.isFinite(amount)||amount<=0)return 0;
     const burst=WEAPON_KINDS.includes(source as WeaponKind),count=burst?Math.min(5,Math.ceil(amount)):1,chunk=burst?Math.ceil(amount/5):amount;
     let remaining=amount,total=0;
     for(let i=1;i<=count&&remaining>0&&enemy.hp>0;i++){
       const nominal=Math.min(chunk,remaining),actual=Math.min(enemy.hp,nominal);remaining-=nominal;enemy.hp-=actual;total+=actual;enemy.hurtAt=this.state.time;
-      this.emit({type:'damage',id:this.nextId++,victimId:enemy.id,source,amount:actual,nominal,x:enemy.x,y:enemy.y,time:this.state.time,impactAngle,...(burst?{burstIndex:i,burstCount:count}:{})});
+      this.emit({type:'damage',id:this.nextId++,victimId:enemy.id,source,amount:actual,nominal,x:enemy.x,y:enemy.y,time:this.state.time,impactAngle,...(burst?{attackId,burstIndex:i,burstCount:count}:{})});
     }
     if(enemy.hp<=0){
       const s=this.state;
@@ -440,14 +443,23 @@ export class Game {
       if(s.time>=30)kinds.push('route','cones','hook','supply');
       if(s.time>=90)kinds.push('heat','dispatch','stamp');
       const needsFan=this.dropsSinceFan>=2&&!s.pickups.some(p=>p.kind==='fan'&&!p.retiringUntil);
-      const ultimateDue=s.time>=this.nextUltimateAt&&!s.pickups.some(p=>!p.retiringUntil&&isUltimate(p.kind));
-      const kind=needsFan?'fan':ultimateDue?ULTIMATE_KINDS[this.ultimateIndex]:kinds[Math.floor(this.random()*kinds.length)];
-      const position=this.pickupPosition(kind);
-      if(position&&this.addPickup(kind,position)){
-        this.dropsSinceFan=kind==='fan'?0:this.dropsSinceFan+1;
-        if(isUltimate(kind)){
-          this.ultimateIndex=(this.ultimateIndex+1)%ULTIMATE_KINDS.length;
-          this.nextUltimateAt=s.time+14;
+      const hasUltimate=s.pickups.some(p=>!p.retiringUntil&&isUltimate(p.kind));
+      const reservedSlot=!hasUltimate&&ordinaryCount===CONFIG.pickup.cap-1;
+      const ultimateDue=!hasUltimate&&s.time>=this.nextUltimateAt;
+      // Keep the last floating slot available for a sweeping attack, even if the rider
+      // leaves every support bubble on the street. Supply choices and soup use their own slots.
+      if(!reservedSlot||ultimateDue){
+        let kind:SkillKind;
+        if(ultimateDue&&(reservedSlot||!needsFan))kind=ULTIMATE_KINDS[this.ultimateIndex];
+        else if(needsFan)kind='fan';
+        else kind=kinds[Math.floor(this.random()*kinds.length)];
+        const position=this.pickupPosition(kind);
+        if(position&&this.addPickup(kind,position)){
+          this.dropsSinceFan=kind==='fan'?0:this.dropsSinceFan+1;
+          if(isUltimate(kind)){
+            this.ultimateIndex=(this.ultimateIndex+1)%ULTIMATE_KINDS.length;
+            this.nextUltimateAt=s.time+CONFIG.pickup.ultimateInterval;
+          }
         }
       }
     }

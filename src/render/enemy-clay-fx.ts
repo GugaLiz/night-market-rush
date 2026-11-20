@@ -551,9 +551,14 @@ export function drawIceShell(c:Canvas,x:number,feet:number,height:number,frostRe
     c.lineTo(-.37,-.02);c.lineTo(-.22,-.09);c.lineTo(.21,-.09);c.closePath();c.fill();
     c.lineCap='round';c.strokeStyle='#f2feff';c.lineWidth=.031;
     pathline(c,-.35,-.72,-.41,-.55);
-    if(!breakable && frostRemaining<.45){
-      c.globalAlpha*=1-frostRemaining/.45;c.strokeStyle='#edfbff';c.lineWidth=.023;
-      c.beginPath();c.moveTo(.39,-.79);c.lineTo(.27,-.72);c.lineTo(.29,-.65);c.lineTo(.18,-.59);c.stroke();
+    if(frostRemaining<.68){
+      c.save();c.globalAlpha*=1-frostRemaining/.68;
+      c.lineJoin='round';c.beginPath();
+      c.moveTo(.39,-.79);c.lineTo(.23,-.69);c.lineTo(.29,-.60);c.lineTo(.13,-.49);
+      c.moveTo(.29,-.60);c.lineTo(.39,-.48);c.lineTo(.34,-.40);
+      c.moveTo(-.37,-.02);c.lineTo(-.27,-.16);c.lineTo(-.30,-.22);c.lineTo(-.15,-.33);
+      c.strokeStyle='#3b91b6';c.lineWidth=.055;c.stroke();
+      c.strokeStyle='#f6ffff';c.lineWidth=.027;c.stroke();c.restore();
     }
   }
   if(breakable){

@@ -73,6 +73,19 @@ function wokBurst(c:Canvas,t:number,settings:Settings):void {
   const quiet=settings.reduceMotion, count=settings.quality==='simple'?8:13;
   const travel=quiet?.85:1-(1-t)**2;
   c.lineCap='round';
+  // The sauce rolls off the rim in three broad crescents before breaking into droplets.
+  if(t<.68){
+    const radius=ELEMENTAL.vortex.blastRadius*(.22+.78*travel);
+    c.save();c.globalAlpha*=1-t/.68;
+    for(let i=0;i<3;i++){
+      const a=i*turn/3+.27;
+      c.beginPath();c.arc(0,0,radius,a-.64,a+.60);
+      c.strokeStyle='#975631';c.lineWidth=7;c.stroke();
+      c.beginPath();c.arc(0,0,radius+2,a-.56,a+.17);
+      c.strokeStyle='#ffdcaa';c.lineWidth=3;c.stroke();
+    }
+    c.restore();
+  }
   for(let i=0;i<count;i++){
     const a=i*turn/count+.21, r=ELEMENTAL.vortex.blastRadius*(.24+.76*travel)*(.83+.17*Math.sin(i*3.2)**2);
     const lift=quiet?4:Math.sin(Math.PI*t)*(15+(i%3)*7);
@@ -174,6 +187,16 @@ function brineCloud(c:Canvas,field:ElementalField,time:number,settings:Settings,
   pool.addColorStop(.87,'#a8da624a');pool.addColorStop(1,'#c9ee8400');
   c.globalAlpha=fade;
   oval(c,0,0,r,r,pool);
+  // Vented bubbles break the brine's outer edge; keep the middle transparent over the street.
+  const edges=full?8:5;
+  for(let i=0;i<edges;i++){
+    const a=i*turn/edges+.17;
+    const t=settings.reduceMotion?.35:(age/ELEMENTAL.poison.interval*.5+i*.381)%1;
+    c.globalAlpha=fade*(.65-.36*t);
+    c.strokeStyle='#d5e689';c.lineWidth=2.5;c.beginPath();
+    c.arc(0,0,r*(.94+.045*t),a-.21,a+.14);c.stroke();
+    if(full || i%2===0)bubble(c,Math.cos(a)*r*.94,Math.sin(a)*r*.94-8*t,4.2+3*t);
+  }
   const lobes=full?13:8, stamp=vaporStamp(assets);
   for(let i=0;i<lobes;i++){
     const a=i*2.4+.16+.09*Math.sin(i+motion*.45), lift=settings.reduceMotion?.35:(age*.38+i*.381)%1;
@@ -232,12 +255,22 @@ export function drawPoisonedEnemy(c:Canvas,e:Enemy,foot:number,height:number,tim
   if((e.poisonUntil??0)<=time)return;
   c.save();
   const count=settings.quality==='simple'?1:2;
+  const sinceTick=time-((e.poisonNextAt??0)-ELEMENTAL.poison.interval);
+  const popping=!settings.reduceMotion && sinceTick>=0 && sinceTick<.16 &&
+    Math.abs(time-e.hurtAt-sinceTick)<.02;
   for(let i=0;i<count;i++){
     const t=settings.reduceMotion?.46:(time*.91+e.id*.382+i*.5)%1;
     const side=(i+e.id)%2===0?1:-1;
     const x=e.x+side*height*(.34+t*.12),y=foot-height*(.39+t*.45);
     c.globalAlpha=.45+.55*Math.sin(t*Math.PI);
-    bubble(c,x,y,3.7+i*1.8);
+    if(i===0 && popping){
+      const progress=sinceTick/.16, radius=7+8*progress;
+      c.globalAlpha*=1-progress;c.strokeStyle='#e6ff9e';c.lineWidth=2.2;c.lineCap='round';
+      for(let j=0;j<3;j++){
+        const a=j*turn/3+side*.3;
+        c.beginPath();c.arc(x,y,radius,a,a+.85);c.stroke();
+      }
+    }else bubble(c,x,y,3.7+i*1.8);
   }
   c.restore();
 }
@@ -275,10 +308,10 @@ export function drawBrittleIceRim(c:Canvas,x:number,foot:number,height:number,re
 
 export function drawIceFragments(c:Canvas,x:number,y:number,t:number,seed:number,settings:Settings):void {
   const quiet=settings.reduceMotion, count=settings.quality==='simple'?3:5;
-  const distance=quiet?10:26*(1-(1-t)**2);
+  const distance=quiet?10:35*(1-(1-t)**2);
   for(let i=0;i<count;i++){
     const a=(i+.24)*turn/count+seed*.81;
     const px=x+Math.cos(a)*(9+distance),py=y+Math.sin(a)*(10+distance*.5)-(quiet?0:Math.sin(t*Math.PI)*12);
-    shard(c,px,py,4+i%3,8+i%4,a+(quiet?0:t)*1.3);
+    shard(c,px,py,6+i%3*2,10+i%4*2,a+(quiet?0:t)*1.3);
   }
 }

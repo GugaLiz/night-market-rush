@@ -25,8 +25,9 @@ export function drawFlyingChopsticks(c:CanvasRenderingContext2D,x:number,y:numbe
   const spread=Math.min(1,distance/85);
   const size=.45+.55*spread;
   c.scale(size,size);
-  const length=Math.min(distance*.58,quiet?42:87);
+  const length=Math.min(distance*.58,quiet?38:68);
   if(length>5){
+    c.save();c.scale(1,.68);c.globalAlpha*=.76;
     const tail=-32-length,mid=-32-length*.53;
     const crest=quiet?2:Math.sin(distance*.042+laneSeed*1.8)*5;
     // Alternating dark underside and mint face make the folded ribbon legible at phone scale.
@@ -39,6 +40,7 @@ export function drawFlyingChopsticks(c:CanvasRenderingContext2D,x:number,y:numbe
     if(!quiet && length>44){
       c.save();c.translate(tail+10,7+crest);c.scale(.72,.72);bambooLeaf(c);c.restore();
     }
+    c.restore();
   }
   for(const side of [-1,1]){
     c.save();c.translate(0,side*1.6);c.rotate(-side*(.045+spread*.15));
@@ -67,27 +69,24 @@ export function drawChopstickRelease(c:CanvasRenderingContext2D,t:number,reduced
   c.restore();
 }
 
-/** Two split bamboo impressions spring apart at a confirmed impact. */
+/** The entry nick stays on the near side. A short strip flicks out where the tip exits. */
 export function drawChopstickImpact(c:CanvasRenderingContext2D,t:number,featured:boolean,quiet:boolean):void {
-  const open=quiet?.65:Math.min(1,t*4);
   c.save();c.lineCap='round';
-  c.scale(featured?1.15:.92,featured?1.15:.92);
-  for(const side of [-1,1]){
-    c.save();c.rotate(side*(.52+.25*open));
-    // The short cut spreads from the point of contact as the bamboo shafts cross.
-    c.beginPath();c.moveTo(-32-6*open,-3);c.quadraticCurveTo(-12,-7,3,-3);
-    c.lineTo(21+9*open,-4);c.lineTo(12,1);c.lineTo(23,3);
-    c.quadraticCurveTo(1,6,-10,3);c.lineTo(-37,-1);c.closePath();
-    c.fillStyle=side>0?'#fff2a9':'#abecc9';c.fill();
-    c.translate(17,0);
-    bambooStick(c);c.restore();
-    if(featured){
-      c.save();c.rotate(side*.78);c.translate(11+12*open,side*4);c.scale(1,side);
-      bambooLeaf(c);c.restore();
+  if(t<.44||quiet){
+    c.save();c.globalAlpha*=quiet?.74:1-t/.44;
+    c.beginPath();c.moveTo(-22,-8);c.lineTo(-14,-2);c.lineTo(-10,-6);
+    c.moveTo(-21,6);c.lineTo(-14,2);c.strokeStyle='#fff5bd';c.lineWidth=3;c.stroke();c.restore();
+  }
+  if(t>.16||quiet){
+    const emergence=quiet?.6:Math.min(1,(t-.16)/.33);
+    const start=13+Math.max(0,t-.46)*35,end=start+(10+28*emergence)*(1-.42*t);
+    c.beginPath();c.moveTo(start,3);c.quadraticCurveTo(start+6,-5,end,-1);
+    c.lineTo(start+6,3);c.closePath();c.fillStyle='#dffac8';c.fill();
+    c.beginPath();c.moveTo(start+2,3);c.lineTo(end,-1);
+    c.strokeStyle='#46896e';c.lineWidth=1.7;c.stroke();
+    if(featured&&!quiet){
+      c.translate(start+7,-5-emergence*4);c.rotate(-.16-emergence*.35);c.scale(.65,.65);bambooLeaf(c);
     }
   }
-  c.beginPath();c.moveTo(-3,-9);c.lineTo(1,-3);c.lineTo(10,0);c.lineTo(2,3);
-  c.lineTo(-2,10);c.lineTo(-4,3);c.lineTo(-11,0);c.lineTo(-4,-3);c.closePath();
-  c.fillStyle='#ffdf76';c.fill();c.strokeStyle='#fff7cf';c.lineWidth=1.7;c.stroke();
   c.restore();
 }

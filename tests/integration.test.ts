@@ -14,7 +14,10 @@ describe('V3 weapon damage through the real Game context',()=>{
   it.each([['tongs',54],['bag',45],['chopsticks',74],['spirit',70],['knife',62],['sword',110],['talisman',70],['umbrella',66]] as const)('%s applies its total %s through five real HP decrements', (kind,total)=>{
     const g=lab(kind);const e=target(g,730);fire(g);tick(g,.65);
     expect(120-e.hp).toBe(total);
-    const hits=damage(g.drainEvents(),kind).filter(v=>v.type==='damage'&&v.victimId===e.id);
+    const events=g.drainEvents(),release=events.find(event=>event.type==='attack');
+    expect(release).toBeDefined();
+    const hits=damage(events,kind).filter(v=>v.type==='damage'&&v.victimId===e.id);
+    expect(hits.every(hit=>hit.type==='damage'&&hit.attackId===release?.id)).toBe(true);
     expect(hits).toHaveLength(5);expect(hits.map(v=>v.type==='damage'?v.burstIndex:0)).toEqual([1,2,3,4,5]);
     expect(hits.reduce((sum,v)=>sum+(v.type==='damage'?v.amount:0),0)).toBe(total);
   });
@@ -28,6 +31,14 @@ describe('V3 weapon damage through the real Game context',()=>{
 });
 describe('weapon integration and bounded sessions',()=>{
   it('low HP stops the five-part burst immediately and awards a single kill',()=>{const g=lab('knife'),e=g.spawnEnemy('bun',{x:690,y:370});e.hp=15;e.stunUntil=1e6;fire(g);tick(g,.2);expect(g.state.kills).toBe(1);expect(damage(g.drainEvents(),'knife').map(e=>e.type==='damage'?e.amount:0)).toEqual([13,2]);});
+  it('keeps later piercing hits tied to the original volley after switching weapons',()=>{
+    const g=lab('chopsticks'),near=target(g,780),far=target(g,980);
+    fire(g);
+    const volley=g.state.weapon.attack!.id;
+    g.setWeapon('bag');tick(g,.65);
+    const contacts=g.drainEvents().filter(e=>e.type==='damage'&&e.source==='chopsticks'&&e.burstIndex===1);
+    expect(contacts.map(e=>e.type==='damage'&&[e.victimId,e.attackId])).toEqual([[near.id,volley],[far.id,volley]]);
+  });
   it('heat does not reset an existing cooldown, switching retains it and old projectiles',()=>{const g=lab('chopsticks');target(g,820);fire(g);g.state.weapon.readyAt=g.state.time+2;const ready=g.state.weapon.readyAt;const ids=g.state.projectiles.map(p=>p.id);g.triggerSkill('heat');expect(g.state.weapon.readyAt).toBe(ready);g.setWeapon('bag');expect(g.state.weapon.readyAt).toBe(ready);expect(g.state.projectiles.map(p=>p.id)).toEqual(ids);});
   it('a return package is locked for two seconds and requires leaving before reentry',()=>{const g=lab('tongs');g.state.weaponDrops=[{id:100,kind:'knife',x:640,y:370,radius:12,bornAt:0,expiresAt:20,readyAt:0,returnDrop:false,leftPickupCircle:true}];g.update(1/60,zero);expect(g.state.weapon.kind).toBe('knife');tick(g,2.1);expect(g.state.weapon.kind).toBe('knife');tick(g,.3,{x:1,y:0});tick(g,.45,{x:-1,y:0});expect(g.state.weapon.kind).toBe('tongs');expect(g.state.weaponDrops.filter(d=>d.returnDrop)).toHaveLength(1);});
   it('removing enemies does not cancel a directional windup or invent a replacement target',()=>{const g=lab('sword');target(g,730);g.update(1/60,zero);g.state.enemies=[];tick(g,.35);expect(g.state.weapon.attack?.targetId).toBe(-1);expect(g.state.weapon.attack?.angle).toBe(0);expect(g.drainEvents().filter(e=>e.type==='attack')).toHaveLength(1);});

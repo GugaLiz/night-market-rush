@@ -106,12 +106,12 @@ function drawWave(c:CanvasRenderingContext2D,wave:MeleeWave,time:number,detail:b
   if(points.length<2)return;
   switch(wave.kind){
     case 'tongs':
-      ribbon(c,points,.99,.07,'#e7a75832');
-      ribbon(c,points,.99,.69,'#aa5736d9');
-      ribbon(c,points,.985,.79,'#ffbd70');
-      ribbon(c,points,.98,.91,'#ffefbc');
-      ribbon(c,points,.50,.34,'#b26940c7');
-      ribbon(c,points,.51,.41,'#ffda91');
+      ribbon(c,points,.99,.07,'#e7a75825');
+      ribbon(c,points,.99,.72,'#aa5736b8');
+      ribbon(c,points,.985,.79,'#ffc17bc9');
+      ribbon(c,points,.98,.92,'#ffedbad9');
+      ribbon(c,points,.51,.37,'#b2694082');
+      ribbon(c,points,.51,.44,'#ffd69ba8');
       if(detail)receipts(c,points);
       break;
     case 'knife':{

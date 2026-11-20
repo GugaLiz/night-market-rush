@@ -94,7 +94,7 @@ export type GameEvent=
   {type:'pickup';kind:SkillKind;x:number;y:number}|{type:'kill';kind:EnemyKind;x:number;y:number;points:number;victimId?:number;maxHp?:number;facing?:number;source?:DamageSource;impactAngle?:number}|
   {type:'fail';kind:EnemyKind;x:number;y:number;source?:DamageSource;amount?:number}|{type:'warn';x:number;y:number}|
   {type:'spawn';x:number;y:number}|{type:'stage';stage:number}|{type:'skillEnd';kind:SkillKind}|
-  {type:'damage';id:number;victimId:number;source:DamageSource;amount:number;nominal:number;x:number;y:number;time:number;impactAngle?:number;burstIndex?:number;burstCount?:number}|
+  {type:'damage';id:number;victimId:number;source:DamageSource;amount:number;nominal:number;x:number;y:number;time:number;impactAngle?:number;attackId?:number;burstIndex?:number;burstCount?:number}|
   {type:'heal';id:number;amount:number;x:number;y:number}|{type:'defend';kind:'umbrella'|'bubble';x:number;y:number;victimId:number}|
   {type:'weapon';kind:WeaponKind;previous:WeaponKind;x:number;y:number}|{type:'attack';id:number;kind:WeaponKind;x:number;y:number;angle:number}|
   {type:'skill';kind:SkillKind;x:number;y:number;time:number;facing:Vec;pickupFrom?:Vec}|{type:'notice';message:string}|{type:'dash';x:number;y:number;angle:number}|{type:'enemyShot';x:number;y:number;angle:number};

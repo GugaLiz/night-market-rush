@@ -257,7 +257,7 @@ export function updateMelee(s:GameState,attack:WeaponAttack|null,dt:number,ctx:C
         if(wave.hitIds.length===cfg.limit) break;
         if(wave.hitIds.includes(enemy.id)) continue;
         wave.hitIds.push(enemy.id);
-        ctx.damage(enemy,cfg.damage,wave.kind,impactAngle);
+        ctx.damage(enemy,cfg.damage,wave.kind,impactAngle,wave.id);
       }
     }
     wave.slices=wave.slices.filter(slice=>meleeWaveBand(wave,slice,s.time)!==null || s.time<slice.bornAt);

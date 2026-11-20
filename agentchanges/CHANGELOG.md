@@ -984,3 +984,57 @@
 - **实现/结果**：技能音效使用独立声源预算。冰浪、蒸笼、杨梅汽水与急送的反馈跟随实际释放和落地事件；设备振动与震屏独立可调，并遵循减少动态设置。品牌矢量用于游戏、README、ICO 和主屏幕图标。四种精英标准身高统一为 152，普通怪维持原尺寸。巨包金焰、蟹朱红、铜壶翡翠青、芝麻莓紫，侧焰随身体和招式移动，减少动态或冻结时保留静态轮廓。同步扩大冲锋、茶弹、糖浆、前两跳落点的判定及预警，试验场第二只精英使用守关选点，避开第一只。
 - **验证**：TypeScript、Vite 生产构建、329 项 Vitest、关闭开发热重载的 37 项 Chrome 端到端测试全部通过。首次整合测试期间有页面重载和计时断言失败，使用独立测试服务完成全套复测。真实 Web Audio 波形覆盖全部技能，着点和振动请求在模拟横屏浏览器中对齐。实战渲染验证四种斗气的颜色、两精英同场、贴图高度、血条避让、宽冲锋与扇形轨道的安全空隙。按部署子路径检查 ICO、SVG、主屏 PNG 与 Web App manifest。
 - **风险/后续**：本地试玩版。实际振动手感和扬声器音色需真机确认；无 Web Vibration 接口时游戏通过声音和画面反馈。
+
+## 2026-11-20 18:26:44 +08:00 — feature
+
+- **摘要**：重做伸缩取餐夹、飞筷匣与旋风电扇的实战反馈，并部署本地试玩版。
+- **涉及文件**：
+  - `src/core/contracts.ts`
+  - `src/core/game.ts`
+  - `src/core/melee.ts`
+  - `src/core/skill-fields.ts`
+  - `src/core/weapons.ts`
+  - `src/platform/audio.ts`
+  - `src/render/bamboo-volley.ts`
+  - `src/render/delivery-skills.ts`
+  - `src/render/market-floor.ts`
+  - `src/render/melee-waves.ts`
+  - `src/render/renderer.ts`
+  - `src/render/weapon-effects.ts`
+  - `src/shared/types.ts`
+  - `tests/e2e/skill-audio.spec.ts`
+  - `tests/integration.test.ts`
+  - `tests/v4-skills.test.ts`
+  - `agentchanges/CHANGELOG.md`
+- **原因/目标**：空挥、单体命中和穿透一排的声音与姿态较难分辨，玩家冲刺接电扇也需要能感到接取和打中目标的先后。
+- **实现/结果**：命中分段带上所属攻击编号。夹击保留约 42 毫秒的局部受压，致命一击也能看到回弹。筷子留下穿出目标的竹青短迹，同轮至多三声并为后排留出一声。电扇泡收向箱扣，扇叶起转，受击与击倒各沿实际风场方向倾倒。4173 端口提供带配送试验场的本地构建。
+- **验证**：TypeScript、Vite 试玩构建、331 项单元与集成测试、37 项 Chrome 端到端测试、7 项静态服务测试均通过。Chrome 逐帧核对夹击与穿透，离线 Web Audio 验证轻重与后排反馈。在 932×430 双指模拟中通过局域网地址抢到电扇、记录到冲刺/箱扣/起转/首次命中四种声音、立即反向并松手。首次探针释放了摇杆手指，修正测试触点后通过。本机访问页面与资源返回 200。
+- **风险/后续**：音频已验证波形与触发时序，iPhone 真机外放听感仍待实际试玩。
+
+## 2026-11-20 20:56:55 +08:00 — feature
+
+- **摘要**：加强正式挑战中的大片清怪、清场后补怪以及和伤害同步的技能画面，更新本地试玩版。
+- **涉及文件**：
+  - `src/core/config.ts`
+  - `src/core/game.ts`
+  - `src/core/elemental-skills.ts`
+  - `src/core/skill-fields.ts`
+  - `src/core/ultimates.ts`
+  - `src/render/market-floor.ts`
+  - `src/render/elemental-fx.ts`
+  - `src/render/enemy-clay-fx.ts`
+  - `src/render/ultimate-fx.ts`
+  - `src/ui/catalog.ts`
+  - `tests/core.test.ts`
+  - `tests/skills.test.ts`
+  - `tests/elemental-skills.test.ts`
+  - `tests/ultimates.test.ts`
+  - `tests/v4-core.test.ts`
+  - `tests/v4-skills.test.ts`
+  - `tests/v5-upgrades.test.ts`
+  - `scripts/verify-clay-mobile.mjs`
+  - `agentchanges/CHANGELOG.md`
+- **原因/目标**：玩家希望接技能能清出一大片空间，清场后很快又有下一批可打目标，并能看清哪一片怪被击中。
+- **实现/结果**：低于普通怪容量一半时加倍分批补怪。保留全图选点与入场预警，提前投放大招并预留泡位。旋风电扇按朝向扇出五股热浪，涡锅收拢爆发、泡菜坛挂毒、刨冰机集体碎冰。冰浪、蒸笼与杨梅的波前触敌才结算。加急三连送在第 4、8、12 趟落章伤敌。更新图鉴和试玩包的移动验收脚本，同步震屏偏好、竖屏提示的独立显示及大招音色。
+- **验证**：TypeScript、Vite 本地试玩构建、339 项单元与集成测试、37 项 Chrome 端到端测试及 7 项静态服务测试通过。八个相同开局与上一轮试玩包对照，拾取后 0.8 秒内仅计电扇击杀，由 14–20 只升至 26–32 只。四组关闭普攻的开局中，第 5 秒放杨梅汽水，3 秒后已结束预警的新怪由 6 只升至 30–36 只。旧移动脚本曾因断言存储震屏为关闭、等待隐藏的游戏画布或在竖屏状态生效前旋回而失败，更新验收目标后通过。通过局域网试玩包实测四大招的触摸拾取、命中图层、音频输出与横竖屏恢复；另在横屏简化画质下验证三种元素技能。桌面试玩包从首页开局、走位、暂停和资源加载正常。
+- **风险/后续**：本轮手机验证使用 Chrome 横屏触摸模拟。iPhone 真机的高密度战斗帧率和主观手感仍待试玩。

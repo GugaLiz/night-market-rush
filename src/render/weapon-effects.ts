@@ -2,6 +2,7 @@ import type {Settings, Vec, WeaponKind} from '../shared/types';
 import {drawChopstickImpact,drawChopstickRelease} from './bamboo-volley';
 
 const TAU = Math.PI * 2;
+export const TONG_PRESS_TIME=.042;
 const ink = '#493040';
 interface Material {dark:string; mid:string; light:string}
 const materials:Record<WeaponKind,Material> = {
@@ -65,6 +66,10 @@ export function drawWeaponRelease(c:CanvasRenderingContext2D,kind:WeaponKind,x:n
   c.globalAlpha*=Math.min(1,(1-t)*3);
   const stretch=reduced?1:.84+.38*Math.sin(t*Math.PI);
   c.scale(stretch,reduced?1:1.1-.27*t);
+  if(kind==='tongs'){
+    c.globalAlpha*=.62;
+    c.scale(.72,.76);
+  }
   if(kind==='chopsticks')drawChopstickRelease(c,t,reduced);
   materialStroke(c,kind);c.restore();
 }
@@ -76,12 +81,31 @@ export interface WeaponContact extends Vec {
 /** Draw the strike in local coordinates, with +x along the impulse that actually hit. */
 export function drawWeaponContact(c:CanvasRenderingContext2D,hit:WeaponContact,settings:Settings,strikes?:HTMLImageElement):void {
   const {kind,age,duration,seed}=hit,m=materials[kind];
+  if(kind==='tongs'&&age>=TONG_PRESS_TIME+.103)return;
   const t=Math.min(1,age/duration),travel=settings.reduceMotion?.18:1-(1-t)**2;
   const size=(hit.featured?1:.66)*(kind==='sword'||kind==='lunchbox'?1.13:1);
   c.save();c.translate(hit.x,hit.y);c.rotate(hit.angle);c.scale(size,size);
   c.globalAlpha=Math.min(1,(1-t)*1.65);
   if(kind==='chopsticks'){
-    drawChopstickImpact(c,t,hit.featured,settings.reduceMotion);
+    drawChopstickImpact(c,t,hit.featured&&settings.quality==='standard',settings.reduceMotion);
+    c.restore();return;
+  }
+  if(kind==='tongs'){
+    // Front lip and escaping steam sit on the entry side of the clay silhouette.
+    // Its centre stays visible throughout the squash and rebound.
+    const release=settings.reduceMotion?.24:Math.min(1,Math.max(0,(age-TONG_PRESS_TIME)/.125));
+    c.globalAlpha*=Math.max(0,1-Math.max(0,age-TONG_PRESS_TIME)/.103);
+    const radius=13+release*10;
+    c.lineCap='round';
+    c.beginPath();c.arc(-9,0,radius,Math.PI*.71,Math.PI*1.29);
+    c.strokeStyle='#a95632';c.lineWidth=5.5*(1-.5*t);c.stroke();
+    c.strokeStyle='#fff0ad';c.lineWidth=2.5*(1-.5*t);c.stroke();
+    for(const side of [-1,1]){
+      c.save();c.scale(1,side);c.beginPath();
+      c.moveTo(-14-release*6,9+release*8);
+      c.quadraticCurveTo(-20-release*11,13+release*12,-21-release*15,5+release*15);
+      c.strokeStyle=side===1?'#ffcc80':'#ffefd4';c.lineWidth=3*(1-.6*t);c.stroke();c.restore();
+    }
     c.restore();return;
   }
   // Lit bevel and a dark underside keep these silhouettes legible on market stalls.

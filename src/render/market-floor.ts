@@ -3,7 +3,7 @@ import {skillFieldRadius} from '../core/skill-fields';
 import type {GameState, GroundCoin, SkillField} from '../shared/types';
 import type {Assets} from './assets';
 import {drawSprite} from './sprite';
-import {cartFanOffset} from './delivery-skills';
+import {cartFanOffset, drawWorkingFan, fanSetDownAt} from './delivery-skills';
 
 const circle = Math.PI * 2;
 
@@ -93,12 +93,26 @@ export function drawSkillFields(
     ctx.globalAlpha=fade;
     if(hot){
       const castAge=source ? time-source.bornAt : age;
-      const lift=Math.min(1,Math.max(0,(castAge-.09)/.30));
-      const spread=Math.min(1,age/(main?.38:.22));
-      const r=radius*(.24+.76*(1-(1-spread)**2));
-      const strength=(.07+.93*lift)*Math.min(1,.25+age*4);
+      const lift=Math.min(1,Math.max(0,castAge/.19));
+      const r=radius;
+      const strength=main?.54+.46*lift:Math.min(1,.25+age*4);
       ctx.fillStyle='rgba(230,170,96,.06)';
       ctx.beginPath();ctx.arc(0,0,radius,0,circle);ctx.fill();
+      // The brightest folds ride the live hit front; the small outer gusts face away from the fan.
+      const crest=Math.max(0,1-age/(main?.68:.39));
+      if(crest>0){
+        const heading=source?Math.atan2(field.y-source.y,field.x-source.x):0;
+        const folds=main?(simple?3:5):1;
+        ctx.lineCap='round';ctx.globalAlpha=fade*crest*(reduceMotion?.38:.85);
+        for(let i=0;i<folds;i++){
+          const a=main?i*circle/folds+.3:heading;
+          const halfWidth=main?.38:.77;
+          ctx.beginPath();ctx.arc(0,0,r-2,a-halfWidth,a+halfWidth);
+          ctx.strokeStyle='#c57c45';ctx.lineWidth=main?7:5;ctx.stroke();
+          ctx.beginPath();ctx.arc(0,0,r-3,a-halfWidth+.08,a+halfWidth-.14);
+          ctx.strokeStyle='#fff2cc';ctx.lineWidth=main?3.8:2.8;ctx.stroke();
+        }
+      }
       const lanes=main?(simple?4:6):(simple?2:3);
       const spin=reduceMotion?0:age*(main?1.1:1.5);
       for(let j=0;j<lanes;j++){
@@ -113,7 +127,7 @@ export function drawSkillFields(
         ctx.bezierCurveTo(-reach*.54,-reach*.91,-w*.40,-reach,w*.10,-reach);ctx.stroke();
         ctx.strokeStyle='#fff0c9';ctx.lineWidth=1.4;ctx.beginPath();
         ctx.moveTo(-reach*.62,-reach*.75);ctx.quadraticCurveTo(-reach*.42,-reach*.97,-w*.17,-reach*1.01);ctx.stroke();
-        // The painted brush and any printed slips keep an object-sized silhouette in a 250-unit gust.
+        // Keep the clay brush and printed slips object-sized even as the wind covers the street.
         const variant=(j+Number(main))%2;
         ctx.globalAlpha=fade*strength*(inner?.74:.95);
         ctx.drawImage(atlas,variant*cell,0,cell,cell,-w*.48,-reach-w*.51,w,w);
@@ -144,11 +158,13 @@ export function drawSkillFields(
     ctx.restore();
     if (hot && main) {
       // Both pieces stay where the courier set them down, even after she runs away.
-      const unpack=Math.max(0,Math.min(1,(age-.22)/.18));
+      const unpack=reduceMotion?1:Math.max(0,Math.min(1,(age-.08)/.14));
       ctx.save();ctx.globalAlpha=unpack*fade;
       drawSprite(ctx,assets,'meal',field.x+1,field.y+9,25,-.12,1,.5);
-      ctx.globalAlpha*=Math.max(0,Math.min(1,(age-.34)/.12));
-      drawSprite(ctx,assets,'fan',field.x+cartFanOffset.x,field.y+cartFanOffset.y,40,0,1,.5);
+      if(reduceMotion||age>=fanSetDownAt){
+        ctx.globalAlpha=fade;
+        drawWorkingFan(ctx,assets,field.x+cartFanOffset.x,field.y+cartFanOffset.y,40,0,age,reduceMotion);
+      }
       ctx.restore();
     }
   }

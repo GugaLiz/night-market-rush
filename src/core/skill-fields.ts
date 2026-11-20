@@ -8,20 +8,22 @@ const FIRE_LIFETIME = 2.8;
 const CENTRAL_FIRE_GROWTH = .4;
 const MAX_CASTS_PER_KIND = 3;
 const OUTER_FLAMES = [
-  { distance: 290, radius: 94, delay: .16 },
-  { distance: 310, radius: 86, delay: .24 },
-  { distance: 270, radius: 99, delay: .32 },
-  { distance: 304, radius: 82, delay: .40 },
-  { distance: 278, radius: 90, delay: .48 },
+  { angle:0,   distance:415, radius:145, delay:.22 },
+  { angle:-38, distance:410, radius:149, delay:.29 },
+  { angle:38,  distance:410, radius:149, delay:.29 },
+  { angle:-76, distance:395, radius:143, delay:.36 },
+  { angle:76,  distance:395, radius:143, delay:.36 },
 ] as const;
 
 /** The renderer and damage check use the same world-space circle at the same simulation time. */
 export function skillFieldRadius(field: SkillField, time: number): number {
   if (time < field.bornAt || time >= field.expiresAt) return 0;
-  if (field.kind !== 'fire' || field.id !== field.castId) return field.radius;
-  const growth = clamp((time - field.bornAt) / CENTRAL_FIRE_GROWTH, 0, 1);
+  if (field.kind !== 'fire') return field.radius;
+  const main = field.id === field.castId;
+  const initial = main ? CONFIG.skills.fan.radius : field.radius * .24;
+  const growth = clamp((time - field.bornAt) / (main ? CENTRAL_FIRE_GROWTH : .22), 0, 1);
   const eased = growth * (2 - growth);
-  return CONFIG.skills.fan.radius + (field.radius - CONFIG.skills.fan.radius) * eased;
+  return initial + (field.radius - initial) * eased;
 }
 
 function beginCast(s: GameState, kind: SkillField['kind'], ctx: CombatContext): number {
@@ -52,7 +54,9 @@ function applyFire(s: GameState, field: SkillField, primary: SkillField, ctx: Co
     if (!ctx.active(enemy) || primary.hitIds.includes(enemy.id)) continue;
     const reach = radius + enemy.radius;
     if (segmentDistanceSquared({ x: enemy.px, y: enemy.py }, enemy, field) > reach * reach) continue;
-    if (ctx.damage(enemy, CONFIG.skills.fan.damage, 'fan') > 0) {
+    const dx = enemy.x - field.x, dy = enemy.y - field.y;
+    const angle = dx || dy ? Math.atan2(dy, dx) : (enemy.id % 2 ? 0 : Math.PI);
+    if (ctx.damage(enemy, CONFIG.skills.fan.damage, 'fan', angle) > 0) {
       primary.hitIds.push(enemy.id);
       if (enemy.hp > 0) ctx.push(enemy, field, 30);
     }
@@ -64,8 +68,8 @@ export function igniteFan(s: GameState, origin: Vec, facing: Vec, ctx: CombatCon
   const expiresAt = s.time + FIRE_LIFETIME;
   const primary = addField(s, ctx, castId, 'fire', origin, CONFIG.skills.fan.fullRadius, s.time, expiresAt, true);
   const heading = Math.atan2(facing.y, facing.x);
-  for (const [index, flame] of OUTER_FLAMES.entries()) {
-    const angle = heading + index * (2 * Math.PI / OUTER_FLAMES.length);
+  for (const flame of OUTER_FLAMES) {
+    const angle = heading + flame.angle * Math.PI / 180;
     const center = { x: origin.x + flame.distance * Math.cos(angle), y: origin.y + flame.distance * Math.sin(angle) };
     addField(s, ctx, castId, 'fire', center, flame.radius, s.time + flame.delay, expiresAt);
   }

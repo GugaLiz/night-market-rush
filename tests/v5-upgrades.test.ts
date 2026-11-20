@@ -36,11 +36,12 @@ describe('market delivery box upgrades',()=>{
     const events=game.drainEvents();
     expect(events.filter(e=>e.type==='frostShatter').map(e=>e.x)).toEqual([first.x,second.x]);
     expect(events.filter(e=>e.type==='iceShards')).toEqual([{type:'iceShards',x:first.x,y,angle:0,reach:ELEMENTAL.frost.shardReach}]);
-    expect([first,second,far,rear,side].map(e=>600-e.hp)).toEqual([68,68+24,24,0,0]);
+    const {damage,shardDamage}=ELEMENTAL.frost;
+    expect([first,second,far,rear,side].map(e=>600-e.hp)).toEqual([damage,damage+shardDamage,shardDamage,0,0]);
     expect(first.frostUntil).toBeUndefined();
     expect(first.stunUntil).toBe(100);
     advance(game,2);
-    expect([first,second,far,rear,side].map(e=>600-e.hp)).toEqual([68,68+24,68+24,68,68]);
+    expect([first,second,far,rear,side].map(e=>600-e.hp)).toEqual([damage,damage+shardDamage,damage+shardDamage,damage,damage]);
     const thaw=game.drainEvents().filter(e=>e.type==='damage'&&e.source==='frost');
     expect(thaw).toHaveLength(3);
 
@@ -56,10 +57,10 @@ describe('market delivery box upgrades',()=>{
     game.triggerSkill('frost');
     expect(e.frostUntil).toBeDefined();
     game.dash();advance(game,.1);
-    expect(e.frostUntil).toBeUndefined();expect(e.hp).toBe(332);
+    expect(e.frostUntil).toBeUndefined();expect(e.hp).toBe(400-ELEMENTAL.frost.damage);
     expect(e.stunUntil).toBe(0);
     advance(game,3);
-    expect(e.hp).toBe(332);
+    expect(e.hp).toBe(400-ELEMENTAL.frost.damage);
     game.triggerSkill('frost');advance(game,.5);
     expect(e.frostUntil).toBeDefined();
   });
@@ -76,6 +77,7 @@ describe('market delivery box upgrades',()=>{
     expect(wall.hp).toBe(600);
 
     game.state.enemies=[];
+    advance(game,ELEMENTAL.frost.duration+ELEMENTAL.frost.fade);
     place(game,640,370);
     const cold=target(game,690,370);
     game.triggerSkill('icebox');advance(game,.35);
@@ -91,8 +93,8 @@ describe('market delivery box upgrades',()=>{
   it('keeps brine on the individual tray through its return and shares the poison tick clock across hits',()=>{
     const game=arena('brine'),s=game.state;
     place(game,530,590);game.triggerSkill('poison');advance(game,.65);
-    place(game,285,370);game.setWeapon('tray');s.weapon.readyAt=s.time;
-    const before=target(game,354,370), after=target(game,705,370);
+    place(game,285,249);game.setWeapon('tray');s.weapon.readyAt=s.time;
+    const before=target(game,354,249), after=target(game,705,249);
     advance(game,.1);s.weapon.readyAt=Infinity;
     const [center,upper,lower]=s.projectiles;
     expect([center,upper,lower].map(q=>q.brined)).toEqual([undefined,undefined,undefined]);
@@ -113,8 +115,9 @@ describe('market delivery box upgrades',()=>{
     expect(s.projectiles).toHaveLength(0);
     expect(before.poisonUntil).toBeDefined();
     advance(game,3.2);
-    expect(before.hp).toBe(600-58-44-6*12);
-    expect(after.hp).toBe(600-58-44-6*12);
+    const tailDamage=ELEMENTAL.poison.linger/ELEMENTAL.poison.interval*ELEMENTAL.poison.damage;
+    expect(before.hp).toBe(600-58-44-tailDamage);
+    expect(after.hp).toBe(600-58-44-tailDamage);
     expect(before.poisonNextAt).toBeUndefined();
     game.reset(23,true);expect(game.state.market.upgrade).toBeNull();
   });
@@ -141,14 +144,14 @@ describe('market delivery box upgrades',()=>{
     const center=s.projectiles[0];s.projectiles=[center];s.weapon.readyAt=Infinity;
     for(let i=0;i<60&&center.phase==='out';i++)game.update(CONFIG.step,still);
     expect(center.phase).toBe('return');expect(center.brined).toBeUndefined();
-    place(game,595,500);game.triggerSkill('poison');place(game,285,370);
+    place(game,620,615);game.triggerSkill('poison');place(game,285,370);
     const victim=target(game,340,370);
     advance(game,.65);
     expect(center.brined).toBe(true);
     expect(victim.hp).toBe(600-44);expect(victim.poisonUntil).toBeDefined();
     expect(s.projectiles).toHaveLength(0);
     advance(game,3.1);
-    expect(victim.hp).toBe(600-44-6*12);
+    expect(victim.hp).toBe(600-44-ELEMENTAL.poison.linger/ELEMENTAL.poison.interval*ELEMENTAL.poison.damage);
   });
 
   it('only coats the portion of a segment which intersects the live growing cloud',()=>{

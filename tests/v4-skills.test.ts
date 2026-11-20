@@ -13,10 +13,24 @@ function arena() {
 }
 
 describe('V4 ground skills', () => {
+  it('carries the local wind direction into both surviving and lethal fan contacts', () => {
+    const game=arena(), {x,y}=game.state.player;
+    const survivor=game.spawnEnemy('bowl',{x:x-60,y});
+    const defeated=game.spawnEnemy('bun',{x,y:y+65});
+    game.triggerSkill('fan');
+    const events=game.drainEvents();
+    expect(events).toEqual(expect.arrayContaining([
+      expect.objectContaining({type:'damage',victimId:survivor.id,impactAngle:Math.PI}),
+      expect.objectContaining({type:'damage',victimId:defeated.id,impactAngle:Math.PI/2}),
+      expect.objectContaining({type:'kill',victimId:defeated.id,impactAngle:Math.PI/2}),
+    ]));
+    expect(survivor.x).toBeLessThan(x-60);
+  });
+
   it('opens at pickup, grows over time, and lights outer pockets without clearing the whole crowd', () => {
     const game = arena();
     const { x, y } = game.state.player;
-    const offsets = [70, 210, 325, 480];
+    const offsets = [70, 210, 505, -460];
     const enemies = offsets.map(offset => {
       const enemy = game.spawnEnemy('bowl', { x: x + offset, y });
       enemy.stunUntil = 5;
@@ -26,12 +40,13 @@ describe('V4 ground skills', () => {
     const [main, firstOuter] = game.state.fields;
     expect(skillFieldRadius(main, 0)).toBeCloseTo(CONFIG.skills.fan.radius);
     expect(skillFieldRadius(firstOuter, 0)).toBe(0);
-    expect(enemies.map(enemy => enemy.hp)).toEqual([30, 120, 120, 120]);
+    const injured=120-CONFIG.skills.fan.damage;
+    expect(enemies.map(enemy => enemy.hp)).toEqual([injured, 120, 120, 120]);
     game.update(.1, idle);
     expect(enemies[2].hp).toBe(120);
     game.update(.31, idle);
     expect(skillFieldRadius(main, game.state.time)).toBe(main.radius);
-    expect(enemies.map(enemy => enemy.hp)).toEqual([30, 30, 30, 120]);
+    expect(enemies.map(enemy => enemy.hp)).toEqual([injured, injured, injured, 120]);
     expect(game.state.fields).toHaveLength(6);
     const direction = { x: -1, y: 0 };
     // Cross two overlapping flames with an already hit survivor after snapshotting the fields.
@@ -40,7 +55,7 @@ describe('V4 ground skills', () => {
     const late = game.spawnEnemy('bun', { x: x + 200, y });
     game.update(.2, direction);
     expect(late.hp).toBe(0);
-    expect(enemies[0].hp).toBe(30);
+    expect(enemies[0].hp).toBe(injured);
     expect(game.state.player.x).toBeLessThan(x);
     expect(main.x).toBe(x);
     for (let i = 0; i < 3; i++) game.update(1, idle);

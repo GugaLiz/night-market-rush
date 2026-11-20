@@ -10,9 +10,15 @@ const browser=await chromium.launch(process.env.CHROME_PATH?{executablePath:proc
 const labels=['保冷箱冰浪','蒸笼开席','加急三连送','杨梅汽水炸屏'];
 const tiles=[4,5,2,6],errors=[],reports=[],frames=[];
 // Opening glass, falling bamboo lid, repeating delivery stamps with one final impact, and a popping berry bottle.
-const impactNotes=[[1260,1640,2210],[470,107],[305,350,395,440,130],[970,142,520,790,630]];
+const impactNotes=[[1260,1640,2210],[470,126],[380,210],[970,188,520,790,630]];
 const button=(page,name)=>page.getByRole('button',{name,exact:true});
-const view=(page,name)=>page.locator('[data-view="'+name+'"]').waitFor();
+async function view(page,name){
+  const shell=page.locator('[data-view="'+name+'"]');
+  if(name==='rotate'){
+    await shell.waitFor({state:'attached'});
+    await page.getByRole('heading',{name:'请横屏游玩'}).waitFor();
+  }else await shell.waitFor();
+}
 
 async function monitor(page){
   page.on('pageerror',error=>errors.push(error.message));
@@ -54,6 +60,7 @@ async function turnMusicOff(page,reduceMotion){
     await page.getByRole('tab',{name:'画面'}).click();
     await page.locator('#setting-reduceMotion').click();
     assert.equal(await page.locator('#setting-shake').isDisabled(),true);
+    assert.equal(await page.locator('#setting-shake').getAttribute('aria-checked'),'false');
     await button(page,'简化').click();
   }
   await button(page,'应用').click();await view(page,'home');
@@ -98,7 +105,7 @@ async function desktop(){
   await page.keyboard.press('Escape');await view(page,'play');
   await button(page,'试验工具').click();await openWithTab(page,'巨包三连坐');await view(page,'play');
   const stored=await page.evaluate(()=>JSON.parse(localStorage.getItem('night-market-rush.save.v4')).settings);
-  assert.equal(stored.reduceMotion,true);assert.equal(stored.shake,false);assert.equal(stored.quality,'simple');
+  assert.equal(stored.reduceMotion,true);assert.equal(stored.shake,true);assert.equal(stored.quality,'simple');
   await page.close();
 }
 

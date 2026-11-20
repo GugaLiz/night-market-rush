@@ -24,6 +24,7 @@ export class GameAudio {
   private lastUI=-Infinity;
   private lastHit=-Infinity;
   private lastWeaponHit=-Infinity;
+  private weaponContacts=new Map<number,{count:number;lastCueAt:number;firstHitAt:number}>();
   private lastFanHit=-Infinity;
   private lastPickup=-Infinity;
   private lastCoin=-Infinity;
@@ -86,13 +87,17 @@ export class GameAudio {
     this.master.gain.setTargetAtTime(settings.muted?0:.72,now,.02);
     this.musicBus.gain.setTargetAtTime(Math.max(0,Math.min(1,settings.music))*(this.scene==='play'?.33:.25),now,.035);
     this.sfxBus.gain.setTargetAtTime(Math.max(0,Math.min(1,settings.sfx))*.7,now,.02);
-    if(settings.muted||settings.sfx===0)this.stopSources(this.skillVoices);
+    if(settings.muted||settings.sfx===0){
+      this.stopSources(this.skillVoices);this.stopSources(this.sfxVoices);
+      this.weaponContacts.clear();
+    }
   }
   setScene(scene:Scene):void{
     if(this.scene===scene)return;
     this.scene=scene;this.stopSources(this.musicVoices);
     this.stopSources(this.skillVoices);
     this.lastCast.clear();this.lastShatter=-Infinity;this.lastClear=-Infinity;
+    this.weaponContacts.clear();this.lastFanHit=-Infinity;this.lastWeaponHit=-Infinity;
     if(this.context&&this.combatBus){
       this.combatBus.gain.cancelScheduledValues(this.context.currentTime);
       this.combatBus.gain.setValueAtTime(1,this.context.currentTime);
@@ -142,7 +147,12 @@ export class GameAudio {
       this.skillFoley(now,.06,.18,3200,1600);
       return;
     }
-    if(event.type==='dash'){if(now-this.lastDash<.15)return;this.lastDash=now;this.noiseBurst(now,.18,.2,900,3800);this.note(180,now,.12,.16,'triangle',420);return;}
+    if(event.type==='dash'){
+      if(this.scene!=='play'||now-this.lastDash<.15)return;
+      this.lastDash=now;
+      this.note(275,now,.050,.16,'triangle',130);
+      this.friction(now,.105,.23,2500,670);return;
+    }
     if(event.type==='enemyShot'){if(now-this.lastEnemyShot<.08)return;this.lastEnemyShot=now;this.note(490,now,.095,.16,'sine',165);this.noiseBurst(now,.055,.075,1550,550);return;}
     if(event.type==='giantLand'){
       const heavy=event.hop===3;
@@ -194,7 +204,8 @@ export class GameAudio {
     }
     if(event.type==='kill'){
       // Keep the weapon's contact audible when its first victim also dies on this beat.
-      const killGain=WEAPON_KINDS.includes(event.source as WeaponKind)&&now-this.lastWeaponHit<.09?.58:1;
+      const weaponKill=WEAPON_KINDS.includes(event.source as WeaponKind)&&now-this.lastWeaponHit<.09;
+      const killGain=weaponKill ? .58 : 1;
       this.recentKills=this.recentKills.filter(t=>t>=this.damageTime-.15);
       this.recentKills.push(this.damageTime);
       if(this.recentKills.length>=3&&this.damageTime-this.lastCrowdTime>.28){
@@ -208,14 +219,23 @@ export class GameAudio {
       }
       if(this.damageTime-this.lastCrowdTime<.15)return;
       if(now-this.lastKill<.055)return;this.lastKill=now;
-      this.note(event.kind==='bowl'?180:340,now,.07,.14*killGain,'triangle',100);
-      this.noiseBurst(now,.065,.08*killGain,1500);return;
+      // Leave the first instant to the material contact, especially for one-hit snacks.
+      const tailAt=weaponKill&&(event.source==='tongs'||event.source==='chopsticks')?now+.035:now;
+      this.note(event.kind==='bowl'?180:340,tailAt,.07,.14*killGain,'triangle',100);
+      this.noiseBurst(tailAt,.065,.08*killGain,1500);return;
     }
     if(event.type==='warn'){
       if(now-this.lastWarn<.18)return;this.lastWarn=now;
       this.note(740,now,.09,.15,'triangle');this.note(880,now+.1,.08,.12,'triangle');return;
     }
     if(event.type==='pickup'){
+      if(event.kind==='fan'){
+        if(this.scene!=='play')return;
+        // The delivery latch sounds on collection, even when the fan hits empty paving.
+        this.skillTone(1740,now,.036,.23,'triangle',810);
+        this.skillFoley(now+.014,.037,.19,2650,1050);
+        return;
+      }
       if(now-this.lastPickup<.06)return;this.lastPickup=now;
       this.noiseBurst(now,.055,.07,1100,2700);
       this.note(720,now+.035,.035,.075,'triangle',490);return;
@@ -234,27 +254,41 @@ export class GameAudio {
       this.note(440,now+.035,.1,.14,'triangle',880);return;
     }
     if(event.type==='attack'){
-      if(now-this.lastAttack<.035)return;this.lastAttack=now;
+      if(this.scene!=='play'||now-this.lastAttack<.035)return;this.lastAttack=now;
       this.weaponRelease(event.kind,now);return;
     }
     if(event.type==='damage'){
-      if(event.amount<=0)return;
-      if(event.time<this.damageTime){this.recentKills=[];this.lastCrowdTime=-Infinity;}
+      if(event.amount<=0||(this.scene!=='play'&&event.victimId!==0))return;
+      if(event.time<this.damageTime){this.recentKills=[];this.lastCrowdTime=-Infinity;this.weaponContacts.clear();}
       this.damageTime=event.time;
       if(event.victimId===0){
         this.stopSources(this.sfxVoices);this.note(145,now,.16,.28,'triangle',80);this.noiseBurst(now,.13,.18,650,280);
       }else if(event.source==='fan'){
-        if(now-this.lastFanHit<.14)return;this.lastFanHit=now;
-        this.noiseBurst(now+.025,.12,.115,1850,710);
-        this.note(184,now+.04,.08,.09,'triangle',112);
+        if(now-this.lastFanHit<.14)return;
+        const castAt=this.lastCast.get('fan')??-Infinity;
+        const first=this.lastFanHit<castAt;
+        this.lastFanHit=now;
+        if(first){
+          // A point-blank hit shares a tick with pickup. Let the latch and rotor speak first.
+          const at=Math.max(now,castAt+.058);
+          this.skillFoley(at,.09,.25,1400,510);
+          this.skillTone(425,at,.10,.25,'triangle',165);
+        }else{
+          this.noiseBurst(now,.10,.14,1750,700);
+          this.note(260,now,.075,.12,'triangle',125);
+        }
       }else if(event.source==='poison'){
         if(now-this.lastHit<.16)return;
         this.lastHit=now;
         this.note(354,now,.083,.11,'sine',650);
         this.noiseBurst(now+.03,.067,.07,760,1480);
       }else if(WEAPON_KINDS.includes(event.source as WeaponKind)){
-        // One contact for a volley or a cluster. A later bounce can still answer the first hit.
-        if((event.burstIndex??1)!==1||now-this.lastWeaponHit<.085)return;
+        if((event.burstIndex??1)!==1)return;
+        if(event.attackId!==undefined&&(event.source==='tongs'||event.source==='chopsticks')){
+          this.playWeaponContacts(event.source,event.attackId,event.time,now);
+          return;
+        }
+        if(now-this.lastWeaponHit<.085)return;
         this.lastWeaponHit=now;
         this.weaponImpact(event.source as WeaponKind,now);
       }else if(now-this.lastHit>=.065){
@@ -274,8 +308,10 @@ export class GameAudio {
     if(event.type==='skill'){
       if(this.scene!=='play'||now-(this.lastCast.get(event.kind)??-Infinity)<.09)return;
       this.lastCast.set(event.kind,now);
+      if(event.kind==='fan')this.lastFanHit=-Infinity;
       this.makeRoomForSkill(now);
-      this.skillSound(event.kind,now);return;
+      const motorDelay=event.kind==='fan'&&event.pickupFrom ? .026 : 0;
+      this.skillSound(event.kind,now+motorDelay);return;
     }
     if(event.type==='fail'){
       this.stopSources(this.sfxVoices);this.stopSources(this.musicVoices);this.stopSources(this.skillVoices);
@@ -301,18 +337,18 @@ export class GameAudio {
   }
   private weaponRelease(kind:WeaponKind,at:number):void{
     switch(kind){
-      case 'tongs': // Spring hinge, two steel jaws meeting over the swish.
-        this.friction(at,.095,.18,1650,5300);
-        this.note(1270,at+.008,.038,.19,'triangle',1040);
-        this.note(2060,at+.045,.073,.14,'sine',1930);
+      case 'tongs': // An unloaded spring and a little air. The jaws clap only on contact.
+        this.friction(at,.083,.115,1450,3250);
+        this.note(1390,at+.007,.041,.085,'sine',1160);
         break;
       case 'bag': // Air pressure behind a crinkling kraft bag.
         this.friction(at,.043,.31,3100,1250);
         this.note(172,at+.024,.16,.32,'sine',48);
         this.friction(at+.026,.20,.30,1300,260);
         break;
-      case 'chopsticks': // Three dry bamboo taps across the fan.
-        [1120,855,1420].forEach((f,i)=>this.note(f,at+i*.028,.036,.20-i*.026,'triangle',f*.55));
+      case 'chopsticks': // The bundle slides out in one stroke; targets supply the subsequent taps.
+        this.note(1210,at,.039,.14,'triangle',890);
+        this.friction(at,.063,.10,3500,1900);
         break;
       case 'spirit': // Pour, then two bubbles emerging from the thermos.
         this.friction(at,.19,.14,640,1740);
@@ -351,19 +387,49 @@ export class GameAudio {
         break;
     }
   }
+  private playWeaponContacts(kind:'tongs'|'chopsticks',attackId:number,time:number,now:number):void{
+    let contact=this.weaponContacts.get(attackId);
+    if(!contact){
+      // Both weapons finish their flight in under one simulation second, including the windup.
+      for(const [id,other] of this.weaponContacts)if(time-other.firstHitAt>1)this.weaponContacts.delete(id);
+      contact={count:0,lastCueAt:-Infinity,firstHitAt:time};
+      this.weaponContacts.set(attackId,contact);
+    }
+    if(contact.count>=3)return;
+    // Reserve the last bamboo knock for the back row. At flight speed this is about
+    // 100 world units beyond the first target, regardless of how many lanes hit at once.
+    if(kind==='chopsticks'&&contact.count===2&&time-contact.firstHitAt<.14)return;
+    const at=Math.max(now,contact.lastCueAt+.038);
+    contact.count++;
+    contact.lastCueAt=at;
+    this.lastWeaponHit=now;
+    if(contact.count===1){
+      this.weaponImpact(kind,at);
+    }else if(kind==='chopsticks'){
+      // A dry wooden reply at the next real penetration. Dense lanes fit in three short taps.
+      const middle=contact.count===2;
+      this.note(middle ? 710 : 520,at,.052,middle ? .17 : .21,'triangle',middle ? 395 : 280);
+      this.friction(at,.033,.10,2050,960);
+    }else{
+      const last=contact.count===3;
+      this.note(last ? 390 : 510,at,last ? .11 : .073,last ? .28 : .18,'triangle',last ? 145 : 270);
+      this.friction(at,.065,last ? .23 : .15,1250,510);
+    }
+  }
   private weaponImpact(kind:WeaponKind,at:number):void{
     switch(kind){
       case 'tongs':
-        this.note(715,at,.057,.26,'triangle',330);
-        this.note(1650,at+.009,.092,.13,'sine',1430);
+        this.note(1830,at,.039,.19,'triangle',920);
+        this.friction(at+.005,.078,.31,1550,530);
+        this.note(438,at+.008,.115,.34,'triangle',146);
         break;
       case 'bag':
         this.note(132,at,.145,.30,'sine',44);
         this.friction(at,.083,.34,2300,620);
         break;
       case 'chopsticks':
-        this.note(685,at,.046,.25,'triangle',380);
-        this.note(440,at+.018,.055,.15,'sine',240);
+        this.note(1020,at,.045,.27,'triangle',540);
+        this.friction(at,.047,.18,2300,980);
         break;
       case 'spirit':
         this.note(490,at,.10,.24,'sine',178);
@@ -453,10 +519,9 @@ export class GameAudio {
         [660,990,1320,1980].forEach((f,i)=>this.skillTone(f,at+.025+i*.073,.30,.15,'sine'));
         break;
       case 'fan':
-        this.skillTone(610,at,.04,.20,'triangle',310);
-        this.skillTone(133,at+.035,.39,.20,'triangle',285);
-        this.skillFoley(at+.055,.29,.23,650,2450);
-        this.skillFoley(at+.23,.33,.19,2150,730);
+        this.skillTone(159,at,.35,.21,'triangle',320);
+        this.skillFoley(at,.29,.26,620,2450);
+        this.skillFoley(at+.18,.36,.18,2100,730);
         break;
       case 'skate':
         this.skillFoley(at,.27,.28,2500,550);

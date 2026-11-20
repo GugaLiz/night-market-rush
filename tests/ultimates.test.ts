@@ -1,7 +1,7 @@
 import {describe,expect,it} from 'vitest';
 import {Game} from '../src/core/game';
 import {CONFIG,WORLD} from '../src/core/config';
-import {EXPRESS,expressCast,WAVES} from '../src/core/ultimates';
+import {EXPRESS,expressCast,expressSealRadius,WAVES} from '../src/core/ultimates';
 import {isUltimate,ULTIMATE_KINDS,type Vec} from '../src/shared/types';
 
 const still={x:0,y:0};
@@ -17,6 +17,17 @@ function target(g:Game,x:number,y:number){
 }
 
 describe('clay delivery ultimates',()=>{
+  it.each(['icebox','steamer','berry'] as const)('%s clears a dispersed crowd of full-health bowls inside its real wave',kind=>{
+    const game=lab(),{player}=game.state;
+    for(const dx of [-420,-300,-175,175,300,420]){
+      for(const dy of [-105,0,105]){
+        game.spawnEnemy('bowl',{x:player.x+dx,y:player.y+dy}).stunUntil=5;
+      }
+    }
+    game.triggerSkill(kind);ticks(game,65);
+    expect(game.state.kills).toBe(kind==='icebox'?9:18);
+    expect(game.state.enemies.every(e=>e.x<player.x&&e.hp===e.maxHp)).toBe(true);
+  });
   it('allows aiming the icebox before opening; hits the facing half only and freezes surviving targets',()=>{
     const g=lab(),s=g.state,west=target(g,320,370),south=target(g,640,565),north=target(g,640,205);
     s.player.moveDirection={x:-1,y:0};
@@ -51,7 +62,7 @@ describe('clay delivery ultimates',()=>{
 
   it('cancels the unlaunched shots of a tossed bowl while the soup already in flight keeps travelling',()=>{
     const g=lab(),s=g.state,p=s.player;
-    const bowl=g.spawnEnemy('bowl',{x:p.x+100,y:p.y});
+    const bowl=target(g,p.x+100,p.y);bowl.stunUntil=0;
     bowl.volleyRemaining=2;bowl.nextVolleyAt=s.time+.5;
     s.enemyShots=[{id:9000,ownerId:bowl.id,x:360,y:210,px:360,py:210,vx:110,vy:0,
       radius:6,damage:8,bornAt:0,expiresAt:5}];
@@ -157,6 +168,25 @@ describe('clay delivery ultimates',()=>{
     target(g,p.x,p.y);ticks(g,1);expect(p.hp).toBeLessThan(100);
   });
 
+  it('clears full-health bowls across the width of one run and misses bowls outside its wake',()=>{
+    const game=lab();
+    game.triggerSkill('express');ticks(game,9);
+    const route=expressCast(game.state)!,start=route.landings[0];
+    const dx=route.target.x-start.x,dy=route.target.y-start.y,length=Math.hypot(dx,dy);
+    for(const fraction of [.28,.47,.68]){
+      for(const offset of [-60,0,60,115]){
+        game.spawnEnemy('bowl',{
+          x:start.x+dx*fraction-dy/length*offset,
+          y:start.y+dy*fraction+dx/length*offset,
+        }).stunUntil=5;
+      }
+    }
+    while(route.landings.length<2)ticks(game,1);
+    expect(game.state.kills).toBe(9);
+    expect(game.state.enemies).toHaveLength(3);
+    expect(game.state.enemies.every(e=>e.hp===e.maxHp)).toBe(true);
+  });
+
   it('keeps normal contact at the rider while a fresh ticket replaces a flying parcel',()=>{
     const g=lab(),s=g.state,p=s.player;
     const shot=()=>({id:9001,ownerId:42,x:p.x,y:p.y,px:p.x,py:p.y,vx:0,vy:0,
@@ -217,17 +247,21 @@ describe('clay delivery ultimates',()=>{
     }
   });
 
-  it('saves each target in the third stamp circle for one heavy landing hit',()=>{
+  it.each([4,8,12])('stamps the whole advertised circle once on delivery leg %i',leg=>{
     const g=lab();g.triggerSkill('express');
     const route=expressCast(g.state)!;
-    ticks(g,Math.ceil((EXPRESS.windup+(EXPRESS.legs-1)*EXPRESS.leg)/CONFIG.step)+1);
-    expect(route.landings).toHaveLength(EXPRESS.legs);expect(route.onLeg).toBe(true);
+    ticks(g,Math.ceil((EXPRESS.windup+(leg-1)*EXPRESS.leg)/CONFIG.step)+1);
+    expect(route.landings).toHaveLength(leg);expect(route.onLeg).toBe(true);
     const e=target(g,route.target.x,route.target.y);
-    while(route.landings.length===EXPRESS.legs){
-      expect(e.hp).toBe(400);
+    const radius=expressSealRadius(leg),side=route.target.y>370?-1:1;
+    const rim=target(g,route.target.x,route.target.y+side*(radius+9));
+    const outside=target(g,route.target.x,route.target.y+side*(radius+40));
+    while(route.landings.length===leg){
+      expect([e.hp,rim.hp,outside.hp]).toEqual([400,400,400]);
       ticks(g,1);
     }
-    expect(e.hp).toBe(400-EXPRESS.landingDamage);
+    const damage=leg===EXPRESS.legs?EXPRESS.landingDamage:EXPRESS.orderDamage;
+    expect([e.hp,rim.hp,outside.hp]).toEqual([400-damage,400-damage,400]);
   });
 
   it('lets the rider steer the next parcel landing while their own midair inputs still change walking direction',()=>{
@@ -265,6 +299,27 @@ describe('clay delivery ultimates',()=>{
       s.pickups=[];
     }
     expect(found).toEqual([...ULTIMATE_KINDS]);
+  });
+
+  it('leaves room for the next ultimate when the rider ignores the three other bubbles',()=>{
+    const g=new Game(73),s=g.state;
+    s.player.invulnerableUntil=999;
+    const arrivals:{kind:string;time:number}[]=[];
+    for(let frame=0;frame<60*22&&arrivals.length<2;frame++){
+      for(const item of s.pickups)if(!isUltimate(item.kind))item.readyAt=Infinity;
+      ticks(g,1);
+      expect(s.pickups.length).toBeLessThanOrEqual(CONFIG.pickup.cap);
+      const ultimate=s.pickups.find(p=>isUltimate(p.kind));
+      if(!ultimate)continue;
+      expect(s.pickups.filter(p=>!isUltimate(p.kind))).toHaveLength(3);
+      arrivals.push({kind:ultimate.kind,time:s.time});
+      Object.assign(ultimate,{x:s.player.x,y:s.player.y,vx:0,vy:0});
+      ticks(g,1);
+      expect(g.drainEvents()).toContainEqual(expect.objectContaining({type:'pickup',kind:ultimate.kind}));
+    }
+    expect(arrivals.map(p=>p.kind)).toEqual(['icebox','steamer']);
+    expect(arrivals[0].time).toBeLessThan(CONFIG.pickup.firstUltimate+CONFIG.pickup.interval);
+    expect(arrivals[1].time-arrivals[0].time).toBeGreaterThanOrEqual(CONFIG.pickup.ultimateInterval-1e-8);
   });
 
   it('lets a moving rider naturally collect four live ultimates and encounter the second wave giant',()=>{

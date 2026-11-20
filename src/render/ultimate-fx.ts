@@ -1,6 +1,6 @@
 import {WORLD} from '../core/config';
 import {clamp} from '../core/geometry';
-import {EXPRESS,WAVES,waveRadius} from '../core/ultimates';
+import {EXPRESS,expressSealRadius,WAVES,waveRadius} from '../core/ultimates';
 import type {ExpressCast,GameState,Settings,Vec,WaveCast} from '../shared/types';
 import type {Assets} from './assets';
 import {drawSprite} from './sprite';
@@ -40,6 +40,26 @@ function paperTrail(c:CanvasRenderingContext2D,cast:ExpressCast,s:GameState,asse
     const start={x:end.x-ux*length,y:end.y-uy*length};
     const grad=c.createLinearGradient(start.x,start.y,end.x,end.y);
     grad.addColorStop(0,'#21ab9800');grad.addColorStop(.58,'#54dcbb92');grad.addColorStop(1,'#c4ffdf');
+    if(cast.onLeg&&leg===latest){
+      // The parcel ploughs a capsule. Roll the air around its nose at the actual hit radius.
+      const heading=Math.atan2(dy,dx),r=EXPRESS.radius;
+      c.save();c.translate(end.x,end.y);c.rotate(heading);
+      const pressure=c.createLinearGradient(-length,0,r,0);
+      pressure.addColorStop(0,'#3aac9300');pressure.addColorStop(.64,'#5fe0be13');
+      pressure.addColorStop(.93,'#9cf9d844');pressure.addColorStop(1,'#eaffd974');
+      c.fillStyle=pressure;c.beginPath();c.moveTo(-length,0);
+      c.quadraticCurveTo(-length*.36,-r*.8,0,-r);c.arc(0,0,r,-Math.PI/2,Math.PI/2);
+      c.quadraticCurveTo(-length*.36,r*.8,-length,0);c.closePath();c.fill();
+      ripple(c,0,0,r,'#246f72',6,-1.38,1.38);
+      ripple(c,0,0,r,'#e0ffe4',2.6,-1.38,1.38);
+      c.strokeStyle='#9eead4';c.lineWidth=2;c.beginPath();
+      for(const side of [-1,1]){
+        c.moveTo(-length*.47,side*r*.64);
+        c.quadraticCurveTo(-length*.24,side*r*.91,-7,side*r*.95);
+      }
+      c.stroke();
+      c.restore();
+    }
     c.globalAlpha=fade*.78;c.strokeStyle=grad;c.lineWidth=26;
     c.beginPath();c.moveTo(start.x,start.y);c.lineTo(end.x,end.y);c.stroke();
     c.lineWidth=4;c.strokeStyle='#c9ffe4';c.beginPath();
@@ -49,13 +69,13 @@ function paperTrail(c:CanvasRenderingContext2D,cast:ExpressCast,s:GameState,asse
       for(let d=75;d<length;d+=115)imprint(c,assets,2,end.x-ux*d,end.y-uy*d-8,24,22,ux*.22);
     }
   }
-  // Announce a delivery seal as it approaches; the final circle matches the heavier hit.
+  // Travelling over the seal leaves its targets for the signed delivery.
   if(cast.onLeg&&latest%EXPRESS.legsPerOrder===0){
     const approach=unit(((s.time-cast.legStart)/EXPRESS.leg-.45)/.55);
     if(approach>0){
       const final=latest===EXPRESS.legs;
       c.globalAlpha=.5*approach;c.setLineDash([10,9]);
-      ripple(c,cast.target.x,cast.target.y,final?EXPRESS.landingRadius:41,final?'#ffd48d':'#a6f3d0',3);
+      ripple(c,cast.target.x,cast.target.y,expressSealRadius(latest),final?'#ffd48d':'#a6f3d0',3);
       c.setLineDash([]);
     }
   }
@@ -64,9 +84,17 @@ function paperTrail(c:CanvasRenderingContext2D,cast:ExpressCast,s:GameState,asse
     const fade=unit(1-age/(final?EXPRESS.fade:.55));
     if(fade===0)continue;
     const mark=cast.landings[i],order=i>0&&i%EXPRESS.legsPerOrder===0;
-    const r=final?EXPRESS.landingRadius:order?51:33,size=final?100:order?78:54;
+    const r=order?expressSealRadius(i):33,size=final?132:order?100:54;
     c.globalAlpha=fade*.87;
     ripple(c,mark.x,mark.y,r,final?'#ffd48d':order?'#d7ffbf':'#8af4ca',final?5:3);
+    if(order){
+      const ink=unit(age/.16);
+      c.globalAlpha=fade*(.74-.34*ink);
+      ripple(c,mark.x,mark.y,r-6,final?'#ba6140':'#329c87',10);
+      c.setLineDash([5,9]);
+      ripple(c,mark.x,mark.y,r-15,'#fff5c2',3);
+      c.setLineDash([]);
+    }
     imprint(c,assets,2,mark.x,mark.y,size,size*.76,i%2?.24:-.18);
   }
   c.restore();
@@ -102,13 +130,18 @@ function waveFront(c:CanvasRenderingContext2D,cast:WaveCast,s:GameState,assets:A
   const width=Math.min(r,berry?135:ice?110:85),inner=Math.max(0,r-width);
   c.save();c.globalAlpha=fade;
   const band=c.createRadialGradient(cast.x,cast.y,inner,cast.x,cast.y,r);
-  band.addColorStop(0,edge+'00');band.addColorStop(.76,edge+(ice?'20':'0a'));band.addColorStop(.94,light+(ice?'31':'12'));band.addColorStop(1,edge+'00');
-  c.fillStyle=band;c.beginPath();c.moveTo(cast.x,cast.y);c.arc(cast.x,cast.y,r,start,start+span);c.closePath();c.fill();
-  if(ice)ripple(c,cast.x,cast.y,r,edge+'72',2,start,start+span);
+  band.addColorStop(0,edge+'00');band.addColorStop(.6,edge+'16');
+  band.addColorStop(.86,edge+(berry?'82':'55'));band.addColorStop(.98,light+'a0');band.addColorStop(1,edge+'18');
+  c.fillStyle=band;c.beginPath();c.arc(cast.x,cast.y,r,start,start+span);
+  c.arc(cast.x,cast.y,inner,start+span,start,true);c.closePath();c.fill();
+  // The continuous leading lip reaches a victim on the same simulation step as its hit.
+  ripple(c,cast.x,cast.y,r,shadow+'a0',ice?5:berry?9:7,start,start+span);
+  ripple(c,cast.x,cast.y,r,light,ice?2.2:3,start,start+span);
   if(ice){
     // The interlocked shards erupt from the case and follow the locked firing angle.
     c.save();c.translate(cast.x,cast.y);c.rotate(cast.angle);
-    for(const side of [-1,1]){
+    c.beginPath();c.moveTo(0,0);c.arc(0,0,r,-Math.PI/2,Math.PI/2);c.closePath();c.clip();
+    if(!thin(settings))for(const side of [-1,1]){
       c.save();c.rotate(side*.77);c.globalAlpha=fade*.68;
       imprint(c,assets,4,r*.40,0,r*.80,r*.83);c.restore();
     }
@@ -116,16 +149,21 @@ function waveFront(c:CanvasRenderingContext2D,cast:WaveCast,s:GameState,assets:A
     imprint(c,assets,4,r*.48,0,r*.94,r*.91);c.restore();
   }else if(!berry){
     // The hollow center grows together with the moving front and reveals the cleared floor.
-    c.globalAlpha=fade*.37;
-    imprint(c,assets,5,cast.x,cast.y,r*2.14,r*2.13,.06);
+    if(!thin(settings)){
+      c.globalAlpha=fade*.30;
+      imprint(c,assets,5,cast.x,cast.y,r*2.14,r*2.13,.06);
+    }
     c.globalAlpha=fade*.84;
     imprint(c,assets,5,cast.x,cast.y-7,r*2.03,r*2.00,-.03);
   }
-  const density=thin(settings)?1.5:1;
-  const count=Math.max(5,Math.ceil(span*r/((ice?134:berry?150:194)*density)));
+  // Fixed bearings let the same shard, steam curl or bubble travel visibly across the street.
+  const spacing=(ice?110:berry?130:146)*(thin(settings)?1.75:1);
+  const count=Math.max(5,Math.min(36,Math.ceil(span*cast.reach/spacing)));
+  const gap=span*r/count;
   for(let i=0;i<count;i++){
+    if((gap<30&&i%4!==0)||(gap<55&&i%2!==0))continue;
     const angle=start+span*(i+.5)/count,dx=Math.cos(angle),dy=Math.sin(angle);
-    const bend=Math.sin(angle*7+cast.bornAt)*(berry?39:ice?16:12);
+    const bend=(1+Math.sin(angle*7+cast.bornAt))*(berry?8:ice?5:4);
     const at=r-bend,x=cast.x+at*dx,y=cast.y+at*dy;
     if(x<-96||y<-96||x>WORLD.width+96||y>WORLD.height+96)continue;
     const pulse=(1+Math.sin(angle*9+cast.bornAt))*.5,size=(ice?36:berry?46:42)+pulse*(ice?42:22);
@@ -142,10 +180,12 @@ function waveFront(c:CanvasRenderingContext2D,cast:WaveCast,s:GameState,assets:A
     if(ice&&r>65&&!thin(settings)){
       c.strokeStyle=light+'a8';c.lineWidth=2.1;c.beginPath();c.moveTo(x-13*dx,y-13*dy);c.lineTo(x-64*dx,y-64*dy);c.stroke();
     }
-    if(berry&&!thin(settings)){
-      const offset=13+pulse*13;
-      c.fillStyle=shadow;c.beginPath();c.arc(x+dx*offset,y+dy*offset-11,3+pulse*4,0,tau);c.fill();
-      c.fillStyle=light;c.beginPath();c.arc(x+dx*offset-1,y+dy*offset-13,1.6,0,tau);c.fill();
+    if(berry){
+      const size=4+pulse*3;
+      c.fillStyle=edge;c.beginPath();c.arc(x,y,size,0,tau);c.fill();
+      c.strokeStyle=shadow;c.lineWidth=1.7;c.stroke();
+      c.fillStyle=light;c.beginPath();c.arc(x-size*.3,y-size*.4,1.8,0,tau);c.fill();
+      if(!thin(settings))imprint(c,assets,7,x-dx*16,y-dy*16,17+pulse*14,16+pulse*10,angle);
     }
   }
   c.restore();
