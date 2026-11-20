@@ -65,7 +65,7 @@ export function updateGiant(s:GameState,e:Enemy,ctx:CombatContext):void {
   const b=WORLD.bounds;
   const reach=j.hop===3?Math.hypot(Math.max(e.x-b.left,b.right-e.x),
     Math.max(e.y-b.top,b.bottom-e.y))+tuning.pulseHalfWidth+CONFIG.player.radius:tuning.stompRadius;
-  (s.giantPulses??=[]).push({id:ctx.id(),hop:j.hop,x:e.x,y:e.y,bornAt:s.time,
+  (s.giantPulses??=[]).push({id:ctx.id(),ownerId:e.id,hop:j.hop,x:e.x,y:e.y,bornAt:s.time,
     gapAngle:j.gapAngle,reach,spent:false});
   ctx.emit({type:'giantLand',x:e.x,y:e.y,hop:j.hop});
 }

@@ -1,4 +1,5 @@
-import type {Player,Zone} from '../shared/types';
+import {CONFIG} from '../core/config';
+import type {Pickup,Player,Vec,Zone} from '../shared/types';
 
 const tau=Math.PI*2;
 const unit=(n:number)=>Math.max(0,Math.min(1,n));
@@ -72,6 +73,139 @@ export function drawRouteStride(c:CanvasRenderingContext2D,p:Player,time:number,
     c.beginPath();c.moveTo(head,side*9);c.quadraticCurveTo(head-length*.48,side*13,head-length,side*11);
     c.strokeStyle='#307b6a';c.lineWidth=4;c.stroke();
     c.strokeStyle='#beffe0';c.lineWidth=1.8;c.stroke();
+  }
+  c.restore();
+}
+
+function drawHookLine(c:CanvasRenderingContext2D, bag:Vec, tip:Vec, opening:number, time:number, reduced:boolean):void {
+  const dx=tip.x-bag.x,dy=tip.y-bag.y;
+  const bend=Math.min(16,Math.hypot(dx,dy)*.055);
+  c.beginPath();
+  c.moveTo(bag.x,bag.y);
+  c.quadraticCurveTo((bag.x+tip.x)/2,(bag.y+tip.y)/2+bend,tip.x,tip.y);
+  c.lineWidth=4.5;c.strokeStyle='#29464c';c.stroke();
+  c.lineWidth=2.2;c.strokeStyle='#8dd0c5';c.stroke();
+  c.setLineDash([4,10]);c.lineDashOffset=reduced?0:time*73;
+  c.strokeStyle='#ffce76';c.stroke();c.setLineDash([]);
+
+  c.save();c.translate(tip.x,tip.y);c.rotate(Math.atan2(dy-bend*2,dx));
+  const gap=3+6*opening;
+  c.lineJoin='round';
+  c.beginPath();
+  for(const side of [-1,1]){
+    c.moveTo(-5,0);c.lineTo(0,side*6);c.lineTo(7,side*(gap+2));c.lineTo(11,side*gap);
+  }
+  c.strokeStyle='#32414a';c.lineWidth=6;c.stroke();
+  c.strokeStyle='#ffd387';c.lineWidth=3.3;c.stroke();
+  c.fillStyle='#477878';c.fillRect(-8,-3,6,6);c.restore();
+}
+
+/** The reel stays on the satchel while each jaw flies out, closes on a bubble and draws it in. */
+export function drawRetrievalHook(
+  c:CanvasRenderingContext2D, bag:Vec, p:Player, pickups:Pickup[], until:number, time:number, reduced:boolean,
+):void {
+  const latched=pickups.filter(item=>(item.pulledUntil??0)>time);
+  if(!latched.length && !(until>time))return;
+  c.save();c.lineCap='round';
+  for(const item of latched){
+    const latchAge=time-(item.pulledUntil!-CONFIG.skills.hook.reelTimeout);
+    const progress=reduced?1:unit(latchAge/CONFIG.skills.hook.launchTime);
+    const dx=item.x-bag.x,dy=item.y-39-bag.y;
+    const travel=progress*Math.max(0,1-34/(Math.hypot(dx,dy)||1));
+    drawHookLine(c,bag,{x:bag.x+dx*travel,y:bag.y+dy*travel},1-progress,time,reduced);
+  }
+  if(!latched.length){
+    // With no target, the spring-loaded jaw opens beside the bag and retracts to scan again.
+    const age=time-until+CONFIG.skills.hook.duration;
+    const sweep=reduced?.28:Math.sin(Math.PI*Math.min(1,(Math.max(0,age)%.95)/.72))**2;
+    const tip={x:bag.x-p.facing*(17+33*sweep),y:bag.y+11-10*sweep};
+    drawHookLine(c,bag,tip,sweep,time,reduced);
+  }
+  c.translate(bag.x,bag.y);
+  c.fillStyle='#416c70';c.strokeStyle='#233d43';c.lineWidth=2;
+  c.beginPath();c.arc(0,0,6,0,tau);c.fill();c.stroke();
+  c.fillStyle='#ffcf80';c.beginPath();c.arc(0,0,3.6,0,tau);c.fill();c.restore();
+}
+
+/** A vermilion bow wave folds back into small order slips as the courier gains speed. */
+export function drawStampWave(
+  c: CanvasRenderingContext2D, p: Player, time: number, reduced: boolean, simple: boolean,
+): void {
+  const speed = Math.hypot(p.vx, p.vy);
+  const heading = speed > 5 ? Math.atan2(p.vy, p.vx) : Math.atan2(p.moveDirection.y, p.moveDirection.x);
+  const drive = unit(speed / CONFIG.player.speed);
+  const dash = (p.dashUntil ?? 0) > time ? 1 : 0;
+  // The helmet and shoes extend farther from the body's centre than the shoulders.
+  const nose = 46 + 22 * Math.abs(Math.sin(heading)) + 20 * drive + 9 * dash;
+  const wing = 32 + 8 * Math.abs(Math.cos(heading)) + 13 * drive + 4 * dash;
+  const tail = 12 - 18 * drive - 13 * dash;
+  const opening = unit((time - p.stampUntil + CONFIG.skills.stamp.duration) / .17);
+  const fade = unit((p.stampUntil - time) / .26);
+  c.save();
+  c.translate(p.x, p.y - 43);
+  c.rotate(heading);
+  const unfold = reduced ? 1 : .78 + .22 * (1 - (1 - opening) ** 2);
+  c.scale(unfold, unfold);
+  c.globalAlpha *= (.74 + .26 * drive) * (.5 + .5 * fade);
+
+  // Two tapered paper edges meet at a rounded pressure front. Keep the centre transparent.
+  c.beginPath();
+  c.moveTo(tail, -wing);
+  c.bezierCurveTo(nose * .48, -wing, nose, -wing * .54, nose, 0);
+  c.bezierCurveTo(nose, wing * .54, nose * .48, wing, tail, wing);
+  c.bezierCurveTo(nose * .47, wing * .84, nose - 10 - 3 * drive, wing * .29, nose - 10 - 3 * drive, 0);
+  c.bezierCurveTo(nose - 10 - 3 * drive, -wing * .29, nose * .47, -wing * .84, tail, -wing);
+  c.closePath();
+  const ink = c.createLinearGradient(tail, 0, nose, 0);
+  ink.addColorStop(0, '#b53c2844');
+  ink.addColorStop(.74, '#d75734e8');
+  ink.addColorStop(1, '#ffb66c');
+  c.fillStyle = ink;
+  c.fill();
+  c.lineCap = 'round';
+  c.beginPath();
+  c.moveTo(tail, -wing);
+  c.bezierCurveTo(nose * .48, -wing, nose, -wing * .54, nose, 0);
+  c.bezierCurveTo(nose, wing * .54, nose * .48, wing, tail, wing);
+  c.strokeStyle = '#994627';
+  c.lineWidth = 4;
+  c.stroke();
+  c.strokeStyle = '#fff0bc';
+  c.lineWidth = 2;
+  c.stroke();
+
+  if (!reduced && drive > .08) {
+    // A second compression front peels off the first and dissipates into the street.
+    const phase = (time * 1.85) % 1;
+    const offset = 4 + phase * (16 + dash * 9);
+    c.save();
+    c.globalAlpha *= drive * Math.sin(phase * Math.PI);
+    c.beginPath();
+    c.moveTo(nose * .62 + offset, -wing * .86);
+    c.quadraticCurveTo(nose * 1.36 + offset, 0, nose * .62 + offset, wing * .86);
+    c.strokeStyle = '#cb673c';
+    c.lineWidth = 3.3;
+    c.stroke();
+    c.strokeStyle = '#fff1ba';
+    c.lineWidth = 1.7;
+    c.stroke();
+    c.restore();
+  }
+  if (!simple && !reduced && drive > .08) {
+    const beat = time * 1.85;
+    for (const side of [-1, 1]) {
+      const phase = (beat + (side === 1 ? .5 : 0)) % 1;
+      c.save();
+      c.globalAlpha *= Math.sin(phase * Math.PI) * drive;
+      c.translate(tail + 18 - phase * (37 + 12 * dash), side * (wing - 4 + phase * 7));
+      c.rotate(side * (.15 - phase * .46));
+      c.fillStyle = '#fff1bd';
+      c.fillRect(-8, -3, 16, 6);
+      c.fillStyle = '#bd4b34';
+      c.fillRect(-5, -1, 7, 2);
+      c.fillRect(4, -2, 3, 3);
+      c.restore();
+    }
   }
   c.restore();
 }

@@ -32,6 +32,7 @@ describe('V5 signed market orders',()=>{
   it('lights both options together at wave two and four with reachable, separated, reproducible sites',()=>{
     function run(){
       const g=challenge(81,1,36-CONFIG.step*2),s=g.state;
+      s.eliteWave=1; // This market fixture starts just after the rider defeated the guard.
       Object.assign(s.player,{x:WORLD.bounds.left+s.player.radius,y:CONFIG.player.minY});
       g.update(CONFIG.step,still);
       expect(s.market.offer).toBeNull();
@@ -48,7 +49,7 @@ describe('V5 signed market orders',()=>{
       expect(g.drainEvents().filter(e=>e.type==='market'||e.type==='wave').map(e=>e.type)).toEqual(['wave','market']);
       tick(g,15);
       expect(s.market.offer).toBeNull();expect(s.market.expired?.stalls).toEqual(food.stalls);
-      s.time=104-CONFIG.step;s.wave=3;s.waveStartedAt=70;
+      s.time=104-CONFIG.step;s.wave=3;s.waveStartedAt=70;s.eliteWave=3;
       g.update(CONFIG.step,still);
       expect(s.market.offer?.group).toBe('upgrade');
       return [food.stalls,s.market.offer!.stalls];

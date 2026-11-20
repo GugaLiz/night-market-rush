@@ -1,21 +1,21 @@
 import {CONFIG, WORLD} from '../core/config';
-import {DEFAULT_SETTINGS, SKILL_NAMES, ULTIMATE_KINDS, WEAPON_NAMES} from '../shared/types';
+import {DEFAULT_SETTINGS, isElite, SKILL_NAMES, ULTIMATE_KINDS, WEAPON_NAMES} from '../shared/types';
 import {isOnPaperRoute} from '../core/geometry';
 import {EXPRESS,TOSS_DURATION} from '../core/ultimates';
 import type {ElementalField, Enemy, GameEvent, GameState, Settings, Vec, WeaponKind} from '../shared/types';
 import type {Assets, SpriteName} from './assets';
 import {drawSprite} from './sprite';
 import {CourierRig} from './character';
-import {drawPackingWrap,drawPaperRoute,drawRouteStride} from './courier-equipment';
+import {drawPackingWrap,drawPaperRoute,drawRetrievalHook,drawRouteStride,drawStampWave} from './courier-equipment';
 import {DamageLabels} from './damage-labels';
-import {drawDeliveryPickup, drawDeliveryUse, drawPickupReach, drawUseRipple, nearestPickupHint, useLifetime} from './delivery-skills';
+import {drawDeliveryPickup, drawDeliveryUse, drawDispatchBroadcast, drawPickupReach, drawUseRipple, nearestPickupHint, useLifetime} from './delivery-skills';
 import {WEAPONS} from '../core/weapons';
 import {drawChainLink, drawFlightWake, drawPaperPuff, drawWeaponContact, drawWeaponRelease, type WeaponContact} from './weapon-effects';
 import {drawFlyingChopsticks} from './bamboo-volley';
 import {drawMeleeWaves} from './melee-waves';
 import {drawUltimateGround,drawUltimateAir} from './ultimate-fx';
 import {drawElementalGround,drawIceFragments,drawPoisonedEnemy,drawVortexMouth} from './elemental-fx';
-import {drawEnemyAttackGround,drawEnemyAttackDetail,drawGiantPulses,drawSoupShot,getEnemyAttackPose,enemyExpression,drawIceShell} from './enemy-clay-fx';
+import {drawEnemyAttackGround,drawEnemyAttackDetail,drawGiantPulses,drawSnackImpact,drawSnackPursuitTrails,drawSoupShot,drawSyrupDrop,getEnemyAttackPose,enemyExpression,drawIceShell,drawBellStun} from './enemy-clay-fx';
 import {enemyHeight} from './enemy-vitals';
 import {drawGroundCoins, drawMarketBackground, drawSkillFields} from './market-floor';
 import {drawMarketStalls} from './market-stalls';
@@ -89,6 +89,8 @@ export class Renderer {
         if(this.skillUses.length>16)this.skillUses.shift();
       } else if (event.type === 'coin') {
         this.burst(event.x, event.y - 8, '#ffe49a', 5);
+      } else if(event.type==='dispatchClear'){
+        this.effects.push({kind:'dispatchClear',x:event.x,y:event.y,age:0,duration:.30});
       } else if(event.type==='ultimateBeat') {
         const force=event.kind==='berry'?.22:event.kind==='steamer'?.11:event.kind==='express'&&event.beat===EXPRESS.legs?.16:.065;
         this.shake=Math.max(this.shake,force);
@@ -115,7 +117,10 @@ export class Renderer {
       } else if(event.type==='damage') {
         if((event.burstIndex??1)!==1)continue;
         if(event.victimId===0){
-          this.burst(event.x,event.y-25,'#ff907e',10);this.shake=.14;
+          const kind=event.source==='dash'?'box':event.source;
+          const snack=kind==='bun'||kind==='onigiri'||kind==='siumai'||kind==='zongzi'||kind==='box'||kind==='bowl';
+          if(snack)this.effects.push({kind:'snackImpact',sprite:kind,x:event.x,y:event.y,angle:event.impactAngle,age:0,duration:.29});
+          this.burst(event.x,event.y-25,'#ff907e',snack?4:10);this.shake=.14;
         }else if(Object.hasOwn(WEAPONS,event.source)){
           const y=event.y-28;
           const featured=!this.contacts.some(hit=>hit.featured&&hit.age<.12&&Math.hypot(hit.x-event.x,hit.y-y)<120);
@@ -220,17 +225,20 @@ export class Renderer {
     this.skillUses=this.skillUses.filter(use=>s.time-use.time<useLifetime);
     for(const use of this.skillUses)if(use.kind==='soda'||use.kind==='bell'){
       drawUseRipple(c,use,s.time-use.time,CONFIG.skills[use.kind].radius,this.settings.reduceMotion);
+    }else if(use.kind==='dispatch'){
+      drawDispatchBroadcast(c,use,s.time-use.time,CONFIG.skills.dispatch.radius,this.settings.reduceMotion);
     }
     const onRoute=s.zones.some(z=>isOnPaperRoute(s.player,z,s.time));
     this.zones(s,onRoute);
     drawGroundCoins(c, s.coins, s.time, this.settings.reduceMotion);
     this.drawGroundImpact();
     drawMarketStalls(c,s,this.settings,this.assets,'ground');
+    drawSnackPursuitTrails(c,s,this.settings);
     for (const e of s.enemies) {
       const age = s.time - e.spawnAt;
       if (age < CONFIG.spawn.warning) {
         c.save(); c.strokeStyle = '#ffbd79'; c.fillStyle = '#38242d55'; c.lineWidth = 3;
-        const radius=e.kind==='giantBun'?56:25;
+        const radius=e.kind==='giantBun'?56:isElite(e.kind)?e.radius+15:25;
         c.setLineDash([5, 5]); c.beginPath(); c.ellipse(e.x, e.y, radius, radius*.48, 0, 0, Math.PI * 2); c.fill(); c.stroke(); c.restore();
       }
       if(age>=CONFIG.spawn.warning)drawEnemyAttackGround(c,e,s.time,this.settings);
@@ -258,7 +266,7 @@ export class Renderer {
     const enemies=[...s.enemies].sort((a,b)=>a.y-b.y);
     const vortex=s.elementalFields?.find(field=>field.kind==='vortex'&&s.time>=field.bornAt&&s.time<field.releaseAt);
     for(const e of enemies)this.enemy(e,s,vortex);
-    if(vortex)drawVortexMouth(c,vortex,s.time,this.settings.reduceMotion);
+    if(vortex)drawVortexMouth(c,vortex,s.time,this.settings.reduceMotion,this.assets);
     this.drawEffects(true);
     for(const hit of this.contacts)drawWeaponContact(c,hit,this.settings,this.assets.strikes);
     for (const p of this.particles) {
@@ -269,13 +277,17 @@ export class Renderer {
     drawUltimateAir(c,s,this.settings,this.assets);
     // Route choices and the courier stay legible even when a full row erupts at once.
     const needsHealth=s.player.hp<s.player.maxHp;
-    for(const pickup of s.pickups)drawDeliveryPickup(c,this.assets,pickup,s.player,s.time,this.settings.reduceMotion,needsHealth);
+    const supply=s.zones.find(z=>z.kind==='supply');
+    for(const pickup of s.pickups)drawDeliveryPickup(c,this.assets,pickup,s.player,s.time,this.settings.reduceMotion,needsHealth,supply);
     const near=nearestPickupHint(s.pickups,s.player,s.time,needsHealth);
-    if(near){
+    if(near&&!near.groupId){
       const healing=near.kind==='health';
       this.caption((healing?'回血 · ':'技能 · ')+SKILL_NAMES[near.kind],near.x,near.y+20,15,healing?'#ffdad5':'#c0ffe2');
     }
     if(onRoute)drawRouteStride(c,s.player,s.time,this.settings.reduceMotion);
+    if(s.player.stampUntil>s.time){
+      drawStampWave(c,s.player,s.time,this.settings.reduceMotion,this.settings.quality==='simple'||this.denseScene);
+    }
     this.drawCourier(s);
     if(this.rig.bagPoint && this.rig.supplyHand)for(const use of this.skillUses){
       const field=s.elementalFields?.find(f=>f.kind===use.kind&&f.bornAt===use.time);
@@ -283,6 +295,9 @@ export class Renderer {
     }
     this.projectiles(s);
     this.playerStatus(s);
+    const impact=this.effects.find(effect=>effect.kind==='snackImpact');
+    if(impact?.sprite)drawSnackImpact(c,impact.sprite,impact.x,impact.y,impact.angle??0,impact.age/impact.duration,this.settings);
+    for(const e of enemies)if(e.kind==='eliteSesame')drawSyrupDrop(c,e,s.time,this.settings);
     if (s.player.skateUntil > s.time) this.skateRing(s, true);
     this.labels.drawVitals(c);
     this.labels.draw(c,this.assets,this.settings.reduceMotion);
@@ -382,7 +397,7 @@ export class Renderer {
     const dir=strike?.angle??0,foot=e.y-posed.lift-toss;
     c.save();
     if(age<CONFIG.spawn.warning)c.globalAlpha=.2+.6*Math.max(0,age)/CONFIG.spawn.warning;
-    const shade=giant?38:e.kind==='bowl'?26:18;
+    const shade=giant?38:isElite(e.kind)?e.radius+5:e.kind==='bowl'?26:18;
     this.shadow(e.x,e.y,shade*(1-.003*(posed.lift+toss)),.24-.0014*(posed.lift+toss));
     c.save();c.translate(e.x+Math.cos(dir)*recoil*13,foot+Math.sin(dir)*recoil*9);
     if(swallowed>0&&!reduced){
@@ -396,15 +411,18 @@ export class Renderer {
     if(age>=CONFIG.spawn.warning)drawEnemyAttackDetail(c,e,time,this.settings,s.player);
     if(!hurt&&!strike&&time-e.hurtAt<.13){c.strokeStyle='#fff2bb';c.lineWidth=2;c.beginPath();c.ellipse(e.x,foot-height*.45,height*.42,height*.48,0,0,Math.PI*2);c.stroke();}
     const headY=foot-height*posed.scaleY;
+    const bellStunned=(e.bellStunUntil??0)>time;
     if(frozen){
-      drawIceShell(c,e.x,foot,height,s.market?.upgrade==='frost'&&(e.frostUntil??0)>time);
+      const frostRemaining=(e.frostUntil??0)-time;
+      drawIceShell(c,e.x,foot,height,frostRemaining,s.market?.upgrade==='frost'&&frostRemaining>0);
     }else{
-      if(!pulled&&e.stunUntil>time)for(let i=0;i<3;i++){const angle=t*4+i*2.1;this.caption('✦',e.x+Math.cos(angle)*18,headY-12+Math.sin(angle)*3,14,'#fff2a1');}
+      if(!bellStunned&&!pulled&&e.stunUntil>time)for(let i=0;i<3;i++){const angle=t*4+i*2.1;this.caption('✦',e.x+Math.cos(angle)*18,headY-12+Math.sin(angle)*3,14,'#fff2a1');}
       if(e.slowUntil>time){
         c.strokeStyle='#9af8e3';c.fillStyle='#8af2d825';c.lineWidth=2;
         c.beginPath();c.ellipse(e.x,foot-height*.45,height*.43,height*.54,0,0,Math.PI*2);c.fill();c.stroke();
       }
     }
+    if(bellStunned)drawBellStun(c,e.x,headY,(time-e.stunStartedAt)*4+e.id*2.4,this.settings);
     drawPoisonedEnemy(c,e,foot,height,time,this.settings);
     c.restore();
   }
@@ -457,6 +475,12 @@ export class Renderer {
       if(!front&&e.kind==='chainLink'&&e.from)drawChainLink(c,e.from,e,progress);
       if(front&&e.kind==='hit'){c.translate(e.x,e.y);c.strokeStyle='#fff7d8';c.lineWidth=3;for(let i=0;i<6;i++){const a=i*Math.PI/3+.2,r=8+progress*20;c.beginPath();c.moveTo(Math.cos(a)*r,Math.sin(a)*r);c.lineTo(Math.cos(a)*(r+10),Math.sin(a)*(r+10));c.stroke();}}
       if(front&&e.kind==='iceFragments')drawIceFragments(c,e.x,e.y,progress,e.power??0,this.settings);
+      if(front&&e.kind==='dispatchClear'){
+        c.translate(e.x,e.y);c.rotate(Math.PI/4);
+        const gap=this.settings.reduceMotion?13:5+progress*13;
+        c.strokeStyle='#b6fff0';c.lineWidth=2.8;c.strokeRect(-gap,-gap,gap*2,gap*2);
+        c.fillStyle='#ffdaa0';c.fillRect(-6,-1,12,2);
+      }
       if(front&&e.kind==='splitShell')drawSplitShell(c,e.x,e.y,progress,this.settings.reduceMotion);
       if(front&&e.kind==='shardLane')drawIceShardLane(c,e.x,e.y,e.angle??0,e.power??0,progress,this.settings);
       if(front&&e.kind==='swallowed'&&e.sprite){
@@ -467,7 +491,7 @@ export class Renderer {
         const motion=this.settings.reduceMotion?0:progress;
         const distance=e.power??12, angle=e.angle??0, push=1-(1-motion)**2;
         const height=enemyHeight(e.sprite);
-        const face=e.sprite+(e.sprite==='box'||e.sprite==='bowl'?'Low':'Hurt');
+        const face=isElite(e.sprite)&&e.sprite!=='giantBun'?e.sprite:e.sprite+(e.sprite==='box'||e.sprite==='bowl'?'Low':'Hurt');
         const hop=Math.sin(motion*Math.PI)*distance*.82;
         const x=e.x+Math.cos(angle)*distance*push, groundY=e.y+Math.sin(angle)*distance*push*.6;
         const spin=Math.cos(angle)*motion*(distance>35?1.25:.45);
@@ -605,12 +629,7 @@ export class Renderer {
   private playerStatus(s:GameState):void {
     const c=this.ctx,p=s.player,reduced=this.settings.reduceMotion;
     const bagX=this.rig.bagPoint?.x??p.x-18*p.facing,bagY=this.rig.bagPoint?.y??p.y-38;
-    for(const item of s.pickups)if((item.pulledUntil??0)>s.time){
-      const slack=Math.min(17,Math.hypot(item.x-bagX,item.y-bagY)*.08);
-      c.save();c.lineCap='round';c.strokeStyle='#694c36';c.lineWidth=3.5;c.beginPath();c.moveTo(bagX,bagY);
-      c.quadraticCurveTo((bagX+item.x)/2,(bagY+item.y-10)/2+slack,item.x,item.y-10);c.stroke();
-      c.strokeStyle='#ffd78a';c.lineWidth=1.6;c.stroke();c.restore();this.sprite('hook',item.x,item.y-9,21);
-    }
+    drawRetrievalHook(c,{x:bagX,y:bagY},p,s.pickups,s.effects.hookUntil,s.time,reduced);
     if(p.bubbleUntil>s.time){
       c.save();c.globalAlpha=Math.min(1,(p.bubbleUntil-s.time)*4);
       drawPackingWrap(c,p.x,p.y,Math.max(0,s.time-p.bubbleUntil+7),reduced);c.restore();
@@ -635,15 +654,21 @@ export class Renderer {
       const remaining=s.effects.dispatchUntil-s.time;
       c.save();c.globalAlpha=Math.min(1,remaining*4);
       this.sprite('dispatch',x,y,23,1,.14*p.facing);
-      c.strokeStyle='#ffe4a7';c.lineWidth=2.2;c.lineCap='round';
-      for(const r of [5,9]){c.beginPath();c.arc(x+6,y-23,r,-1.4,-.27);c.stroke();}
+      c.lineWidth=2.2;c.lineCap='round';
+      for(let i=0;i<2;i++){
+        const signal=reduced?(i+1)/3:((s.time-s.effects.dispatchStartedAt)*1.6+i*.5)%1;
+        c.strokeStyle=`rgba(187,255,232,${1-signal*.72})`;
+        c.beginPath();c.arc(x+6,y-23,4+signal*13,-1.48,-.23);c.stroke();
+      }
       c.restore();
     }
     if(p.stampUntil>s.time)this.sprite('stamp',bagX-8*p.facing,bagY+5,18,1,-.18*p.facing);
   }
 
   private sprite(name: SpriteName, x: number, y: number, height: number, facing = 1, angle = 0): void {
-    drawSprite(this.ctx,this.assets,name,x,y,height,angle,facing);
+    // The tea spout and syrup ladle extend left in the source artwork.
+    const flip=name==='eliteKettle'||name==='eliteSesame'?-facing:facing;
+    drawSprite(this.ctx,this.assets,name,x,y,height,angle,flip);
   }
 
   private burst(x: number, y: number, color: string, count: number): void {

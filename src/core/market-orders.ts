@@ -1,4 +1,4 @@
-import type {Enemy,GameState,MarketGroup,MarketOffer,MarketStall,MarketState,Vec} from '../shared/types';
+import {isElite,type Enemy,type GameState,type MarketGroup,type MarketOffer,type MarketStall,type MarketState,type Vec} from '../shared/types';
 import type {CombatContext} from './contracts';
 import {CONFIG,WORLD} from './config';
 import {distanceSquared,segmentDistanceSquared,sweepContact} from './geometry';
@@ -94,6 +94,7 @@ export function openMarket(s:GameState,group:MarketGroup,ctx:CombatContext,spawn
   if(group==='final'){
     guardian=s.enemies.find(e=>e.hp>0 && e.kind==='giantBun');
     if(!guardian){
+      if(s.enemies.filter(e=>e.hp>0&&isElite(e.kind)).length>=2){m.retryAt=s.time+.5;return false;}
       const [site]=siteCandidates(s,[370,420,324],phase+Math.PI)
         .filter(point=>distanceSquared(stalls[0],point)>135**2);
       if(!site){m.retryAt=s.time+.5;return false;}
@@ -182,6 +183,6 @@ export function updateMarket(s:GameState,dt:number,ctx:CombatContext,spawn:Spawn
   const m=s.market;
   if(m.offer){checkOffer(s,m.offer,dt,ctx);return;}
   if(s.ended || s.practice || m.closing!=='open' || s.time<m.retryAt)return;
-  const group=s.time+1e-9>=finalTime?'final':s.wave>=4?'upgrade':s.wave>=2?'food':null;
+  const group=s.wave>=9&&s.time+1e-9>=finalTime?'final':s.wave>=4?'upgrade':s.wave>=2?'food':null;
   if(group && !m.opened.includes(group))openMarket(s,group,ctx,spawn);
 }

@@ -1,5 +1,10 @@
 // Trimmed source rectangles of the packed soft-clay WebP atlases (x, y, width, height).
 export const clayFrames = {
+  elites: {
+    eliteCrab: [9, 67, 238, 180],
+    eliteKettle: [265, 40, 238, 207],
+    eliteSesame: [522, 14, 235, 233],
+  },
   elementals: {
     vortex: [10, 59, 236, 137],
     poison: [281, 10, 206, 236],

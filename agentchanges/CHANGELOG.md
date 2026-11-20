@@ -831,3 +831,52 @@
 - **实现/结果**：加载卡复用同一节点，失败提示与进度原位更新，重试后忽略上一次尝试的迟到回调。首页 HTML 使用媒体查询即时提示横屏，后台加载保留进度；回到横屏时还原对应界面。对局中右键中断会清除键盘方向、归零虚拟摇杆并释放指针捕获，冲刺仅响应主按钮。
 - **验证**：向旧线上包分批提供 16 张素材，记录到 17 次卡片挂载与 15 次透明度回落。用相同探针验证新本机包只有一次挂载，所有进度采样的透明度均为 1。TypeScript、两种 Vite 构建、290 项单测通过。浏览器覆盖图片失败重试、脚本到达前的竖屏指引、平板与方形窗口、暂停与恢复、按住方向键右击和左拖时加按右键。全量浏览器首轮 26 项通过，1 项被开发热更新中断，冻结版本后单独重跑该项通过。
 - **风险/后续**：手机和平板尺寸使用 Chromium 模拟，实体设备的自动旋转仍由系统设置控制。
+
+## 2026-11-20 11:27:42 +08:00 — feature
+
+- **摘要**：重做八项局内技能和六种普通怪的攻击反馈，新增三种软陶精英，并让每波以击败守关精英作为换波条件。
+- **涉及文件**：
+  - `README.md`
+  - `agentchanges/CHANGELOG.md`
+  - `public/assets/clay-market-elites.webp`
+  - `src/core/config.ts`
+  - `src/core/enemies.ts`
+  - `src/core/game.ts`
+  - `src/core/giant-bun.ts`
+  - `src/core/market-orders.ts`
+  - `src/core/rewards.ts`
+  - `src/core/skills.ts`
+  - `src/core/waves.ts`
+  - `src/core/weapons.ts`
+  - `src/main.ts`
+  - `src/render/assets.ts`
+  - `src/render/clay-frames.ts`
+  - `src/render/courier-equipment.ts`
+  - `src/render/delivery-skills.ts`
+  - `src/render/elemental-fx.ts`
+  - `src/render/enemy-clay-fx.ts`
+  - `src/render/enemy-vitals.ts`
+  - `src/render/renderer.ts`
+  - `src/shared/types.ts`
+  - `src/ui/catalog.ts`
+  - `src/ui/game-icons.ts`
+  - `src/ui/ui.ts`
+  - `tests/core.test.ts`
+  - `tests/e2e/game.spec.ts`
+  - `tests/e2e/loading.spec.ts`
+  - `tests/e2e/v2-ui.spec.ts`
+  - `tests/e2e/v3-movement.spec.ts`
+  - `tests/elite-attacks.test.ts`
+  - `tests/giant-bun.test.ts`
+  - `tests/integration.test.ts`
+  - `tests/market-orders.test.ts`
+  - `tests/pickup-motion.test.ts`
+  - `tests/skills.test.ts`
+  - `tests/ultimates.test.ts`
+  - `tests/v3-audit.test.ts`
+  - `tests/v4-core.test.ts`
+  - `tests/wave-guards.test.ts`
+- **原因/目标**：技能在场上的收益与表现不易辨认，旧冰冻与黑洞视觉偏离夜市主题，三锥排成直线限制了用法。用户希望根据图鉴看懂怪物的攻击动作，并通过击败精英推进关卡。
+- **实现/结果**：加急印章保留额外掉币，提供 12 秒无敌和前向冲刺波。刨冰机通过怪物冰壳、裂纹与碎冰表现冻结，涡锅以木柄铁锅、汤旋与食材收锅。取餐钩持续 4 秒回收技能和金币，派单终端清弹退敌，扫码券在独立位置投下三种可走近挑选的补给。到站手铃眩晕 2 秒，撤销被打断怪物的伤害，受控目标带铃星。反光路锥随机散布 5～8 个，持续 10 秒，骑手可穿过。普通怪按各自的追击、蓄力或弹道绘制预警与命中碎屑。用 ImageGen 原创软陶精灵，经透明裁切打包为共用的 WebP 图集；图鉴与局内共用蟹钳王、茶掌柜和汤圆婆婆。前三波单精英，从第四波起双异种，守关时常规增援暂停，击败全部精英后才能换波。
+- **验证**：TypeScript、313 项 Vitest、27 项 Chrome 端到端测试和独立目录下的 Vite 生产构建通过。实测标准与简化加减少动态两组普通怪攻击，逐个触发新精英的预警与攻击；从试玩台选取补给，确认走向护身牌后其余两牌撤回；从正式挑战复现第四波，两只精英中仅一只倒下时仍留在第四波。回归中修正了跨波存活普通怪占用精英席位，并修正暂停用例的按键焦点，完整重跑已通过。
+- **风险/后续**：浏览器覆盖桌面和模拟触屏横屏，操作手感仍可按试玩意见继续调节。当前仅工作区和现有开发预览更新，未提交或部署。

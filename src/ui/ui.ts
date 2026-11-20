@@ -1,4 +1,4 @@
-import {DEFAULT_SETTINGS, ELEMENTAL_KINDS, ENEMY_NAMES, WEAPON_NAMES, WEAPON_KINDS, SKILL_NAMES, SKILL_KINDS, ULTIMATE_KINDS, type WeaponKind, type SkillKind, type EnemyKind, type BestRecord, type GameState, type Settings} from '../shared/types';
+import {DEFAULT_SETTINGS, isElite, ELEMENTAL_KINDS, ENEMY_NAMES, WEAPON_NAMES, WEAPON_KINDS, SKILL_NAMES, SKILL_KINDS, ULTIMATE_KINDS, type WeaponKind, type SkillKind, type EnemyKind, type BestRecord, type GameState, type Settings} from '../shared/types';
 import {CATALOG, WEAPON_GUIDE, SKILL_GUIDE} from './catalog';
 import {icon} from './game-icons';
 import {WEAPONS} from '../core/weapons';
@@ -210,7 +210,10 @@ export class UI {
     const offer=state.market.offer;
     let banner='';
     if(showingWave)banner=`WAVE ${wave}`;
-    else if(offer){
+    else if(state.eliteWave===state.wave && state.enemies.some(e=>e.hp>0&&isElite(e.kind))){
+      const names=state.enemies.filter(e=>e.hp>0&&isElite(e.kind)).map(e=>ENEMY_NAMES[e.kind]);
+      banner='本波守关 · '+names.join('、');
+    }else if(offer){
       const openedDuringWaveIntro=state.wave>=2&&offer.openedAt>=state.waveStartedAt-1e-8&&offer.openedAt<=waveEnd;
       const introStart=openedDuringWaveIntro?waveEnd:offer.openedAt;
       if(state.time<introStart+2.8)banner=offer.group==='final'?'收摊铃响 · 最后一单':'两家摊位等你接单';
@@ -262,11 +265,15 @@ export class UI {
       add('express',`急送第 ${order} 单`,parcel.expiresAt-EXPRESS.fade-state.time);
     }
     add('bubble','防撞×1',state.player.bubbleUntil-state.time);add('skate','滑板环绕',state.player.skateUntil-state.time);
+    add('stamp','印章无敌',state.player.stampUntil-state.time);
+    add('hook','钩索回收',state.effects.hookUntil-state.time);
     for(const field of state.elementalFields??[]){
       add(field.kind,SKILL_GUIDE[field.kind].role,field.releaseAt-state.time);
     }
     add('route',inRoute?`移速 +${Math.round((CONFIG.skills.route.speedMultiplier-1)*100)}%`:'踏上路线加速',duration('route'),inRoute);
-    add('dispatch','增援暂缓',state.effects.dispatchUntil-state.time);add('stamp','额外掉币 +1',state.player.stampUntil-state.time);add('cones',`路锥×${activeZones.filter(z=>z.kind==='cone').length}`,duration('cone'));add('lure','诱饵',duration('lure'));
+    add('dispatch','增援暂停',state.effects.dispatchUntil-state.time);add('cones',`路锥×${activeZones.filter(z=>z.kind==='cone').length}`,duration('cone'));add('lure','诱饵',duration('lure'));
+    const supply=state.pickups.find(p=>p.groupId&&!p.retiringUntil);
+    if(supply)add('supply','补给选一',(supply.expiresAt??0)-state.time);
     add('heat','武器急速',heat);
     const statusMarkup=statuses.slice(0,6).map(item=>`<div class="status-chip ${item.active?'':'inactive'}" data-status="${item.kind}" title="${item.label}"><span>${icon(item.kind)}</span><b>${item.label}</b><small>${item.seconds.toFixed(1)}秒</small></div>`).join('');
     if(statusMarkup!==this.lastStatus){this.statusEl.innerHTML=statusMarkup;this.lastStatus=statusMarkup;}
@@ -381,7 +388,7 @@ export class UI {
             <article><div class="guide-icon guide-crate">${icon('weaponCrate')}</div><h3>靠近武器箱</h3><p>金色方箱停在原地。<br>走近换装，旧武器可回来取。</p></article>
           </div>
           <div class="guide-controls"><span><b>电脑</b> WASD / 方向键移动 · Space / Shift 冲刺</span><span><b>手机</b> 摇杆 / 倾斜移动 · 点按冲刺</span></div>
-          <p class="warning-note">第 2、4 波各有两家摊位亮灯。进圈签一单，也可以绕过。红心汤包最多回 ${CONFIG.skills.health.amount} 点生命，首次倒下可免费复活。</p>
+          <p class="warning-note">击败本波全部精英才能换波。第 2、4 波各有两家摊位亮灯。进圈签一单，也可以绕过。红心汤包最多回 ${CONFIG.skills.health.amount} 点生命，首次倒下可免费复活。</p>
           <div class="paper-actions">${this.button('查看全部图鉴','catalog','secondary')}${this.button('返回首页','home','secondary')}${this.button('开始挑战','start','primary','data-primary')}</div>`,'guide-card');break;
       case 'countdown':
         this.overlay.innerHTML=`<div class="countdown" aria-live="assertive"><span>准备出发</span><strong>${this.data.count??1}</strong><p>${this.settings.mode==='tilt'?'保持舒适姿势，倾斜手机移动':'移动躲避，触碰道具反击'}</p></div>`;break;

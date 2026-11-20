@@ -3,6 +3,7 @@ import type {CombatContext} from './contracts';
 import {CONFIG,WORLD} from './config';
 import {coatEnemy,trayBrineContact} from './elemental-skills';
 import {relativeSweep} from './geometry';
+import {isPlayerInvulnerable} from './skills';
 import {isMelee,MELEE_WEAPONS,updateMelee} from './melee';
 export {meleePose} from './melee';
 export const UMBRELLA_GUARD={inner:29.7,outer:40.5,halfAngle:55*Math.PI/180} as const;
@@ -97,7 +98,7 @@ function release(s:GameState,a:WeaponAttack,ctx:CombatContext):void {
 }
 /** Check the actual lit umbrella rim, never enemies already inside it. */
 function umbrella(s:GameState,a:WeaponAttack,dt:number,ctx:CombatContext):void {
-  if(a.kind!=='umbrella'||a.blocked||s.player.invulnerableUntil>s.time||(s.player.dashUntil??0)>s.time-dt+1e-9)return;
+  if(a.kind!=='umbrella'||a.blocked||isPlayerInvulnerable(s,dt))return;
   const p=s.player,{outer,inner,halfAngle}=UMBRELLA_GUARD;
   const threats:({enemy:Enemy;shot?:never}|{shot:EnemyShot;enemy?:never})[]=[...s.enemies.filter(e=>ctx.active(e)&&e.hp>0&&Math.max(e.contactSuppressedUntil,e.frostUntil??0)<=s.time).map(enemy=>({enemy})),...(s.enemyShots??[]).filter(q=>q.expiresAt>s.time).map(shot=>({shot}))];
   const hits=threats.map(threat=>{

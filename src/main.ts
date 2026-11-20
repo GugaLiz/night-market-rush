@@ -10,7 +10,7 @@ import {UI, practiceEnabled, type View} from './ui/ui';
 import {loadAssets} from './render/assets';
 import {Renderer} from './render/renderer';
 import {sampleBattleFrame} from './render/battle-frame';
-import {RULES_VERSION, WEAPON_NAMES, type Settings, type SkillKind, type EnemyKind, type WeaponKind} from './shared/types';
+import {RULES_VERSION, isElite, WEAPON_NAMES, type Settings, type SkillKind, type EnemyKind, type WeaponKind} from './shared/types';
 
 const storage=new WebStorage();
 const saved=storage.load();
@@ -96,7 +96,26 @@ const ui:UI=new UI(document.getElementById('app')!,{
   closeCatalog:()=>{gesture();if(catalogOrigin==='home')home();else ui.show(catalogOrigin,{settings,state:game.state,speed:practiceSpeed});},
   selectWeapon:kind=>{if(!game.state.practice)return;game.setWeapon(kind);closeLab();deliverEvents();},
   triggerSkill:kind=>{if(!game.state.practice)return;game.triggerSkill(kind);closeLab();deliverEvents();},
-  spawnEnemy:(kind,group)=>{if(!game.state.practice)return;const count=group&&kind!=='giantBun'?6:1;const p=game.state.player;const spawnDistance=!group&&game.state.weapon.kind==='lunchbox'?WEAPONS.lunchbox.range:150;for(let i=0;i<count;i++){const angle=group?-Math.PI/3+i*Math.PI/3:Math.atan2(p.moveDirection.y,p.moveDirection.x);game.spawnEnemy(kind,{x:Math.max(110,Math.min(1170,p.x+Math.cos(angle)*spawnDistance)),y:Math.max(135,Math.min(610,p.y+Math.sin(angle)*spawnDistance))});}closeLab();deliverEvents();},
+  spawnEnemy:(kind,group)=>{
+    if(!game.state.practice)return;
+    if(isElite(kind)){
+      const present=game.state.enemies.filter(e=>e.hp>0&&isElite(e.kind));
+      if(present.some(e=>e.kind===kind)||present.length>=CONFIG.waves.maxElites){
+        ui.toast('场上最多两种精英，每种一只');return;
+      }
+    }
+    const count=group&&!isElite(kind)?6:1;
+    const p=game.state.player;
+    const distance=!group&&game.state.weapon.kind==='lunchbox'?WEAPONS.lunchbox.range:150;
+    for(let i=0;i<count;i++){
+      const angle=group?-Math.PI/3+i*Math.PI/3:Math.atan2(p.moveDirection.y,p.moveDirection.x);
+      game.spawnEnemy(kind,{
+        x:Math.max(110,Math.min(1170,p.x+Math.cos(angle)*distance)),
+        y:Math.max(135,Math.min(610,p.y+Math.sin(angle)*distance)),
+      });
+    }
+    closeLab();deliverEvents();
+  },
   heal:()=>{if(!game.state.practice)return;game.healPlayer();deliverEvents();ui.updateHUD(game.state);ui.toast('生命已补满');},
   clear:()=>{if(!game.state.practice)return;game.clearArena();renderer?.reset();deliverEvents();ui.updateHUD(game.state);ui.toast('场地已清空');},
   resetLab:()=>{if(!game.state.practice)return;const weapon=game.state.weapon.kind;game.reset(Date.now(),true);game.setWeapon(weapon);renderer?.reset();deliverEvents();ui.updateHUD(game.state);ui.toast('已重置试验，保留当前武器');},

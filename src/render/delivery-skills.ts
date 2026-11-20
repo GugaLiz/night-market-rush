@@ -99,9 +99,24 @@ function drawSkillWake(c:CanvasRenderingContext2D,r:number,vx:number,vy:number):
 }
 
 /** All loose skills travel in the same bubble, with a ground shadow marking contact position. */
-export function drawDeliveryPickup(c:CanvasRenderingContext2D, assets:Assets, pickup:Pickup, player:Vec, time:number, quiet:boolean, needsHealth=true):void {
+export function drawDeliveryPickup(c:CanvasRenderingContext2D, assets:Assets, pickup:Pickup, player:Vec, time:number, quiet:boolean, needsHealth=true,supplyOrigin?:Vec):void {
   const p=pickup,r=shellRadius(p.kind);
   const reach=pickupReach(p);
+  if(p.groupId&&supplyOrigin){
+    const progress=quiet?1:ease((time-p.bornAt)/Math.max(.01,(p.readyAt??p.bornAt)-p.bornAt));
+    c.save();
+    c.translate(lerp(supplyOrigin.x,p.x,progress),lerp(supplyOrigin.y,p.y,progress)-Math.sin(progress*Math.PI)*32);
+    c.globalAlpha=p.retiringUntil?unit((p.retiringUntil-time)/.4):Math.min(1,progress*3);
+    const label=p.kind==='fan'?'清怪':p.kind==='bubble'?'护身':'冰封';
+    const color=p.kind==='fan'?'#a44e28':p.kind==='bubble'?'#347660':'#3d7199';
+    c.fillStyle='#5b3c2e';c.beginPath();c.ellipse(0,0,33,10,0,0,tau);c.fill();
+    c.fillStyle='#f3d9a9';c.beginPath();c.ellipse(0,-4,33,10,0,0,tau);c.fill();
+    drawSprite(c,assets,p.kind,0,-7,48);
+    c.fillStyle=color;c.strokeStyle='#ffe5bc';c.lineWidth=1.8;
+    c.beginPath();c.roundRect(-21,0,42,19,4);c.fill();c.stroke();
+    c.fillStyle='#fff3dd';c.textAlign='center';c.textBaseline='middle';c.font='bold 14px "Microsoft YaHei",sans-serif';c.fillText(label,0,9);
+    c.restore();return;
+  }
   const near = quiet ? 0 : ease(1-(Math.hypot(p.x-player.x,p.y-player.y)-reach)/44);
   const loose = quiet ? 0 : Math.sin(time*3.5+p.id)*1.9;
   if(!p.retiringUntil&&(p.disabledUntil??0)<=time&&(p.readyAt??0)<=time&&(p.kind!=='health'||needsHealth))drawPickupReach(c,p,player,reach);
@@ -123,6 +138,27 @@ export function drawDeliveryPickup(c:CanvasRenderingContext2D, assets:Assets, pi
 
 export const useLifetime = .90;
 export const cartFanOffset = {x:-36, y:7};
+
+/** Outbound route marks travel with the terminal's radio pulse, leaving the street readable. */
+export function drawDispatchBroadcast(c:CanvasRenderingContext2D, origin:Vec, age:number, range:number, quiet:boolean):void {
+  if(age<0||age>.70)return;
+  const travel=unit(age/.46);
+  const radius=quiet?range:22+(range-22)*(1-(1-travel)**2);
+  c.save();c.translate(origin.x,origin.y);c.lineCap='round';c.lineJoin='round';
+  c.globalAlpha*=unit((.70-age)/.30)*.85;
+  c.beginPath();c.arc(0,0,radius,0,tau);
+  c.lineWidth=7;c.strokeStyle='#304f5c9e';c.stroke();
+  c.strokeStyle='#a9ecdc';c.lineWidth=2.5;c.stroke();
+  c.setLineDash([6,10]);c.lineWidth=2;c.strokeStyle='#f6d693';
+  c.beginPath();c.arc(0,0,Math.max(5,radius-8),0,tau);c.stroke();c.setLineDash([]);
+  for(let i=0;i<6;i++){
+    c.save();c.rotate(i*tau/6);c.translate(radius,0);
+    c.fillStyle='#4c8380';c.strokeStyle='#f9edc0';c.lineWidth=1.5;
+    c.beginPath();c.moveTo(-10,-6);c.lineTo(0,-6);c.lineTo(7,0);c.lineTo(0,6);c.lineTo(-10,6);
+    c.lineTo(-4,0);c.closePath();c.fill();c.stroke();c.restore();
+  }
+  c.restore();
+}
 
 /** Short pressure ripples show the reach of the initial splash or bell strike. */
 export function drawUseRipple(c:CanvasRenderingContext2D,use:Use,age:number,range:number,quiet:boolean):void {

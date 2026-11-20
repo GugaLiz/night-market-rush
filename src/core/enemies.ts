@@ -11,12 +11,13 @@ export function stunEnemy(e:Enemy,until:number):void {
 }
 
 export function interruptAttack(e:Enemy,until:number):void {
-  if(e.kind==='box'){
+  if(e.kind==='box'||e.kind==='eliteCrab'){
     e.phaseUntil=Math.max(e.phase==='recover'?e.phaseUntil:0,until+.4);
     e.phase='recover';
-  }else if(e.kind==='bowl'){
+  }else if(e.kind==='bowl'||e.kind==='eliteKettle'||e.kind==='eliteSesame'){
     e.shotWarnUntil=0;e.volleyRemaining=0;
     e.shotReadyAt=Math.max(e.shotReadyAt??0,until+1);
+    delete e.syrupTarget;delete e.syrupImpactAt;
   }else if(e.jump?.phase==='warn'){
     delete e.jump;
   }
@@ -47,22 +48,58 @@ function wander(e:Enemy,time:number,dt:number,ctx:CombatContext):{x:number;y:num
   return {x:Math.cos(e.wanderHeading),y:Math.sin(e.wanderHeading)};
 }
 
-function fireSoupShot(s:GameState, e:Enemy, ctx:CombatContext):boolean {
+function freeShotSlots(s:GameState):number {
+  const kettles=s.enemies.filter(e=>e.kind==='eliteKettle'&&(e.shotWarnUntil??0)>0).length;
+  return CONFIG.ranged.cap-(s.enemyShots?.length??0)-kettles*CONFIG.elites.kettle.shots;
+}
+
+function fireShot(s:GameState,e:Enemy,ctx:CombatContext,angle=e.shotAngle??0):boolean {
   const shots=s.enemyShots??(s.enemyShots=[]);
-  if(shots.length>=CONFIG.ranged.cap)return false;
-  const angle=e.shotAngle??0;
-  shots.push({id:ctx.id(),ownerId:e.id,x:e.x,y:e.y,px:e.x,py:e.y,
-    vx:Math.cos(angle)*CONFIG.ranged.speed,vy:Math.sin(angle)*CONFIG.ranged.speed,
-    radius:CONFIG.ranged.radius,damage:CONFIG.ranged.damage,bornAt:s.time,expiresAt:s.time+CONFIG.ranged.lifetime});
+  const tea=e.kind==='eliteKettle',tuning=tea?CONFIG.elites.kettle:CONFIG.ranged;
+  if(!tea&&freeShotSlots(s)<=0)return false;
+  shots.push({id:ctx.id(),ownerId:e.id,...(tea&&{kind:'tea' as const}),x:e.x,y:e.y,px:e.x,py:e.y,
+    vx:Math.cos(angle)*tuning.speed,vy:Math.sin(angle)*tuning.speed,
+    radius:tuning.radius,damage:tuning.damage,bornAt:s.time,expiresAt:s.time+tuning.lifetime});
   ctx.emit({type:'enemyShot',x:e.x,y:e.y,angle});
   return true;
+}
+
+/** Both cooks lock aim at the start of the warning. Side-stepping after that is always possible. */
+function updateCook(s:GameState,e:Enemy,pursuing:boolean,distance:number,ctx:CombatContext):boolean {
+  const tea=e.kind==='eliteKettle',tuning=tea?CONFIG.elites.kettle:CONFIG.elites.sesame;
+  if(e.syrupImpactAt!==undefined && s.time>=e.syrupImpactAt+CONFIG.elites.sesame.fade){
+    delete e.syrupImpactAt;delete e.syrupTarget;
+  }
+  if((e.shotWarnUntil??0)>0){
+    if(s.time+1e-9>=e.shotWarnUntil!){
+      if(tea){
+        const {shots,spread}=CONFIG.elites.kettle;
+        for(let i=0;i<shots;i++)fireShot(s,e,ctx,(e.shotAngle??0)+spread*(i/(shots-1)-.5));
+      }else{
+        e.syrupImpactAt=s.time;
+      }
+      e.shotWarnUntil=0;e.shotReadyAt=s.time+tuning.interval;
+    }
+    return true;
+  }
+  if(!pursuing || distance>tuning.range)return false;
+  if(s.time>=(e.shotReadyAt??0)){
+    // Reserve the five tea lanes together, so a telegraphed fan always fires in full.
+    if(!tea||freeShotSlots(s)>=CONFIG.elites.kettle.shots){
+      e.shotAngle=Math.atan2(s.player.y-e.y,s.player.x-e.x);e.shotWarnUntil=s.time+tuning.warning;
+      if(!tea)e.syrupTarget={x:s.player.x,y:s.player.y};
+      ctx.emit({type:'warn',x:e.syrupTarget?.x??e.x,y:e.syrupTarget?.y??e.y});
+      return true;
+    }
+  }
+  return distance<tuning.range*.68;
 }
 /** Slow dispersing crowd with stable soft separation, limited charges and aimed soup shots. */
 export function updateEnemies(s:GameState,dt:number,speedScale:number,ctx:CombatContext):Map<number,number>{
   const p=s.player,damage=new Map<number,number>(),positions=s.enemies.filter(ctx.active).map(e=>({id:e.id,x:e.x,y:e.y,radius:e.radius}));
   const grid=new Map<string,typeof positions>();
   for(const e of positions){const key=`${Math.floor(e.x/64)},${Math.floor(e.y/64)}`;const cell=grid.get(key)??[];cell.push(e);grid.set(key,cell);}
-  let reservations=s.enemies.filter(e=>e.kind==='box'&&(e.phase==='warn'||e.phase==='dash')).length;
+  let reservations=s.enemies.filter(e=>(e.kind==='box'||e.kind==='eliteCrab')&&(e.phase==='warn'||e.phase==='dash')).length;
   let shotReservations=s.enemies.filter(e=>e.kind==='bowl'&&((e.shotWarnUntil??0)>0||(e.volleyRemaining??0)>0)).length;
   for(const e of s.enemies){
     const lastDx=e.x-e.px,lastDy=e.y-e.py;
@@ -121,28 +158,30 @@ export function updateEnemies(s:GameState,dt:number,speedScale:number,ctx:Combat
       const direction=wander(e,s.time,dt,ctx);dx=direction.x;dy=direction.y;speed*=.55;
     }
     if(e.kind==='siumai' && !march && !lured)speed*=.55+siumaiHop(e,s.time)*.90;
-    if(e.kind==='box'){
-      if(e.phase==='warn'&&!pursuing){e.phase='chase';e.phaseUntil=s.time+CONFIG.dash.approach;reservations--;}
-      else if(e.phase==='chase'&&pursuing&&!march&&s.time>=e.phaseUntil&&playerDistance<310&&reservations<CONFIG.dash.concurrent){e.phase='warn';e.phaseUntil=s.time+CONFIG.dash.warning;e.dashX=dx||(dy===0?1:0);e.dashY=dy;reservations++;ctx.emit({type:'warn',x:e.x,y:e.y});}
-      else if(e.phase==='warn'&&s.time>=e.phaseUntil){e.phase='dash';e.phaseUntil=s.time+CONFIG.dash.duration;}
-      else if(e.phase==='dash'&&s.time>=e.phaseUntil){e.phase='recover';e.phaseUntil=s.time+CONFIG.dash.recovery;reservations--;}
-      else if(e.phase==='recover'&&s.time>=e.phaseUntil){e.phase='chase';e.phaseUntil=s.time+CONFIG.dash.approach;}
+    if(e.kind==='box'||e.kind==='eliteCrab'){
+      const crab=e.kind==='eliteCrab',charge=crab?CONFIG.elites.crab:CONFIG.dash;
+      if(e.phase==='warn'&&!pursuing){e.phase='chase';e.phaseUntil=s.time+charge.approach;reservations--;}
+      else if(e.phase==='chase'&&pursuing&&!march&&s.time>=e.phaseUntil&&playerDistance<(crab?CONFIG.elites.crab.range:310)&&reservations<CONFIG.dash.concurrent){e.phase='warn';e.phaseUntil=s.time+charge.warning;e.dashX=dx||(dy===0?1:0);e.dashY=dy;reservations++;ctx.emit({type:'warn',x:e.x,y:e.y});}
+      else if(e.phase==='warn'&&s.time>=e.phaseUntil){e.phase='dash';e.phaseUntil=s.time+charge.duration;}
+      else if(e.phase==='dash'&&s.time>=e.phaseUntil){e.phase='recover';e.phaseUntil=s.time+charge.recovery;reservations--;}
+      else if(e.phase==='recover'&&s.time>=e.phaseUntil){e.phase='chase';e.phaseUntil=s.time+charge.approach;}
       if(e.phase==='warn'||e.phase==='recover')speed=0;
-      if(e.phase==='dash'){dx=e.dashX;dy=e.dashY;speed=CONFIG.dash.speed*slow;damage.set(e.id,CONFIG.dash.damage);}
+      if(e.phase==='dash'){dx=e.dashX;dy=e.dashY;speed=charge.speed*slow;damage.set(e.id,charge.damage);}
     }
+    if((e.kind==='eliteKettle'||e.kind==='eliteSesame')&&updateCook(s,e,pursuing&&!march,playerDistance,ctx))speed=0;
     if(e.kind==='bowl'){
       const shots=s.enemyShots??(s.enemyShots=[]);
       if((e.volleyRemaining??0)>0){
         speed=0;
         if(s.time+1e-9>=(e.nextVolleyAt??0)){
-          e.volleyRemaining=fireSoupShot(s,e,ctx)?e.volleyRemaining!-1:0;
+          e.volleyRemaining=fireShot(s,e,ctx)?e.volleyRemaining!-1:0;
           e.nextVolleyAt=s.time+.32;
           if(!e.volleyRemaining)shotReservations--;
         }
       }else if((e.shotWarnUntil??0)>0){
         speed=0;
         if(s.time+1e-9>=e.shotWarnUntil!){
-          const fired=fireSoupShot(s,e,ctx);
+          const fired=fireShot(s,e,ctx);
           e.shotWarnUntil=0;e.shotReadyAt=s.time+CONFIG.ranged.interval+e.id%3*.35;
           if(fired&&s.wave>=2){e.volleyRemaining=2;e.nextVolleyAt=s.time+.32;}
           else shotReservations--;
@@ -159,10 +198,10 @@ export function updateEnemies(s:GameState,dt:number,speedScale:number,ctx:Combat
     }
     let facingX=dx;
     if(e.phase==='warn')facingX=e.dashX;
-    if(e.kind==='bowl'&&((e.shotWarnUntil??0)>0||(e.volleyRemaining??0)>0))facingX=Math.cos(e.shotAngle??0);
+    if((e.shotWarnUntil??0)>0||(e.volleyRemaining??0)>0)facingX=Math.cos(e.shotAngle??0);
     if(Math.abs(facingX)>.01)e.facing=facingX<0?-1:1;
     const x=e.x+dx*speed*dt,y=e.y+dy*speed*dt;e.x=clamp(x,WORLD.bounds.left+e.radius,WORLD.bounds.right-e.radius);e.y=clamp(y,WORLD.bounds.top+e.radius,WORLD.bounds.bottom-e.radius);
-    if(e.phase==='dash'&&(e.x!==x||e.y!==y)){e.phase='recover';e.phaseUntil=s.time+CONFIG.dash.recovery;reservations--;}
+    if(e.phase==='dash'&&(e.x!==x||e.y!==y)){e.phase='recover';e.phaseUntil=s.time+(e.kind==='eliteCrab'?CONFIG.elites.crab:CONFIG.dash).recovery;reservations--;}
   }
   return damage;
 }

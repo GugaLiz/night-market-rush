@@ -1,10 +1,10 @@
-import type {Enemy, GameState, Pickup, SkillKind, Vec, Zone} from '../shared/types';
+import {isElite, type Enemy, type GameState, type Pickup, type SkillKind, type Vec, type Zone} from '../shared/types';
 import type {CombatContext} from './contracts';
 import {CONFIG, WORLD, pickupReach} from './config';
 import {clamp, distanceSquared, segmentDistanceSquared, sweepContact} from './geometry';
 import {igniteFan, spillSoda, updateSkillFields} from './skill-fields';
 import {castUltimate,updateUltimates} from './ultimates';
-import {stunEnemy} from './enemies';
+import {interruptAttack,stunEnemy} from './enemies';
 import {castElemental, shatterOnDash, updateElementalFields, updateElementalStatus} from './elemental-skills';
 
 const bounds = WORLD.bounds;
@@ -33,6 +33,11 @@ export function restorePlayerHealth(s:GameState,amount:number,at:Vec,ctx:CombatC
   if(restored<=0)return;
   s.player.hp+=restored;
   ctx.emit({type:'heal',id:ctx.id(),amount:restored,x:at.x,y:at.y});
+}
+
+export function isPlayerInvulnerable(s:GameState,dt:number):boolean {
+  const p=s.player;
+  return p.stampUntil>s.time || p.invulnerableUntil>s.time || (p.dashUntil??0)>s.time-dt+1e-9;
 }
 
 /** Skills are completely state-backed: resets and seeded replays do not retain module state. */
@@ -73,20 +78,20 @@ export function activateSkill(s:GameState,kind:SkillKind,origin:Vec,ctx:CombatCo
       if(d.y>0)length=Math.min(length,(bounds.bottom-start.y)/d.y);else if(d.y<0)length=Math.min(length,(bounds.top-start.y)/d.y);
       zone(s,ctx,'route',start,CONFIG.skills.route.duration,{angle:Math.atan2(d.y,d.x),length:Math.max(0,length),width:CONFIG.skills.route.width});break;
     }
-    case 'hook':startHook(s);break;
+    case 'hook':
+      s.effects.hookUntil=now+CONFIG.skills.hook.duration;
+      acquireHookTargets(s);
+      break;
     case 'heat':p.heatUntil=now+5;break;
     case 'dispatch':{
+      const dispatch=CONFIG.skills.dispatch;
       if(s.effects.dispatchUntil<=now)s.effects.dispatchStartedAt=now;
-      s.effects.dispatchUntil=Math.min(now+4,s.effects.dispatchStartedAt+6);break;
-    }
-    case 'stamp':p.stampUntil=now+6;break;
-    case 'supply':
-      if(!deliverSupply(s,origin,ctx)&&s.effects.pendingSupplyUntil<=now){
-        s.effects.pendingSupplyAt=now;s.effects.pendingSupplyUntil=now+4;
-        s.effects.pendingSupplyX=origin.x;s.effects.pendingSupplyY=origin.y;
-        ctx.emit({type:'notice',message:'补给等待空位'});
-      }
+      s.effects.dispatchUntil=Math.min(now+dispatch.duration,s.effects.dispatchStartedAt+dispatch.maxDuration);
+      broadcastDispatch(s,origin,ctx);
       break;
+    }
+    case 'stamp':p.stampUntil=now+CONFIG.skills.stamp.duration;break;
+    case 'supply':deliverSupply(s,origin,ctx);break;
   }
 }
 
@@ -99,43 +104,59 @@ function assignLure(s:GameState,ctx:CombatContext):void {
 
 function placeCones(s:GameState,ctx:CombatContext):void {
   s.zones=s.zones.filter(z=>z.kind!=='cone');
-  const target=nearest(s,s.player,500,ctx)[0];let d=facing(s);
-  if(target){const length=Math.hypot(target.x-s.player.x,target.y-s.player.y);if(length>.1)d={x:(target.x-s.player.x)/length,y:(target.y-s.player.y)/length};}
-  const {spacing,reach,radius}=CONFIG.skills.cones;
-  for(const offset of [-spacing,0,spacing]){
-    const base={x:s.player.x+d.x*reach-d.y*offset,y:s.player.y+d.y*reach+d.x*offset};
-    for(const shift of [0,spacing/2,-spacing/2,spacing,-spacing]){
-      const candidate={x:base.x+d.x*shift,y:base.y+d.y*shift};
-      if(!inside(candidate,radius)||s.enemies.some(e=>e.hp>0&&distanceSquared(candidate,e)<(radius+e.radius+8)**2)||
-        s.zones.some(z=>z.kind==='cone'&&distanceSquared(candidate,z)<(2*radius+2)**2))continue;
-      zone(s,ctx,'cone',candidate,4.5,{radius});break;
+  const {minCount,maxCount,duration,radius}=CONFIG.skills.cones;
+  const count=minCount+Math.floor(ctx.random()*(maxCount-minCount+1));
+  const d=facing(s);
+  // Move the whole patch in from a wall, so the landing sites keep their spacing at corners.
+  const center=legal({x:s.player.x+d.x*60,y:s.player.y+d.y*60},0);
+  const cx=clamp(center.x,bounds.left+205,bounds.right-205);
+  const cy=clamp(center.y,CONFIG.player.minY+122,bounds.bottom-142);
+  const candidates:Vec[]=[];
+  for(let row=0;row<3;row++){
+    for(let col=0;col<4;col++){
+      candidates.push({x:cx+(col-1.5)*104+(ctx.random()-.5)*48,y:cy+(row-1)*88+(ctx.random()-.5)*34});
     }
+  }
+  for(let i=candidates.length-1;i>0;i--){
+    const j=Math.floor(ctx.random()*(i+1));
+    [candidates[i],candidates[j]]=[candidates[j],candidates[i]];
+  }
+  const occupied=(at:Vec)=>s.enemies.some(e=>ctx.active(e)&&distanceSquared(at,e)<(radius+e.radius+5)**2);
+  candidates.sort((a,b)=>Number(occupied(a))-Number(occupied(b)));
+  for(const at of candidates.slice(0,count)){
+    zone(s,ctx,'cone',at,duration,{radius});
   }
 }
 
 function updateCones(s:GameState,dt:number,ctx:CombatContext):void {
-  for(const cone of s.zones.filter(z=>z.kind==='cone'&&z.hp>0)){
-    for(const e of s.enemies){
-      if(!ctx.active(e)||cone.hp<=0)continue;
-      const radius=cone.radius+e.radius;
-      const hit=sweepContact({x:e.px,y:e.py},e,cone,radius);
-      if(hit===null)continue;
-      // Stop at the swept collision, including fast dash crossings.
-      const dx=e.x-e.px,dy=e.y-e.py;
-      e.x=e.px+dx*Math.max(0,hit-.001);e.y=e.py+dy*Math.max(0,hit-.001);
-      if(e.phase==='dash'){
-        cone.hp=0;cone.expiresAt=s.time;e.phase='recover';e.phaseUntil=s.time+1;break;
-      }
-      let nx=e.x-cone.x,ny=e.y-cone.y,length=Math.hypot(nx,ny);
-      if(length<.001){nx=e.id%2?1:-1;ny=0;length=1;}
-      nx/=length;ny/=length;
-      // A deterministic tangent prevents enemies sticking forever in a straight row.
-      const along=-ny*dx+nx*dy;
-      const side=Math.abs(along)>.001?Math.sign(along):(e.id%2?1:-1);
-      const angle=Math.atan2(ny,nx)+side*Math.min(.12,dt*2.3);
-      const point=legal({x:cone.x+Math.cos(angle)*(radius+.6),y:cone.y+Math.sin(angle)*(radius+.6)},e.radius);
-      e.x=point.x;e.y=point.y;
+  const cones=s.zones.filter(z=>z.kind==='cone'&&z.hp>0);
+  if(!cones.length)return;
+  for(const e of s.enemies){
+    if(!ctx.active(e))continue;
+    const start={x:e.px,y:e.py};
+    let cone:Zone|undefined,first=Infinity;
+    for(const candidate of cones){
+      if(candidate.hp<=0)continue;
+      const hit=sweepContact(start,e,candidate,candidate.radius+e.radius);
+      if(hit!==null&&hit<first){cone=candidate;first=hit;}
     }
+    if(!cone)continue;
+    const dx=e.x-start.x,dy=e.y-start.y;
+    e.x=start.x+dx*first;e.y=start.y+dy*first;
+    if(e.phase==='dash'){
+      cone.hp=0;cone.expiresAt=s.time;e.phase='recover';e.phaseUntil=s.time+1;
+      continue;
+    }
+    let nx=e.x-cone.x,ny=e.y-cone.y,length=Math.hypot(nx,ny);
+    if(length<.001){nx=e.id%2?1:-1;ny=0;length=1;}
+    nx/=length;ny/=length;
+    // Follow the contact tangent so a walker can pass the obstacle without teleporting through it.
+    const along=-ny*dx+nx*dy;
+    const side=Math.abs(along)>.001?Math.sign(along):(e.id%2?1:-1);
+    const angle=Math.atan2(ny,nx)+side*Math.min(.12,dt*2.3);
+    const reach=cone.radius+e.radius+.6;
+    const point=legal({x:cone.x+Math.cos(angle)*reach,y:cone.y+Math.sin(angle)*reach},e.radius);
+    e.x=point.x;e.y=point.y;
   }
 }
 
@@ -153,57 +174,92 @@ function ring(s:GameState,ctx:CombatContext):void {
 }
 
 function ringBell(s:GameState,origin:Vec,ctx:CombatContext):void {
-  for(const e of nearest(s,origin,CONFIG.skills.bell.radius,ctx).filter(e=>e.bellResistUntil<=s.time).slice(0,CONFIG.skills.bell.targets)){
+  const bell=CONFIG.skills.bell;
+  const targets=nearest(s,origin,bell.radius,ctx).filter(e=>e.bellResistUntil<=s.time).slice(0,bell.targets);
+  if(!targets.length)return;
+  for(const e of targets){
     if((e.bellStunUntil??0)<=s.time)e.stunStartedAt=s.time;
-    e.bellStunUntil=Math.min(s.time+.65,e.stunStartedAt+1.2);
+    e.bellStunUntil=Math.min(s.time+bell.duration,e.stunStartedAt+bell.maxDuration);
     stunEnemy(e,e.bellStunUntil);
+    e.contactSuppressedUntil=Math.max(e.contactSuppressedUntil,e.bellStunUntil);
+  }
+  const stunnedIds=new Set(targets.map(e=>e.id));
+  if(s.enemyShots?.length)s.enemyShots=s.enemyShots.filter(shot=>!stunnedIds.has(shot.ownerId));
+  if(s.giantPulses?.length)s.giantPulses=s.giantPulses.filter(pulse=>!stunnedIds.has(pulse.ownerId));
+}
+
+function broadcastDispatch(s:GameState,origin:Vec,ctx:CombatContext):void {
+  const {radius,recoilTime,slowTime}=CONFIG.skills.dispatch;
+  if(s.enemyShots?.length)s.enemyShots=s.enemyShots.filter(shot=>{
+    if(segmentDistanceSquared({x:shot.px,y:shot.py},shot,origin)>(radius+shot.radius)**2)return true;
+    ctx.emit({type:'dispatchClear',x:shot.x,y:shot.y});
+    return false;
+  });
+  for(const e of s.enemies){
+    if(isElite(e.kind)||!ctx.active(e)||distanceSquared(e,origin)>(radius+e.radius)**2)continue;
+    e.slowUntil=Math.max(e.slowUntil,s.time+slowTime);
+    if((e.frostUntil??0)>s.time)continue;
+    const until=s.time+recoilTime;
+    interruptAttack(e,until);
+    e.contactSuppressedUntil=Math.max(e.contactSuppressedUntil,until);
+    e.dispatchRecoil={x:origin.x,y:origin.y,until};
   }
 }
 
-function startHook(s:GameState):void {
-  const travelling=s.pickups.filter(p=>(p.pulledUntil??0)>s.time&&canCollectPickup(s,p));
-  const groups=new Set(travelling.filter(p=>p.groupId).map(p=>p.groupId));
-  let slots=CONFIG.skills.hook.targets-travelling.length;
-  const candidates=s.pickups.filter(p=>p.kind!=='hook'&&canCollectPickup(s,p)&&(p.pulledUntil??0)<=s.time&&distanceSquared(p,s.player)<=CONFIG.skills.hook.radius**2)
-    .sort((a,b)=>distanceSquared(a,s.player)-distanceSquared(b,s.player)||a.id-b.id);
-  for(const item of candidates){
-    if(slots<=0)break;if(item.groupId&&groups.has(item.groupId))continue;
-    item.pulledUntil=s.time+CONFIG.skills.hook.duration;if(item.groupId)groups.add(item.groupId);slots--;
-  }
+function acquireHookTargets(s:GameState):void {
+  const {radius,targets,reelTimeout}=CONFIG.skills.hook;
+  const slots=targets-s.pickups.filter(p=>(p.pulledUntil??0)>s.time).length;
+  if(slots<=0)return;
+  const loose=s.pickups.filter(p=>!p.groupId&&p.kind!=='hook'&&canCollectPickup(s,p)
+    &&(p.pulledUntil??0)<=s.time&&distanceSquared(p,s.player)<=radius**2);
+  loose.sort((a,b)=>distanceSquared(a,s.player)-distanceSquared(b,s.player)||a.id-b.id);
+  for(const item of loose.slice(0,slots))item.pulledUntil=s.time+reelTimeout;
 }
 
 function updateHook(s:GameState,dt:number):void {
+  const {launchTime,reelTimeout,speed}=CONFIG.skills.hook;
+  if(s.effects.hookUntil>s.time)acquireHookTargets(s);
   for(const item of s.pickups){
     if(!item.pulledUntil)continue;
     if(item.pulledUntil<=s.time||!canCollectPickup(s,item)){delete item.pulledUntil;continue;}
+    // The order stays on its hook until the line reaches it, then reels toward the moving rider.
+    const reelTime=Math.min(dt,s.time-(item.pulledUntil-reelTimeout+launchTime));
+    if(reelTime<=0)continue;
     const dx=s.player.x-item.x,dy=s.player.y-item.y,length=Math.hypot(dx,dy);
     if(length<.01)continue;
-    const step=Math.min(length,CONFIG.skills.hook.speed*dt);item.x+=dx/length*step;item.y+=dy/length*step;
+    const step=Math.min(length,speed*reelTime);item.x+=dx/length*step;item.y+=dy/length*step;
     Object.assign(item,legal(item,item.radius));
   }
 }
 
-/** Reserve landing spots now so natural spawns cannot steal the supply capacity. */
-function deliverSupply(s:GameState,origin:Vec,ctx:CombatContext):boolean {
-  if(s.pickups.some(p=>p.groupId&&!p.retiringUntil&&(p.expiresAt??Infinity)>s.time))return false;
-  const occupied=s.pickups.filter(p=>p.kind!=='health'&&!p.retiringUntil&&(p.expiresAt??Infinity)>s.time).length;
-  const capacity=Math.min(3,CONFIG.pickup.cap-occupied);if(capacity<=0)return false;
-  const positions:Vec[]=[];const d=facing(s),angle=Math.atan2(d.y,d.x);
-  for(let i=0;i<12&&positions.length<capacity;i++){
-    const a=angle+i*Math.PI/6,candidate={x:origin.x+Math.cos(a)*105,y:origin.y+Math.sin(a)*105};
-    if(!inside(candidate,20)||candidate.y<CONFIG.player.minY||s.enemies.some(e=>e.hp>0&&distanceSquared(candidate,e)<(e.radius+40)**2)||
-      s.pickups.some(p=>!p.retiringUntil&&distanceSquared(candidate,p)<(pickupReach(p)+CONFIG.pickup.choiceReach)**2)||
-      s.weaponDrops.some(w=>distanceSquared(candidate,w)<(CONFIG.weapons.pickupReach+CONFIG.pickup.choiceReach)**2)||
-      positions.some(p=>distanceSquared(candidate,p)<(2*CONFIG.pickup.choiceReach)**2))continue;
-    positions.push(candidate);
+/** A voucher owns its three stands. Keep free choices reachable even at the edge of a crowded street. */
+function deliverSupply(s:GameState,origin:Vec,ctx:CombatContext):void {
+  s.pickups=s.pickups.filter(p=>!p.groupId);
+  s.zones=s.zones.filter(z=>z.kind!=='supply');
+  const groupId=ctx.id(),readyAt=s.time+.35,expiresAt=readyAt+CONFIG.skills.supply.duration;
+  const d=facing(s),heading=Math.atan2(d.y,d.x);
+  const sites:Array<{point:Vec;angle:number;cost:number}>=[];
+  for(const distance of [132,192,238])for(let i=0;i<32;i++){
+    const angle=heading+i*Math.PI/16;
+    const point={x:origin.x+Math.cos(angle)*distance,y:origin.y+Math.sin(angle)*distance};
+    if(!inside(point,20)||point.y<CONFIG.player.minY)continue;
+    const crowded=s.enemies.some(e=>ctx.active(e)&&distanceSquared(e,point)<(e.radius+32)**2);
+    const occupied=s.pickups.some(p=>distanceSquared(p,point)<(pickupReach(p)+CONFIG.pickup.choiceReach)**2)||
+      s.weaponDrops.some(w=>distanceSquared(w,point)<(CONFIG.weapons.pickupReach+CONFIG.pickup.choiceReach)**2);
+    sites.push({point,angle,cost:(crowded?450:0)+(occupied?300:0)+distance-132});
   }
-  if(!positions.length)return false;
-  const groupId=ctx.id(),readyAt=s.time+.35;
-  const choices:SkillKind[]=['fan','skate','soda'];let count=0;
-  for(let i=0;i<positions.length;i++)if(ctx.spawnPickup(choices[i],positions[i],{groupId,readyAt,expiresAt:readyAt+6}))count++;
-  if(!count)return false;
-  s.effects.supplyGroupId=groupId;s.effects.pendingSupplyAt=0;s.effects.pendingSupplyUntil=0;
-  zone(s,ctx,'supply',origin,6.35,{radius:105,groupId});return true;
+  const choices=['fan','bubble','frost'] as const;
+  const selected:Vec[]=[];
+  for(const [i,kind] of choices.entries()){
+    const angle=heading+(i-1)*Math.PI*.42;
+    const rank=(site:typeof sites[number])=>site.cost+75*(1-Math.cos(angle-site.angle));
+    const site=sites.filter(v=>selected.every(prev=>distanceSquared(prev,v.point)>100**2))
+      .sort((a,b)=>rank(a)-rank(b))[0];
+    if(!site)continue;
+    selected.push(site.point);
+    ctx.spawnPickup(kind,site.point,{groupId,readyAt,expiresAt,vx:0,vy:0});
+  }
+  zone(s,ctx,'supply',origin,expiresAt-s.time,{groupId});
 }
 
 export function updateSkills(s:GameState,dt:number,ctx:CombatContext,input:Vec={x:0,y:0}):void {
@@ -212,14 +268,21 @@ export function updateSkills(s:GameState,dt:number,ctx:CombatContext,input:Vec={
   updateUltimates(s,dt,ctx,input);
   updateElementalFields(s,dt,ctx);
   updateSkillFields(s,ctx);
-  for(const [kind,until] of [['skate',s.player.skateUntil],['bubble',s.player.bubbleUntil],['heat',s.player.heatUntil],['stamp',s.player.stampUntil]] as const){
+  for(const [kind,until] of [['skate',s.player.skateUntil],['bubble',s.player.bubbleUntil],['heat',s.player.heatUntil],['stamp',s.player.stampUntil],['hook',s.effects.hookUntil]] as const){
     if(until>previous&&until<=now)ctx.emit({type:'skillEnd',kind});
   }
   s.zones=s.zones.filter(z=>z.expiresAt>now&&z.hp>0);
   for(const e of s.enemies){
+    if(e.dispatchRecoil){
+      const recoil=e.dispatchRecoil,{recoilTime,push}=CONFIG.skills.dispatch;
+      const before=clamp((recoil.until-previous)/recoilTime,0,1);
+      const after=clamp((recoil.until-now)/recoilTime,0,1);
+      if((e.frostUntil??0)<=now)ctx.push(e,recoil,push*(before**2-after**2));
+      if(after===0)delete e.dispatchRecoil;
+    }
     updateElementalStatus(s,e,ctx);
     if(e.bellStunUntil&&e.bellStunUntil<=now){
-      e.bellResistUntil=Math.max(e.bellResistUntil,e.bellStunUntil+1);
+      e.bellResistUntil=Math.max(e.bellResistUntil,e.bellStunUntil+CONFIG.skills.bell.resistance);
       delete e.bellStunUntil;
     }
     if(e.stunUntil>0&&e.stunUntil<=now)e.stunUntil=0;
@@ -229,15 +292,11 @@ export function updateSkills(s:GameState,dt:number,ctx:CombatContext,input:Vec={
     delete s.effects[key];delete s.effects[`bellX_${suffix}`];delete s.effects[`bellY_${suffix}`];
   }
   if(s.effects.dispatchUntil>0&&s.effects.dispatchUntil<=now){
-    s.effects.dispatchCooldownUntil=Math.max(s.effects.dispatchCooldownUntil,s.effects.dispatchUntil+2);
+    s.effects.dispatchCooldownUntil=Math.max(s.effects.dispatchCooldownUntil,s.effects.dispatchUntil+CONFIG.skills.dispatch.cooldown);
     s.effects.dispatchUntil=0;ctx.emit({type:'skillEnd',kind:'dispatch'});
   }
   if(s.effects.dispatchCooldownUntil>now)for(const item of s.pickups)if(item.kind==='dispatch'){
     item.disabledUntil=s.effects.dispatchCooldownUntil;delete item.pulledUntil;
-  }
-  if(s.effects.pendingSupplyUntil>0){
-    if(s.effects.pendingSupplyUntil<=now){s.effects.pendingSupplyUntil=0;s.effects.pendingSupplyAt=0;ctx.emit({type:'notice',message:'补给暂无法投递'});}
-    else deliverSupply(s,{x:s.effects.pendingSupplyX,y:s.effects.pendingSupplyY},ctx);
   }
   updateCones(s,dt,ctx);assignLure(s,ctx);updateHook(s,dt);ring(s,ctx);
 }

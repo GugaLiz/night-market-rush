@@ -20,9 +20,9 @@ export const WEAPON_GUIDE:Record<WeaponKind,CatalogEntry>={
   talisman:{short:'派单符册',role:'分单接力',description:'三张派单纸向不同方向飞出，碰到怪物才开始逐跳传递。各路共享已派名单，单轮最多打十只。',detail:weaponDetail('talisman',`首段射程 ${WEAPONS.talisman.range} · 张角 108° · 跳转距离 ${WEAPONS.talisman.width} · 后续 ${RANGED_HITS.talisman.slice(1).join(" / ")}`)},
 };
 export const SKILL_GUIDE:Record<SkillKind,CatalogEntry>={
-  vortex:{short:'乌金涡锅',role:'黑洞聚怪',description:'把涡锅甩到前方，整条街上的地面怪都会被卷向锅心。沿锅沿绕到侧面，可以边聚怪边打。',detail:`牵引 ${ELEMENTAL.vortex.duration} 秒 · 收锅半径 ${ELEMENTAL.vortex.blastRadius} · 爆发伤害 ${ELEMENTAL.vortex.damage}`},
+  vortex:{short:'乌金涡锅',role:'黑洞聚怪',description:'把炒锅甩到身前，锅里的汤越转越急，把整条街上的地面怪卷向锅心。趁它们聚拢出手，收锅时再烫一圈。',detail:`牵引 ${ELEMENTAL.vortex.duration} 秒 · 收锅半径 ${ELEMENTAL.vortex.blastRadius} · 爆发伤害 ${ELEMENTAL.vortex.damage}`},
   poison:{short:'毒雾泡菜坛',role:'毒雾蚀血',description:'开坛后，青绿色酸雾在脚下铺开。把追兵引进雾里，再绕到另一边，沾上的毒汁会继续扣血。',detail:`雾区半径 ${ELEMENTAL.poison.radius} · 留场 ${ELEMENTAL.poison.duration} 秒 · 每 ${ELEMENTAL.poison.interval} 秒扣 ${ELEMENTAL.poison.damage} 血 · 离开后持续 ${ELEMENTAL.poison.linger} 秒`},
-  frost:{short:'冰封刨冰机',role:'冰封碎裂',description:'碎冰沿地面向四周扩散，冻住它扫过的怪。趁怪群停住穿过包围，冰壳碎裂时再补一击。',detail:`扩散半径 ${ELEMENTAL.frost.radius} · ${ELEMENTAL.frost.growth} 秒铺开 · 第 ${ELEMENTAL.frost.duration} 秒碎冰，造成 ${ELEMENTAL.frost.damage} 伤害`},
+  frost:{short:'冰封刨冰机',role:'冰封碎裂',description:'附近的怪从近到远依次裹上一层冰壳，冻在原地。趁这时穿过包围，冰壳碎开时还会对怪物造成伤害。',detail:`冻结半径 ${ELEMENTAL.frost.radius} · ${ELEMENTAL.frost.growth} 秒扩散 · 第 ${ELEMENTAL.frost.duration} 秒碎冰，造成 ${ELEMENTAL.frost.damage} 伤害`},
   health:{short:'暖心汤包',role:'恢复生命',description:'受伤后，附近的空地会飘来带红心的汤包。迎上它就能回血，满血经过会留在街上。',detail:`每个最多恢复 ${CONFIG.skills.health.amount} 点生命 · 拾取 ${CONFIG.skills.health.cooldown} 秒后可再次投递`},
   icebox:{short:'保冷箱',role:'定向冰浪',description:'开箱前转身对准怪群，碎冰分三层向前涌出。浪头触到的敌人受伤并短暂冻结。',detail:'前方 180° · 蓄力 0.20 秒 · 命中 85 · 冻结 0.75 秒'},
   steamer:{short:'蒸笼开席',role:'全场扩散',description:'揭盖后热汽从脚边向场外推开。近处的怪先被掀起，可以跟着浪头往外跑。',detail:'波前用时 0.65 秒 · 每只最多 100 伤害'},
@@ -33,14 +33,14 @@ export const SKILL_GUIDE:Record<SkillKind,CatalogEntry>={
   soda:{short:'汽水缓速',role:'地面减速',description:'汽水溅湿附近敌人，并在地上留下三片蓝色水洼。后来走进水洼的怪也会减速。',detail:`溅射半径 ${CONFIG.skills.soda.radius} · 水洼持续 3 秒 · 速度降至 35%`},
   lure:{short:'试吃保温盒',role:'诱导追踪',description:'在地面留下试吃盒，吸引附近追踪者；不能解除已锁定冲刺。',detail:`半径 ${CONFIG.skills.lure.radius} · 最多吸引 ${CONFIG.skills.lure.targets} 只 · 持续 4 秒`},
   bubble:{short:'气泡缓冲卷',role:'一次防撞',description:'抵消一次有效接触伤害，消耗后给予短暂全局保护。',detail:'保留 7 秒 · 防撞 ×1 · 成功后保护 0.75 秒'},
-  cones:{short:'三联反光路锥',role:'阻挡路径',description:'前方放下最多三个路锥，怪物绕行；冲刺撞锥会打破单锥。',detail:`锥间距 ${CONFIG.skills.cones.spacing} · 存在 4.5 秒 · 再取替换旧锥`},
-  bell:{short:'到站手铃',role:'打断眩晕',description:'铃声打断附近预警与冲刺，使一片敌人短暂眩晕。',detail:`半径 ${CONFIG.skills.bell.radius} · 最多 ${CONFIG.skills.bell.targets} 只 · 眩晕 0.65 秒`},
+  cones:{short:'反光路锥阵',role:'阻挡路径',description:'一把路锥散落在身边，迫使地面怪绕行。你可以从锥阵中直接穿过，冲锋的餐盒怪撞上路锥时会停下来并撞碎一个。',detail:`每次 ${CONFIG.skills.cones.minCount}～${CONFIG.skills.cones.maxCount} 个 · 存在 ${CONFIG.skills.cones.duration} 秒 · 再取替换旧锥`},
+  bell:{short:'到站手铃',role:'打断眩晕',description:'摇铃打断附近怪物的攻击。头顶冒出转圈铃星的怪会停在原地，趁这时贴身穿过也安全。',detail:`半径 ${CONFIG.skills.bell.radius} · 最多 ${CONFIG.skills.bell.targets} 只 · 眩晕 ${CONFIG.skills.bell.duration} 秒`},
   route:{short:'导航纸地图',role:'上路加速',description:'沿刚才移动的方向铺开纸地图。踏上纸面，路边亮起绿线，骑手加速。离开后还能在地图收起前跑回来。',detail:`长 ${CONFIG.skills.route.length} · 宽 ${CONFIG.skills.route.width} · 持续 ${CONFIG.skills.route.duration} 秒 · 路线内速度 ×${CONFIG.skills.route.speedMultiplier}`},
-  hook:{short:'伸缩取餐钩',role:'吸取道具',description:'把附近最多三件技能道具往你身边拉，进入拾取范围就会生效。',detail:`半径 ${CONFIG.skills.hook.radius} · 最多追踪 ${CONFIG.skills.hook.duration} 秒 · 不吸武器或取餐钩`},
+  hook:{short:'伸缩取餐钩',role:'连续回收',description:'跑动时，钩爪会接连抓取附近飘过的技能泡，把它们和散落的金币拉回身边。补给箱的三件奖品留给你亲自选。',detail:`搜寻 ${CONFIG.skills.hook.duration} 秒 · 半径 ${CONFIG.skills.hook.radius} · 同时伸出 ${CONFIG.skills.hook.targets} 条钩索`},
   heat:{short:'加热餐包',role:'武器急速',description:'缩短之后新建立的攻击冷却；不重置当前冷却，不加伤害。',detail:'持续 5 秒 · 后续冷却 ×0.8 · 换武器继承剩余时间'},
-  dispatch:{short:'派单终端',role:'暂缓增援',description:'暂缓新的敌人入场；场内敌人、时间和攻击继续推进。',detail:'4 秒 · 连续最长 6 秒 · 之后调度冷却 2 秒'},
-  stamp:{short:'加急印章',role:'额外金币',description:'生效期间击败的每只怪会多掉一枚金币。走过掉落处即可收取。',detail:'持续 6 秒 · 每次击败额外掉落 1 金币'},
-  supply:{short:'补给扫码券',role:'三选一补给',description:'投出电扇、滑板、汽水供选择，取一件后同组其他物件收回。',detail:'最多 3 件 · 箱组存在 6 秒 · 满场最多等待 4 秒'},
+  dispatch:{short:'派单终端',role:'广播清场',description:'终端发出一次改派广播，冲散附近的敌弹，把普通追兵推开并减速。趁增援暂停，从腾出的空当突围。',detail:`广播半径 ${CONFIG.skills.dispatch.radius} · 减速 ${CONFIG.skills.dispatch.slowTime} 秒 · 增援暂停 4 秒`},
+  stamp:{short:'加急印章',role:'无敌护送',description:'盖章后进入无敌状态，迎着前方的冲刺波穿过怪群。期间每击败一只怪，都会多掉一枚金币。',detail:`无敌 ${CONFIG.skills.stamp.duration} 秒 · 再次拾取刷新时长 · 每次击败额外掉落 1 金币`},
+  supply:{short:'补给扫码券',role:'任选补给',description:'扫码就地摆出三个取餐位。走近电扇清怪、气泡护身或刨冰机冻场，选中一件立即发动。',detail:`三选一 · 保留 ${CONFIG.skills.supply.duration} 秒 · 满场也能配送`},
 };
 
 function contactStats(kind:Exclude<EnemyKind,'giantBun'>):string {
@@ -77,6 +77,9 @@ const enemyGuide:Record<EnemyKind,Omit<CatalogEntry,'short'>>={
     role:'精英 · 三连坐', description:'前两跳躲开地上的落点圈。第三跳会掀起面粉浪，提前对准圈上标出的缺口，穿过去后回身反击。',
     detail:`生命 ${CONFIG.enemies.giantBun.hp} · 前两跳各 ${CONFIG.enemies.giantBun.damage} · 末跳面粉浪 ${CONFIG.giant.finalDamage}`,
   },
+  eliteCrab:{role:'精英 · 锁线冲锋',description:'蟹钳夹紧时会锁定一条直线。横移让过它，再趁它刹车时追击。',detail:`生命 ${CONFIG.enemies.eliteCrab.hp} · 冲锋伤害 ${CONFIG.elites.crab.damage}`},
+  eliteKettle:{role:'精英 · 扇形茶弹',description:'壶嘴转向后会向前方分道喷茶。拉开距离，从茶弹之间的空隙穿过。',detail:`生命 ${CONFIG.enemies.eliteKettle.hp} · 单发茶弹 ${CONFIG.elites.kettle.damage}`},
+  eliteSesame:{role:'精英 · 定点糖浆',description:'汤勺举起时，脚下会出现糖浆落点。看到预警就移出圈外，落击后再回身攻击。',detail:`生命 ${CONFIG.enemies.eliteSesame.hp} · 糖浆伤害 ${CONFIG.elites.sesame.damage}`},
 };
 
 const enemyKinds=Object.keys(ENEMY_NAMES) as EnemyKind[];
@@ -93,7 +96,7 @@ export const CATALOG={
   },
   enemies:{
     label:`${enemyKinds.length} 种怪物`,
-    note:'留意追赶的方向、地面的瞄准线和落点圈。第二波起，偶数波次有机会遇到精英巨包。',
+    note:'留意追赶的方向、地面的瞄准线和落点圈。每波末尾都有精英守关，第 4 波起会有两种同场，全部击败才能换波。',
     cards:enemyKinds.map(kind=>({kind,title:ENEMY_NAMES[kind],...enemyGuide[kind]})),
   },
 };

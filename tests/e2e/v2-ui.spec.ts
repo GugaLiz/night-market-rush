@@ -31,12 +31,12 @@ test('complete catalog and safe laboratory lifecycle with all weapons, skills an
   await page.getByRole('tab',{name:`${SKILL_KINDS.length} 种技能`}).click();await expect(page.locator('.catalog-grid article')).toHaveCount(SKILL_KINDS.length);
   await expectCatalogArt(page,SKILL_KINDS,{...clayFrames.supplies,...clayFrames.ultimates,...clayFrames.elementals});
   await page.screenshot({animations:'disabled',path:info.outputPath('v2-catalog.png')});
-  const enemyTab=page.getByRole('tab',{name:'7 种怪物'});
+  const enemyTab=page.getByRole('tab',{name:'10 种怪物'});
   await enemyTab.click();
   await expect(enemyTab).toHaveAttribute('aria-selected','true');
-  const enemies=page.getByRole('tabpanel',{name:'7 种怪物'});
+  const enemies=page.getByRole('tabpanel',{name:'10 种怪物'});
   await expect(enemies.getByRole('heading',{level:3})).toHaveText(Object.values(ENEMY_NAMES));
-  await expectCatalogArt(page,Object.keys(ENEMY_NAMES),{...clayFrames.streetSnacks,...clayFrames.mascots});
+  await expectCatalogArt(page,Object.keys(ENEMY_NAMES),{...clayFrames.streetSnacks,...clayFrames.mascots,...clayFrames.elites});
   for(const [kind,{hp}] of Object.entries(CONFIG.enemies)){
     await expect(enemies.locator('article').filter({has:page.locator(`[data-icon="${kind}"]`)}).locator('small')).toContainText(`生命 ${hp}`);
   }
@@ -110,7 +110,7 @@ test('HP feedback, healing, safety state priority, and portrait recovery in prac
   for(const kind of ['lure','cones','stamp','dispatch','route','skate','bubble']){
     await page.getByLabel('试验技能',{exact:true}).selectOption(kind);await page.getByRole('button',{name:'触发并体验'}).click();await page.getByRole('button',{name:'试验工具',exact:true}).click();
   }
-  const statuses=await page.locator('.status-chip').evaluateAll(elements=>elements.map(el=>(el as HTMLElement).dataset.status));expect(statuses[0]).toBe('bubble');expect(statuses[1]).toBe('skate');expect(statuses.length).toBeLessThanOrEqual(6);
+  const statuses=await page.locator('.status-chip').evaluateAll(elements=>elements.map(el=>(el as HTMLElement).dataset.status));expect(statuses[0]).toBe('bubble');expect(statuses[1]).toBe('skate');expect(statuses[2]).toBe('stamp');expect(statuses.length).toBeLessThanOrEqual(6);
   const frozen=(await state(page)).time;await page.setViewportSize({width:390,height:844});await view(page,'rotate');await page.setViewportSize({width:844,height:390});await view(page,'lab');expect((await state(page)).time).toBe(frozen);
   await page.screenshot({animations:'disabled',path:info.outputPath('v2-mobile-lab.png')});await page.getByRole('button',{name:'继续试验',exact:true}).click();await view(page,'play');await page.screenshot({animations:'disabled',path:info.outputPath('v2-mobile-hud.png')});
 });

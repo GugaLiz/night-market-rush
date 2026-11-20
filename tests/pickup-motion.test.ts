@@ -117,6 +117,9 @@ describe('floating skill orders',()=>{
     const p=skill({x:origin.x+120,y:origin.y,vx:0,vy:110});
     s.pickups.push(p);
     game.triggerSkill('hook');
+    game.update(CONFIG.skills.hook.launchTime,still);
+    expect(p.x).toBeCloseTo(origin.x+120);
+    expect(p.y).toBe(origin.y);
     game.update(dt,still);
     expect(p.x).toBeCloseTo(origin.x+120-CONFIG.skills.hook.speed*dt);
     expect(p.y).toBe(origin.y);

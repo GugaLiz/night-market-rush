@@ -29,12 +29,12 @@ test('staggered artwork downloads advance progress without replacing or fading t
   await card.evaluate(el=>Promise.all(el.getAnimations().map(animation=>animation.finished)).then(()=>true));
 
   await release('clay-night-market.webp','clay-riverside-market.webp','clay-chibi-home.webp');
-  await expect(progress).toHaveAttribute('aria-valuenow','19');
-  await expect(card).toContainText('19%');
+  await expect(progress).toHaveAttribute('aria-valuenow','18');
+  await expect(card).toContainText('18%');
   expect(await card.evaluate((el,first)=>el===first,original)).toBe(true);
   expect(await card.evaluate(el=>getComputedStyle(el).opacity)).toBe('1');
   await release('clay-actors.webp');
-  await expect(progress).toHaveAttribute('aria-valuenow','25');
+  await expect(progress).toHaveAttribute('aria-valuenow','24');
   expect(await card.evaluate((el,first)=>el===first,original)).toBe(true);
   finish=true;
   await release();

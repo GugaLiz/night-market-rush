@@ -33,10 +33,10 @@ describe('V3 final mechanism audit',()=>{
   g.state.projectiles=[projectile(101),projectile(102)];g.update(1/60,zero);const events=g.drainEvents();
   const damages=events.filter(v=>v.type==='damage'&&v.victimId===e.id);expect(damages.reduce((sum,v)=>sum+(v.type==='damage'?v.amount:0),0)).toBe(9);expect(events.filter(v=>v.type==='kill')).toHaveLength(1);expect(g.state.kills).toBe(1);
  });
- it('active supply and pending supply keep four gameplay slots despite retiring visuals',()=>{
+ it('repeated vouchers keep a single group of three selectable stands',()=>{
   const g=new Game(4);g.reset(4,true);g.state.weapon.readyAt=Infinity;g.triggerSkill('supply');run(g,24);
   const choice=g.state.pickups[0];g.state.player.x=choice.x;g.state.player.y=choice.y;g.update(1/60,zero);
-  g.triggerSkill('supply');g.triggerSkill('supply');for(let i=0;i<600;i++){g.update(1/60,zero);expect(g.state.pickups.filter(p=>!p.retiringUntil).length).toBeLessThanOrEqual(4);}
+  g.triggerSkill('supply');g.triggerSkill('supply');for(let i=0;i<600;i++){g.update(1/60,zero);const stands=g.state.pickups.filter(p=>p.groupId&&!p.retiringUntil);expect(stands.length).toBeLessThanOrEqual(3);expect(new Set(stands.map(p=>p.groupId)).size).toBeLessThanOrEqual(1);}
  });
  it('ten minutes of moving crowds, live weapons and enemy bullets remain bounded',()=>{
   const g=new Game(810);g.state.player.invulnerableUntil=Infinity;let maxEnemies=0,maxShots=0,maxProjectiles=0,maxStep=0;const started=performance.now();

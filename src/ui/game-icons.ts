@@ -20,6 +20,7 @@ registerAtlas('clay-supplies.webp',clayFrames.supplies);
 registerAtlas('clay-elemental-tools.webp',clayFrames.elementals);
 registerAtlas('clay-actors.webp',clayFrames.ultimates);
 registerAtlas('clay-market-mascots.webp',clayFrames.mascots);
+registerAtlas('clay-market-elites.webp',clayFrames.elites);
 registerAtlas('clay-street-snacks.webp',clayFrames.streetSnacks);
 registerAtlas('clay-bun-courier-rig.webp',{rigBag:clayFrames.rig.rigBag,rigBagSide:clayFrames.rig.rigBagSide});
 artwork.set('health',`<img class="atlas-icon" data-icon="health" alt="" src="${asset('clay-soup-dumpling.webp')}">`);

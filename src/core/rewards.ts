@@ -21,15 +21,18 @@ export function dropCoins(s: GameState, at: Vec, value: number, ctx: CombatConte
 
 export function collectCoins(s: GameState, dt: number, ctx: CombatContext): void {
   const p = s.player, start = {x:p.px, y:p.py};
+  const hookActive=s.effects.hookUntil>s.time;
+  const radius=hookActive?CONFIG.skills.hook.radius:CONFIG.rewards.attractionRadius;
+  const speed=hookActive?CONFIG.skills.hook.speed:CONFIG.rewards.attractionSpeed;
   let collected = 0;
   s.coins = s.coins.filter(coin => {
     if (s.time - coin.bornAt < CONFIG.rewards.coinGrace) return true;
-    if (!coin.attracted && segmentDistanceSquared(start, p, coin) > CONFIG.rewards.attractionRadius ** 2) return true;
+    if (!coin.attracted && segmentDistanceSquared(start, p, coin) > radius ** 2) return true;
     coin.attracted = true;
     const dx = p.x - coin.x, dy = p.y - coin.y, distance = Math.hypot(dx, dy);
     const before = {x:coin.x, y:coin.y};
     if (distance > 0) {
-      const fraction = Math.min(1, CONFIG.rewards.attractionSpeed * dt / distance);
+      const fraction = Math.min(1, speed * dt / distance);
       coin.x += dx * fraction;
       coin.y += dy * fraction;
     }

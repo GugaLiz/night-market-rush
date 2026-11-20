@@ -30,7 +30,7 @@ describe('clay delivery ultimates',()=>{
     expect(s.player.x).toBeGreaterThan(735);
   });
 
-  it('interrupts a charge at the instant the ice reaches it and preserves the full freeze under a second bell',()=>{
+  it('preserves the ice deadline and keeps a charger stunned until the later bell expires',()=>{
     const g=lab(),s=g.state,p=s.player;s.time=10;
     const box=g.spawnEnemy('box',{x:p.x+82,y:p.y});
     box.hp=box.maxHp=200;box.phase='warn';box.dashX=-1;box.phaseUntil=s.time+.5;
@@ -40,9 +40,10 @@ describe('clay delivery ultimates',()=>{
     expect(thaw).toBeGreaterThan(s.time);expect(box.phase).toBe('recover');
     expect(box.contactSuppressedUntil).toBe(thaw);
     g.triggerSkill('bell');ticks(g,5);
-    expect(box.bellStunUntil).toBeGreaterThan(s.time);expect(box.stunUntil).toBe(thaw);
+    const wake=box.bellStunUntil!;
+    expect(box.chilledUntil).toBe(thaw);expect(wake).toBeGreaterThan(thaw);expect(box.stunUntil).toBe(wake);
     const x=box.x;
-    while(s.time<thaw) {ticks(g,1);expect(box.phase).toBe('recover');expect(box.x).toBe(x);}
+    while(s.time<wake) {ticks(g,1);expect(box.phase).toBe('recover');expect(box.x).toBe(x);}
     expect(box.bellResistUntil).toBeGreaterThan(s.time);
     for(let i=0;i<300&&box.phase!=='warn';i++)ticks(g,1);
     expect(box.phase).toBe('warn');expect(box.phaseUntil-s.time).toBeCloseTo(CONFIG.dash.warning);
@@ -269,17 +270,18 @@ describe('clay delivery ultimates',()=>{
   it('lets a moving rider naturally collect four live ultimates and encounter the second wave giant',()=>{
     const g=new Game(7),s=g.state,p=s.player,found:string[]=[];
     let sawElite=false;
-    for(let frame=0;frame<60*84&&found.length<4&&!s.ended;frame++){
+    for(let frame=0;frame<60*135&&(!sawElite||found.length<4)&&!s.ended;frame++){
       const range=(point:Vec)=>Math.hypot(point.x-p.x,point.y-p.y);
       const items=s.pickups.filter(q=>!q.retiringUntil&&(q.readyAt??0)<=s.time);
       items.sort((a,b)=>Number(isUltimate(b.kind))-Number(isUltimate(a.kind))||range(a)-range(b));
-      const goal=items[0]??{x:640+380*Math.cos(s.time*.43),y:390+150*Math.sin(s.time*.64)};
+      const crab=s.enemies.find(e=>e.kind==='eliteCrab');
+      const goal=items.find(q=>isUltimate(q.kind))??crab??items[0]??{x:640+380*Math.cos(s.time*.43),y:390+150*Math.sin(s.time*.64)};
       const distance=range(goal)||1;
       const direction={x:(goal.x-p.x)/distance,y:(goal.y-p.y)/distance};
       const threatened=s.enemies.some(e=>range(e)<e.radius+35)||s.enemyShots?.some(q=>range(q)<q.radius+35);
       if(threatened&&p.invulnerableUntil<=s.time)g.dash(direction);
       ticks(g,1,direction);
-      for(const ev of g.drainEvents())if(ev.type==='pickup'&&isUltimate(ev.kind))found.push(ev.kind);
+      for(const ev of g.drainEvents())if(ev.type==='pickup'&&isUltimate(ev.kind)&&!found.includes(ev.kind))found.push(ev.kind);
       if(s.wave===2&&s.enemies.some(e=>e.kind==='giantBun'))sawElite=true;
       if(s.ended)g.revive();
     }

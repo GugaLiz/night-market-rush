@@ -3,7 +3,7 @@ import {Game} from '../src/core/game';
 import {CONFIG,WORLD,difficultyAt} from '../src/core/config';
 import {relativeSweep,sweepContact} from '../src/core/geometry';
 import {spawnMarketEnemies} from '../src/core/waves';
-import type {EnemyKind,GameEvent,WeaponKind} from '../src/shared/types';
+import {isElite,type EnemyKind,type GameEvent,type WeaponKind} from '../src/shared/types';
 const zero={x:0,y:0};
 function lab(kind:WeaponKind='tongs'){const g=new Game(77);g.reset(77,true);g.setWeapon(kind);g.state.weapon.readyAt=Infinity;g.drainEvents();return g;}
 function tick(g:Game,seconds:number,input=zero){for(let i=0;i<Math.ceil(seconds*60);i++)g.update(1/60,input);}
@@ -82,7 +82,8 @@ describe('movement and seeded simulation',()=>{
         const born=s.enemies.filter(e=>e.spawnAt===s.time);
         if(!born.length)continue;
         const wave=Math.min(s.wave,2)-1;
-        for(const e of born){
+        const ordinary=born.filter(e=>!isElite(e.kind));
+        for(const e of ordinary){
           expect(e.march).toBeUndefined();
           expect(Math.hypot(e.x-s.player.x,e.y-s.player.y)-e.radius-s.player.radius).toBeGreaterThanOrEqual(CONFIG.spawn.safeDistance);
           expect(previous.every(q=>Math.hypot(e.x-q.x,e.y-q.y)-e.radius-q.r>=CONFIG.spawn.gap)).toBe(true);
@@ -91,8 +92,8 @@ describe('movement and seeded simulation',()=>{
           kinds[wave].add(e.kind);
           if(e.x>340&&e.x<940&&e.y>288&&e.y<535)interior[wave]++;
         }
-        // Leave these bodies on the floor for the next arrival, and make vacancies for subsequent sets.
-        s.enemies=born;
+        // Sample ordinary batches after clearing the guard and making space for the next batch.
+        s.enemies=ordinary;
       }
       expect(quadrants.map(q=>q.size)).toEqual([4,4]);
       for(const waveKinds of kinds)for(const snack of ['bun','onigiri','siumai','zongzi'] as const)expect(waveKinds.has(snack)).toBe(true);
@@ -103,6 +104,8 @@ describe('movement and seeded simulation',()=>{
     const g=new Game(284),s=g.state;
     Object.assign(s,{time:200,wave:6,waveStartedAt:198});
     s.player.invulnerableUntil=1000;s.weapon.readyAt=Infinity;
+    // Isolate placement from a late-game attack pickup bursting inside the packed test floor.
+    s.pickups=Array.from({length:CONFIG.pickup.cap},(_,i)=>({id:500+i,kind:'soda',x:1100,y:570,radius:15,bornAt:200,readyAt:Infinity}));
     for(let column=0;column<14;column++)for(let row=0;row<6;row++){
       const e=g.spawnEnemy('bun',{x:118+column*80,y:215+row*76});
       e.stunUntil=1000;

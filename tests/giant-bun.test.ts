@@ -16,7 +16,7 @@ function wait(g:Game,predicate:()=>boolean){
   for(let i=0;i<420;i++){if(predicate())return;tick(g);}
   throw new Error('Expected giant bun phase was never reached');
 }
-const exampleWave=():GiantPulse=>({id:98,hop:3,x:640,y:400,gapAngle:0,bornAt:0,reach:720,spent:false});
+const exampleWave=():GiantPulse=>({id:98,ownerId:7,hop:3,x:640,y:400,gapAngle:0,bornAt:0,reach:720,spent:false});
 
 describe('giant bun landing and the open flour wave',()=>{
   it('telegraphs a fixed target, travels without midair contact and can be hit again at rest',()=>{
@@ -29,8 +29,8 @@ describe('giant bun landing and the open flour wave',()=>{
     wait(g,()=>e.jump!.phase==='flight');
     tick(g,7);const startHp=e.hp;
     // Put both player and the contact skill directly in the aerial projection.
-    p.x=e.x;p.y=e.y;g.triggerSkill('fan');tick(g,7);
-    expect(e.hp).toBe(startHp);expect(p.hp).toBe(100);
+    p.x=e.x;p.y=e.y;g.triggerSkill('fan');g.triggerSkill('bell');tick(g,7);
+    expect(e.hp).toBe(startHp);expect(e.bellStunUntil).toBeUndefined();expect(p.hp).toBe(100);
     wait(g,()=>e.jump!.phase==='rest');
     expect(e.x).toBe(first.x);expect(e.y).toBe(first.y);
     expect(g.drainEvents().some(x=>x.type==='giantLand' && x.hop===1)).toBe(true);
@@ -51,7 +51,7 @@ describe('giant bun landing and the open flour wave',()=>{
       if(hop===3){g.state.player.x=exit.x;g.state.player.y=exit.y;}
       wait(g,()=>e.jump?.phase==='rest' && e.jump.hop===hop);
       const pulse=g.state.giantPulses!.find(w=>w.hop===hop)!;
-      expect(pulse).toMatchObject({...target,gapAngle:gap});
+      expect(pulse).toMatchObject({...target,ownerId:e.id,gapAngle:gap});
       if(hop===3){
         expect(e.jump!.until-g.state.time).toBeCloseTo(CONFIG.giant.recovery);
         const hp=g.state.player.hp;
@@ -107,17 +107,20 @@ describe('giant bun landing and the open flour wave',()=>{
     expect(g.state.giantPulses??[]).toHaveLength(0);
   });
 
-  it('adds one elite per even wave using normal spawn grace, spacing and population cap',()=>{
+  it('warns once for the wave-two giant six seconds before closing, away from the courier',()=>{
     for(const seed of [7,25,431]){
       const g=new Game(seed),s=g.state;
-      s.time=36.1;s.wave=2;s.waveStartedAt=36;s.weapon.readyAt=Infinity;
+      s.time=64-2*CONFIG.step;s.wave=2;s.waveStartedAt=36;s.weapon.readyAt=Infinity;
+      s.effects.dispatchUntil=Infinity;s.player.invulnerableUntil=Infinity;
+      tick(g);expect(s.enemies).toHaveLength(0);
       tick(g);const elites=s.enemies.filter(e=>e.kind==='giantBun');
-      expect(elites).toHaveLength(1);expect(s.lastGiantWave).toBe(2);
+      expect(elites).toHaveLength(1);expect(s.eliteWave).toBe(2);
       const e=elites[0];expect(e.jump).toBeUndefined();
       expect(Math.hypot(e.x-s.player.x,e.y-s.player.y)).toBeGreaterThanOrEqual(e.radius+s.player.radius+CONFIG.spawn.safeDistance);
-      s.enemies=[];tick(g,170);expect(s.enemies.some(x=>x.kind==='giantBun')).toBe(false);
-      s.enemies=[];s.time=104.1;s.wave=4;s.waveStartedAt=104;tick(g);
-      expect(s.enemies.filter(x=>x.kind==='giantBun')).toHaveLength(1);
+      tick(g,Math.ceil(CONFIG.spawn.warning/CONFIG.step)+1);
+      expect(e.jump?.phase).toBe('warn');
+      e.hp=1;Object.assign(s.player,{x:e.x,y:e.y});g.triggerSkill('fan');
+      tick(g,170);expect(s.enemies.some(x=>x.kind==='giantBun')).toBe(false);expect(s.wave).toBe(2);
     }
   });
 });

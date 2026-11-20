@@ -37,7 +37,12 @@ test('Space and Shift dash uses last direction, respects cooldown, and freezes i
   const after=await state(page);expect(after.player.x-before.player.x).toBeGreaterThan(70);
   const readyAt=after.player.dashReadyAt;
   await page.keyboard.press('Shift');expect((await state(page)).player.dashReadyAt).toBe(readyAt);
-  await page.keyboard.press('Escape');await view(page,'pause');const paused=await state(page);await page.locator('#game-canvas').focus();
+  await page.keyboard.press('Escape');await view(page,'pause');const paused=await state(page);
+  // Space on the focused resume button is a valid menu action. Exercise gameplay keys off the buttons.
+  const resume=page.getByRole('button',{name:'继续挑战',exact:true});
+  await expect(resume).toBeFocused();
+  await page.getByRole('heading',{name:'已暂停'}).click();
+  await expect(resume).not.toBeFocused();
   await page.keyboard.press('Space');await page.keyboard.press('Shift');await page.waitForTimeout(80);expect(await state(page)).toEqual(paused);
   await page.getByRole('button',{name:'设置',exact:true}).click();await page.keyboard.press('Shift');expect(await state(page)).toEqual(paused);
   await page.getByRole('button',{name:'取消',exact:true}).click();await page.getByRole('button',{name:'继续挑战',exact:true}).click();

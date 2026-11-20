@@ -1,7 +1,7 @@
 import {describe, expect, it} from 'vitest';
 import {CONFIG, WORLD} from '../src/core/config';
 import {Game} from '../src/core/game';
-import {ELEMENTAL_KINDS} from '../src/shared/types';
+import {ELEMENTAL_KINDS,isElite} from '../src/shared/types';
 import {dropCoins} from '../src/core/rewards';
 import type {CombatContext} from '../src/core/contracts';
 
@@ -249,10 +249,12 @@ describe('V4 continuous play', () => {
     game.setupWaveDemo();
     const s=game.state;
     const before=structuredClone({coins:s.coins,pickups:s.pickups,player:{x:s.player.x,y:s.player.y}});
+    expect(s.enemies.find(e=>isElite(e.kind))?.hp).toBe(1);
     run(game,2.02);
     expect(s.wave).toBe(2);
     expect(s.waveStartedAt).toBeCloseTo(36);
-    expect(s.coins).toEqual(before.coins);
+    for(const coin of before.coins)expect(s.coins.find(item=>item.id===coin.id)).toEqual(coin);
+    expect(s.kills).toBeGreaterThanOrEqual(1);
     expect({x:s.player.x,y:s.player.y}).toEqual(before.player);
     expect(s.pickups.map(p=>p.id)).toEqual(before.pickups.map(p=>p.id));
     for(const [i,p] of s.pickups.entries()){
@@ -267,7 +269,7 @@ describe('V4 continuous play', () => {
     // Remove targets between batches so this checks the full schedule independently of combat aptitude.
     for(let second=0;second<241;second++){game.state.enemies=[];game.update(1,still);}
     expect(game.state.wave).toBe(8);
-    expect(game.state.waveStartedAt).toBe(240);
+    expect(game.state.waveStartedAt).toBeCloseTo(240,6);
     expect(game.state.score).toBe(game.state.kills);
   });
 

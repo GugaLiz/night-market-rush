@@ -13,140 +13,126 @@ function oval(c:Canvas,x:number,y:number,rx:number,ry:number,color:string|Canvas
   c.beginPath();c.ellipse(x,y,rx,ry,angle,0,turn);c.fill();
 }
 
-// A tapered strip curls from the far edge of the field into the mouth of the wok.
-function spiral(c:Canvas,length:number,angle:number,phase:number,gold:boolean):void {
-  c.save();c.rotate(angle);
-  const ink=c.createRadialGradient(0,0,0,0,0,length);
-  ink.addColorStop(0,gold?'#fff4b8':'#fff1ff');
-  ink.addColorStop(.27,gold?'#ffa856ef':'#d889fff2');
-  ink.addColorStop(.63,gold?'#f4a25191':'#c67bf3a3');
-  ink.addColorStop(1,'#e1b5ff00');
-  c.fillStyle=ink;
-  c.beginPath();c.moveTo(length,0);
-  c.bezierCurveTo(length*.67,-length*.35,length*.19,-length*.53,-length*.10,-length*.27);
-  c.bezierCurveTo(-length*.26,-length*.09,-length*.13,length*.10,length*.04,length*.06);
-  c.bezierCurveTo(-length*.12,length*.11,-length*.22,-length*.06,-length*.08,-length*.22);
-  c.bezierCurveTo(length*.18,-length*(.53+phase*.018),length*.65,-length*.35,length,0);
-  c.closePath();c.fill();
-  c.strokeStyle=gold?'#ffd5849c':'#e4b1fcb8';c.lineWidth=1.45;
-  c.beginPath();c.moveTo(-length*.08,-length*.22);
-  c.quadraticCurveTo(-length*.18,-length*.09,-length*.14,-length*.012);c.stroke();
-  c.restore();
+// The rim and handle keep the lighting of the clay prop. Only its soup turns.
+interface WokArt {pan:HTMLCanvasElement; broth:HTMLCanvasElement}
+let wokArt:WokArt|undefined;
+
+function prepareWok(assets:Assets):WokArt {
+  if(wokArt)return wokArt;
+  const sprite=assets.sprites.vortex;
+  const pan=document.createElement('canvas');
+  pan.width=sprite.width;pan.height=sprite.height;
+  const brush=pan.getContext('2d')!;
+  brush.drawImage(sprite.image,sprite.x,sprite.y,sprite.width,sprite.height,0,0,pan.width,pan.height);
+  // Glaze the purple ridges with warm stock while preserving the sculpted highlights.
+  const pixels=brush.getImageData(0,0,pan.width,pan.height), rgba=pixels.data;
+  for(let i=0;i<rgba.length;i+=4){
+    const r=rgba[i],g=rgba[i+1],b=rgba[i+2], tint=unit((Math.min(r,b)-g-5)/35)*.82;
+    const light=.44*r+.30*g+.26*b;
+    rgba[i]=r+(light*1.08+12-r)*tint;
+    rgba[i+1]=g+(light*.63+7-g)*tint;
+    rgba[i+2]=b+(light*.47+12-b)*tint;
+  }
+  brush.putImageData(pixels,0,0);
+  // Unproject the bowl to a round texture, feathering its edge into the stationary rim.
+  const broth=document.createElement('canvas');broth.width=broth.height=128;
+  const soup=broth.getContext('2d')!;
+  soup.drawImage(pan,83,26,122,76,0,0,128,128);
+  const edge=soup.createRadialGradient(64,64,0,64,64,64);
+  edge.addColorStop(0,'#000');edge.addColorStop(.82,'#000');edge.addColorStop(1,'#0000');
+  soup.globalCompositeOperation='destination-in';soup.fillStyle=edge;soup.fillRect(0,0,128,128);
+  wokArt={pan,broth};
+  return wokArt;
 }
 
-function gravityWell(c:Canvas,field:ElementalField,time:number,settings:Settings,assets:Assets):void {
+function placeWok(c:Canvas,age:number,after:number,quiet:boolean):void {
+  const open=unit((age-.17)/.25), windup=unit((after+.32)/.32);
+  const fade=unit(1-after/ELEMENTAL.vortex.fade);
+  const scale=(quiet?.70:.28+.42*(1-(1-open)**2))*(1-.10*windup)*(.80+.20*fade);
+  c.globalAlpha*=open*fade;
+  c.translate(0,-8-(quiet?0:Math.sin(open*Math.PI)*9));
+  c.rotate(quiet?0:-.10*(1-open)+.05*windup);
+  c.scale(scale,scale);
+}
+
+function wokSteam(c:Canvas,age:number,after:number,quiet:boolean,full:boolean):void {
+  const count=full?3:2;
+  c.lineCap='round';
+  for(let i=0;i<count;i++){
+    const lift=quiet?.36+i*.12:(age*.57+i*.37)%1;
+    const x=(i-(count-1)/2)*17, y=-18-lift*45;
+    const bend=quiet?6:5+3*Math.sin(age*2+i);
+    c.save();c.globalAlpha*=Math.sin(Math.PI*lift)*(.72+.25*unit((after+.38)/.38));
+    c.beginPath();c.moveTo(x,y+7);c.bezierCurveTo(x-bend,y-1,x+bend,y-6,x+2,y-15);
+    c.lineWidth=4.2;c.strokeStyle='#bea9908a';c.stroke();
+    c.lineWidth=2.4;c.strokeStyle='#ffead3db';c.stroke();c.restore();
+  }
+}
+
+function wokBurst(c:Canvas,t:number,settings:Settings):void {
+  const quiet=settings.reduceMotion, count=settings.quality==='simple'?8:13;
+  const travel=quiet?.85:1-(1-t)**2;
+  c.lineCap='round';
+  for(let i=0;i<count;i++){
+    const a=i*turn/count+.21, r=ELEMENTAL.vortex.blastRadius*(.24+.76*travel)*(.83+.17*Math.sin(i*3.2)**2);
+    const lift=quiet?4:Math.sin(Math.PI*t)*(15+(i%3)*7);
+    const x=Math.cos(a)*r,y=Math.sin(a)*r-lift;
+    c.beginPath();c.ellipse(x,y,9+5*travel,3+2*travel,a+Math.PI/2,3.28,5.80);
+    c.lineWidth=4.3;c.strokeStyle='#fae3baba';c.stroke();
+    oval(c,x+Math.cos(a)*6,y+Math.sin(a)*7,4.1,2.3,'#c27c45c9',a);
+  }
+}
+
+function drawWokField(c:Canvas,field:ElementalField,time:number,settings:Settings,assets:Assets):void {
   const age=time-field.bornAt, after=time-field.releaseAt;
-  const opening=unit(age/.32), closing=unit(-after/.38), contraction=.54+.46*closing;
-  const size=(25+opening*47)*contraction;
-  const spin=settings.reduceMotion?.45:age*1.47;
+  const quiet=settings.reduceMotion, full=settings.quality==='standard';
+  const open=unit((age-.15)/.26), fade=unit(1-after/ELEMENTAL.vortex.fade);
+  c.globalAlpha=open*fade;
+  oval(c,-4,17,56,13,'#38291f48');
   if(after>=0){
-    const t=unit(after/ELEMENTAL.vortex.fade), fade=1-t;
-    const rim=ELEMENTAL.vortex.blastRadius;
-    const wave=rim*(settings.reduceMotion?1:.16+.84*(1-(1-t)**3));
-    const burst=c.createRadialGradient(0,0,0,0,0,wave);
-    burst.addColorStop(0,'#3c1d5400');burst.addColorStop(.76,'#a754cf19');
-    burst.addColorStop(.92,'#ef98ff87');burst.addColorStop(1,'#ffd68100');
-    c.globalAlpha=fade;oval(c,0,0,wave,wave,burst);
-    c.strokeStyle='#fff1c3';c.lineWidth=2+4*fade;c.beginPath();
-    for(let i=0;i<8;i++) {
-      const a=i*turn/8+.08;c.moveTo(Math.cos(a)*wave,Math.sin(a)*wave);
-      c.arc(0,0,wave,a,a+.46);
-    }
-    c.stroke();return;
-  }
-  const length=420*(.40+.60*opening)*contraction;
-  c.globalAlpha=opening;
-  const halo=c.createRadialGradient(0,0,0,0,0,length*.82);
-  halo.addColorStop(0,'#42214676');halo.addColorStop(.32,'#6a38884f');halo.addColorStop(1,'#8c4cb000');
-  oval(c,0,0,length*.82,length*.82,halo);
-  c.save();c.scale(1,.82);
-  const arms=settings.quality==='simple'?4:7;
-  for(let i=0;i<arms;i++){
-    spiral(c,length*(.84+.16*Math.cos(i*2.3)),spin+i*turn/arms,Math.cos(i),i%3===0);
-  }
-  c.restore();
-  if(!settings.reduceMotion){
-    const motes=settings.quality==='simple'?6:18;
-    for(let i=0;i<motes;i++){
-      const inward=(age*.66+i*.618)%1, r=30+length*(1-inward)**1.7;
-      const a=i*2.4+inward*2.35+spin*.45;
-      const x=Math.cos(a)*r,y=Math.sin(a)*r*.82;
-      // Loose sesame grains and paper tags shrink as they drop out of sight.
-      const w=(3+i%4)*(1-inward*.63);
-      c.save();c.translate(x,y);c.rotate(a+.73);
-      if(i%4===0){
-        c.fillStyle='#fff2c9';c.fillRect(-w,-w*.64,w*2,w*1.28);
-        c.fillStyle='#a34148';c.fillRect(-w*.72,-w*.34,w*.46,w*.68);
-      }else oval(c,0,0,w,w*.43,i%2?'#ffc369':'#efd4ff');
+    wokBurst(c,1-fade,settings);
+  }else{
+    const count=full?12:7;
+    const gather=.72+.28*unit(-after/.38);
+    for(let i=0;i<count;i++){
+      const progress=((quiet?0:age*.49)+.38+i*.618)%1;
+      const radius=(25+(1-progress)**1.25*(126+i%3*20))*gather;
+      const angle=i*2.4+progress*2.9;
+      const x=Math.cos(angle)*radius,y=Math.sin(angle)*radius*.80-8;
+      c.save();c.translate(x,y);c.rotate(angle+1.16);
+      c.globalAlpha*=Math.sin(progress*Math.PI)**.6;
+      if(i%3===0){
+        c.strokeStyle='#71914c';c.lineWidth=2.7;c.beginPath();c.ellipse(0,0,4.5,2.1,.23,0,turn);c.stroke();
+      }else if(i%3===1){
+        oval(c,0,0,5.2,2.3,'#ad5039');oval(c,-1,-.8,2.5,.65,'#edac6f');
+      }else{
+        oval(c,0,0,4.1,1.9,'#f4d89d');
+      }
+      if(!quiet&&full&&i%2===0){
+        c.beginPath();c.moveTo(-5,1);c.quadraticCurveTo(-12,2,-19,7);
+        c.strokeStyle='#f8d8a887';c.lineWidth=1.8;c.stroke();
+      }
       c.restore();
     }
   }
-  // Tilted lens and raised enamel rim remain readable on the patterned market floor.
-  c.save();c.rotate(-.12);c.scale(1,.65);
-  const lens=c.createRadialGradient(-size*.07,-size*.15,1,0,0,size*1.37);
-  lens.addColorStop(0,'#0e0825');lens.addColorStop(.34,'#170c34');lens.addColorStop(.48,'#382154');
-  lens.addColorStop(.59,'#8d46a9');lens.addColorStop(.69,'#f5b9ff');lens.addColorStop(.73,'#784a9c');
-  lens.addColorStop(.87,'#4b28597a');lens.addColorStop(1,'#652a8c00');
-  oval(c,0,0,size*1.37,size*1.37,lens);
-  c.lineCap='round';
-  c.strokeStyle='#f7bd72';c.lineWidth=4;c.beginPath();c.arc(0,0,size*.97,.17,2.63);c.stroke();
-  c.strokeStyle='#fff1b9';c.lineWidth=1.8;c.beginPath();c.arc(0,0,size*.97,.60,1.55);c.stroke();
-  c.restore();
-  if(age<.7){
-    c.globalAlpha=unit((age-.18)/.11)*unit(1-(age-.20)/.5);
-    drawSprite(c,assets,'vortex',0,-3,48*(1-.45*opening),-.16,1,.55);
-  }
+  c.globalAlpha=1;
+  const art=prepareWok(assets);
+  placeWok(c,age,after,quiet);
+  c.drawImage(art.pan,-144,-64);
+  c.save();c.scale(61/64,38/64);
+  if(!quiet)c.rotate(age*1.52+.84*unit((after+.38)/.38));
+  c.drawImage(art.broth,-64,-64);c.restore();
+  wokSteam(c,age,after,quiet,full);
 }
 
-let lensStamp:HTMLCanvasElement|undefined;
-
-function accretionDisk():HTMLCanvasElement {
-  if(lensStamp)return lensStamp;
-  const stamp=document.createElement('canvas');stamp.width=312;stamp.height=176;
-  const c=stamp.getContext('2d')!;c.translate(156,92);c.rotate(-.14);
-  const light=c.createLinearGradient(-120,0,120,0);
-  light.addColorStop(0,'#7051c300');light.addColorStop(.15,'#bb6bee');
-  light.addColorStop(.41,'#ffe2fc');light.addColorStop(.59,'#fff3bd');
-  light.addColorStop(.80,'#ffab59');light.addColorStop(1,'#e86f7d00');
-  // The back half of the accretion disk bends up over the lens, the near half
-  // crosses its equator. Bake the soft light so crowds never pay for a live blur.
-  function lightBand(near:boolean):void {
-    c.lineCap='round';c.strokeStyle=light;
-    for(let k=-4;k<=4;k++){
-      c.beginPath();
-      for(let i=0;i<=64;i++){
-        const x=(i/32-1)*135, u=x/135, taper=Math.sqrt(Math.max(0,1-u*u));
-        const strand=Math.cos(u*13+k*.7)*.7;
-        const bend=near?10*taper-6*Math.cos(u*4):
-          -51*Math.exp(-((u+.08)**2)/.098)-6*taper;
-        const y=bend+k*taper*1.45+strand;
-        if(i===0)c.moveTo(x,y);else c.lineTo(x,y);
-      }
-      c.globalAlpha=k===0?.96:.59;
-      c.lineWidth=k===0?4.2:1.15;
-      c.shadowBlur=k===0?11:3;c.shadowColor=near?'#ffd3a3':'#dc97fc';c.stroke();
-    }
-    c.shadowBlur=0;c.globalAlpha=1;
-  }
-  lightBand(false);
-  const core=c.createRadialGradient(-2,-4,0,0,0,44);
-  core.addColorStop(0,'#070419');core.addColorStop(.72,'#0d0920');core.addColorStop(.83,'#241237');
-  core.addColorStop(.92,'#573073');core.addColorStop(.975,'#f5b4ee');core.addColorStop(1,'#ffe9ba');
-  oval(c,0,0,44,44,core);
-  c.strokeStyle='#e7a3caa8';c.lineWidth=1.8;c.beginPath();c.ellipse(0,2,42,48,-.17,.10,3.05);c.stroke();
-  lightBand(true);
-  lensStamp=stamp;return stamp;
-}
-
-// Keep the projected lens visible at the point where the creatures converge.
-export function drawVortexMouth(c:Canvas,field:ElementalField,time:number,quiet:boolean):void {
-  const age=time-field.bornAt, opening=unit((age-.11)/.27), closing=unit((field.releaseAt-time)/.38);
-  if(!opening)return;
-  const strength=opening*(.42+.58*closing)*.85;
-  c.save();c.translate(field.x,field.y-9);
-  if(!quiet)c.rotate(Math.sin(age*1.9)*.055);
-  c.scale(strength,strength);c.drawImage(accretionDisk(),-156,-92);
-  c.restore();
+// Paint just the near iron wall over monsters that have reached the soup.
+export function drawVortexMouth(c:Canvas,field:ElementalField,time:number,quiet:boolean,assets:Assets):void {
+  c.save();c.translate(field.x,field.y);
+  placeWok(c,time-field.bornAt,time-field.releaseAt,quiet);
+  c.beginPath();c.moveTo(-89,-4);
+  c.bezierCurveTo(-84,44,56,65,83,-3);
+  c.lineTo(83,75);c.lineTo(-89,75);c.closePath();c.clip();
+  c.drawImage(prepareWok(assets).pan,-144,-64);c.restore();
 }
 
 let brineVapor:HTMLCanvasElement|undefined;
@@ -231,79 +217,13 @@ function shard(c:Canvas,x:number,y:number,w:number,h:number,a:number):void {
   c.lineTo(w*.08,-h);c.lineTo(w*.16,-h*.53);c.closePath();c.fill();c.restore();
 }
 
-function frostBloom(c:Canvas,field:ElementalField,time:number,settings:Settings,assets:Assets):void {
-  const age=time-field.bornAt, after=time-field.releaseAt;
-  const radius=after<0?elementalRadius(field,time):field.radius;
-  if(radius<1)return;
-  const fade=unit((field.expiresAt-time)/ELEMENTAL.frost.fade);
-  const quiet=settings.reduceMotion, full=settings.quality==='standard';
-  const crack=after>=0?1:unit((time-field.releaseAt+.43)/.43);
-  c.globalAlpha=fade;
-  const ice=c.createRadialGradient(0,0,0,0,0,radius);
-  ice.addColorStop(0,'#a4effd16');ice.addColorStop(.64,'#8ed8f426');
-  ice.addColorStop(.92,'#91e3fa46');ice.addColorStop(1,'#f3ffff00');
-  oval(c,0,0,radius,radius,ice);
-  c.lineJoin='round';c.lineCap='round';
-  // Grow six fern-like crystal branches along the floor from the machine. The
-  // moving endpoints mark the exact current freeze range during its expansion.
-  for(let i=0;i<6;i++){
-    const a=i*turn/6+.17;
-    c.save();c.rotate(a);
-    const tip=radius*(.85+.10*Math.sin(i*2.1+1));
-    const stem=radius*.026;
-    c.fillStyle='#6bbcdc80';c.beginPath();c.moveTo(3,-stem*.43);c.lineTo(tip*.53,-stem*.55);
-    c.lineTo(tip,0);c.lineTo(tip*.58,stem*.43);c.lineTo(3,stem*.85);c.closePath();c.fill();
-    c.beginPath();c.moveTo(14,0);c.lineTo(tip,0);
-    for(let j=1;j<=(full?3:2);j++){
-      const root=tip*(j+1)*.17,branch=tip*(.27-j*.043);
-      for(const side of [-1,1]){
-        c.moveTo(root,0);c.lineTo(root+branch,side*branch*.64);
-        if(full&&j<3){
-          c.moveTo(root+branch*.52,side*branch*.33);c.lineTo(root+branch*.63,side*branch*.61);
-        }
-      }
-    }
-    c.strokeStyle='#517b9b8a';c.lineWidth=4.8;c.stroke();
-    c.strokeStyle=crack>.6?'#f4ffffee':'#caf6ffd1';c.lineWidth=2.2;c.stroke();
-    if(full){
-      for(const side of [-1,1]){
-        c.save();c.translate(tip*.42,0);c.rotate(side*.65);
-        shard(c,0,0,Math.max(1,stem*1.4),Math.max(1,tip*.19),Math.PI*.50);
-        c.restore();
-      }
-    }
-    const cell=assets.ultimateFx.naturalWidth/2;
-    // Each crystalline branch is seeded by a cluster cut from the same clay ice
-    // sheet as the cold-box skill. The thinner etched forks continue beyond it.
-    c.globalAlpha=fade*.80;
-    c.drawImage(assets.ultimateFx,0,0,cell,cell,tip*.17,-tip*.22,tip*.63,tip*.33);
-    if(full){
-      c.save();c.translate(tip*.54,0);c.rotate(i%2===0?.57:-.57);
-      c.drawImage(assets.ultimateFx,0,0,cell,cell,-tip*.03,-tip*.12,tip*.35,tip*.21);c.restore();
-    }
-    c.restore();
-  }
-  const count=full?18:10, throwOut=quiet?0:unit(after/ELEMENTAL.frost.fade);
-  for(let i=0;i<count;i++){
-    const a=i*turn/count+.13, lane=i%3;
-    const d=radius*(.98-.07*lane)+throwOut*30;
-    const x=Math.cos(a)*d,y=Math.sin(a)*d-throwOut*(1-throwOut)*53;
-    const size=(20+lane*11)*(quiet?1:unit(age/.25));
-    shard(c,x,y,size*.40,size,a+Math.PI*.50+Math.sin(i*7)*.28+throwOut*1.2);
-    if(full&&lane!==1)shard(c,x+3,y+2,size*.30,size*.69,a+Math.PI*.72);
-  }
-  c.globalAlpha=fade*unit((age-.18)/.11);
-  drawSprite(c,assets,'frost',0,5,52);
-}
-
 export function drawElementalGround(c:Canvas,s:GameState,settings:Settings,assets:Assets):void {
   if(!s.elementalFields)return;
   for(const field of s.elementalFields){
-    if(s.time<field.bornAt||s.time>=field.expiresAt)continue;
+    if(field.kind==='frost'||s.time<field.bornAt||s.time>=field.expiresAt)continue;
     c.save();c.translate(field.x,field.y);
-    if(field.kind==='vortex')gravityWell(c,field,s.time,settings,assets);
+    if(field.kind==='vortex')drawWokField(c,field,s.time,settings,assets);
     else if(field.kind==='poison')brineCloud(c,field,s.time,settings,assets);
-    else frostBloom(c,field,s.time,settings,assets);
     c.restore();
   }
 }
