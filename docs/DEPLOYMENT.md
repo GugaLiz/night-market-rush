@@ -16,6 +16,8 @@ python scripts/cocos_pages.py assemble --out .runtime/pages-site --legacy dist
 
 `pack` 不覆盖现有发布包；后续更新应先安全保留旧包与验证记录。用 Creator 脚本构建新的隔离候选并完成验收后，可执行 `python scripts/cocos_pages.py evidence --candidate cocos/build/<新候选目录> --prefix <新证据名>`，该命令会核对当前工程和构建快照只有候选存档开关的预期差异，再在 `.runtime/` 中生成 `<新证据名>-source.json` 和 `<新证据名>-build.json`，供 `pack` 使用。请先自行核对构建和验收记录；本地生成的证据不是独立的数字签名。验收包括子路径、同源存档、旧版 `/legacy/` 和回滚。`/legacy/` 是用当前仓库源码生成的旧网页版本，是否与之前线上发布版本完全相同须按提交和构建记录判断；回退原线上版本可重新运行原提交对应的 Pages 工作流。
 
+干净 Git 检出没有 Creator 编辑器生成的 `cocos/temp/tsconfig.cocos.json`。旧网页 Vite 构建和 Vitest 针对 `cocos/assets/scripts/` 的共享 TypeScript 模块使用独立转换配置，不依赖该缓存；这只用于网页代码转换，不代替 Creator 编辑器构建或类型检查。某些依赖扫描仍可能提示缺少这份编辑器配置，需以实际测试和构建退出状态判断是否成功。
+
 ## 安装、检查与构建
 
 在项目根目录运行（Windows PowerShell 建议使用 npm.cmd，避免脚本执行策略影响）：

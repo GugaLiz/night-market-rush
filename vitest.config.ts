@@ -1,2 +1,3 @@
 import {defineConfig} from 'vitest/config';
-export default defineConfig({test: {include: ['tests/**/*.test.ts'], exclude: ['tests/e2e/**']}});
+import {sharedCocosWebTransform,webEsbuildOptions} from './scripts/web-esbuild-options';
+export default defineConfig({plugins:[sharedCocosWebTransform()],esbuild:webEsbuildOptions,test: {include: ['tests/**/*.test.ts'], exclude: ['tests/e2e/**']}});

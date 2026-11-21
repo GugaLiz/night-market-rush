@@ -3547,3 +3547,27 @@
 - **实现/结果**：确认候选与 484 项引擎源文件一致，Pages 组合包主路径为 Cocos、legacy 子路径为旧版；真实发布状态以工作流及线上验证为准。
 - **验证**：475 项 Vitest、两套 TypeScript、5 项打包防护测试、包与源码 SHA-256 检查通过；旧版构建及隔离组合包组装通过。
 - **风险/后续**：原型未完成逐项视觉和真机验收；主站与旧站共享同源存档，并发写入非原子。
+
+## 2026-11-21 11:19:16 +08:00 — fix
+
+- **摘要**：修复干净检出中旧网页与 Vitest 依赖 Creator 临时 TypeScript 配置而无法运行的问题。
+- **涉及文件**：
+  - `scripts/web-esbuild-options.ts`
+  - `vite.config.ts`
+  - `vitest.config.ts`
+  - `docs/DEPLOYMENT.md`
+  - `agentchanges/CHANGELOG.md`
+- **原因/目标**：GitHub Actions run 44859800703 在 npm test 阶段因忽略的 cocos/temp/tsconfig.cocos.json 不存在，54 个测试套件全部未能收集。
+- **实现/结果**：Vite/Vitest 对 cocos/assets/scripts 下的 TypeScript 使用与 Creator 3.8.8 一致的 ES2015 和实验性装饰器转译选项，其他旧网页源码继续使用原项目配置；不创建伪 Creator 声明，不修改 Cocos 工程或已验证构建包。
+- **验证**：干净 Git 检出、无 Cocos temp 且复用本机依赖时，先复现失败再通过 475 项 Vitest、旧网页 TypeScript 检查、独立生产构建及 484 文件的 Cocos 发布包哈希校验；esbuild 依赖扫描仍产生缺失编辑器配置的非阻断警告。
+- **风险/后续**：实际 GitHub Actions 重跑结果需推送后确认；Creator 工程类型检查仍需真实编辑器生成的配置和声明，网页测试不能替代。
+
+## 2026-11-21 11:20:58 +08:00 — test
+
+- **摘要**：在无 Creator 缓存的干净检出中验证旧网页转换修复。
+- **涉及文件**：
+  - `agentchanges/CHANGELOG.md`
+- **原因/目标**：确认 Actions 失败修复不会破坏旧网页玩法及子路径加载。
+- **实现/结果**：使用独立 Git 克隆、本机依赖和独立端口测试，没有变更原有 Cocos 工程或生产 dist。
+- **验证**：54 个 Vitest 文件共 475 项、旧网页 39 项 Chrome 端到端、旧网页 TypeScript 和生产构建、Cocos 484 文件包哈希核验全部通过；产物在 /night-market-rush/legacy/ 子路径启动挑战可见画布，未发现页面或 HTTP 错误。此前在该干净克隆成功复现缺少 Cocos 临时配置的失败。
+- **风险/后续**：esbuild 依赖扫描仍打印非阻断的编辑器配置缺失警告；需推送后检查 GitHub Actions 的实际运行结果。
