@@ -3679,3 +3679,38 @@
 - **实现/结果**：新候选与 484 项源码一致，WebP 优先且保留 PNG；页面显示游戏启动提示，浏览器标题与图标使用游戏标识。
 - **验证**：475 项 Vitest、43 项 Creator 网页回归、5 项非调试存档候选测试、两套类型检查、10 项打包/图片脚本测试通过；隔离组合站检查 WebP 与 PNG 回退、URL/manifest、旧缓存文件及旧站。模拟 8 Mbps / 80 ms 单次冷启动，首页约 22.06→9.35 秒、约 17.5→5.15 MB。
 - **风险/后续**：速度为本机受控模拟；旧缓存只保留前一版。引擎自定义插屏的官方配置仍未生效，默认 Cocos 标志仍在。
+## 2026-11-21 16:55:12 +08:00 — feature
+
+- **摘要**：优化 Cocos 游戏内加载画面，逐步显示配送员和包子怪。
+- **涉及文件**：
+  - `'cocos/assets/scripts/ui/game-ui.ts','agentchanges/CHANGELOG.md'`
+- **原因/目标**：用户希望加载界面展示项目品牌和游戏内容。
+- **实现/结果**：沿用真实资源进度与失败重试；素材加载前显示占位，独立到达后更新，保留竖屏引导。
+- **验证**：源码差异已检查，构建和实际运行验证由任务主流程执行。
+- **风险/后续**：待 Web 构建和浏览器实际加载验证。
+
+## 2026-11-21 17:35:18 +08:00 — feature
+
+- **摘要**：优化 Web 启动提示，展示游戏品牌与角色。
+- **涉及文件**：
+  - `cocos/build-templates/web-mobile/index.ejs`
+  - `cocos/build-templates/web-mobile/boot-art/courier.webp`
+  - `cocos/build-templates/web-mobile/boot-art/bun.webp`
+  - `agentchanges/CHANGELOG.md`
+- **原因/目标**：启动阶段需要展示项目标识和游戏内容。
+- **实现/结果**：使用项目配送箱标识、配送员与包子怪，适配短屏、安全区和减少动态效果，保留现有状态移除机制及引擎默认插屏。
+- **验证**：Creator 3.8.8 Web Mobile 隔离候选构建成功；Chrome 四种尺寸检查及两项加载和失败重试回归通过。
+- **风险/后续**：官方自定义插屏尚未启用；未进行实体设备或线上部署验证。
+
+## 2026-11-21 17:45:08 +08:00 — maintenance
+
+- **摘要**：准备含加载画面更新的 GitHub Pages 发布包。
+- **涉及文件**：
+  - `pages-release/cocos-web.zip`
+  - `pages-release/manifest.json`
+  - `tests/cocos-e2e/loading-regression.spec.ts`
+  - `agentchanges/CHANGELOG.md`
+- **原因/目标**：将当前 Cocos 网页更新部署至 GitHub Pages，并验证优化资源与现有存档兼容。
+- **实现/结果**：重新打包 Creator 3.8.8 非调试网页候选，保留 WebP 和 PNG 回退；加载回归支持两种资源格式。旧发布包备份在本机运行目录。
+- **验证**：475 项 Vitest、10 项打包测试、TypeScript 检查、5 项存档回归、优化及原始候选各 2 项加载回归通过；发布包来源校验与隔离子路径新旧站检查通过。
+- **风险/后续**：推送和 GitHub Pages 工作流结果待验证；项目仍标记为开发原型，实体设备验收未执行。

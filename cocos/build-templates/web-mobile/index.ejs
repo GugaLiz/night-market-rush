@@ -44,20 +44,62 @@
   <link rel="stylesheet" type="text/css" href="<%= cssUrl %>"/>
   <style>
     #web-boot-status {
-      position: fixed; z-index: 1000; top: max(12px, env(safe-area-inset-top)); left: 50%;
-      transform: translateX(-50%); display: flex; align-items: center; gap: 10px;
-      padding: 8px 14px; border-radius: 999px; background: rgba(36, 29, 39, .9);
-      color: #fff2d7; font: 14px/1.4 system-ui, sans-serif; white-space: nowrap;
-      pointer-events: none;
+      position: fixed; z-index: 1000; left: 50%;
+      bottom: max(12px, env(safe-area-inset-bottom));
+      transform: translateX(-50%); box-sizing: border-box;
+      width: min(510px, calc(100vw - 32px)); height: min(104px, 21vh);
+      display: flex; align-items: center; gap: 12px; padding: 10px 14px;
+      border: 1px solid rgba(255, 222, 167, .5); border-radius: 20px;
+      background: rgba(49, 35, 36, .96); box-shadow: 0 8px 26px rgba(17, 11, 14, .3);
+      color: #fff2d7; font: 14px/1.4 system-ui, sans-serif; pointer-events: none;
     }
-    #web-boot-status img { width: 32px; height: 32px; }
+    .boot-courier { flex: none; height: 110%; max-height: 90px; width: 82px; object-fit: contain; }
+    .boot-copy { flex: 1; min-width: 0; }
+    .boot-brand { display: flex; align-items: center; gap: 6px; color: #ffdaa3;
+      font-size: 15px; font-weight: 800; letter-spacing: .08em; }
+    .boot-brand img { width: 25px; height: 25px; }
+    .boot-message { margin: 3px 0 7px; font-size: 12px; }
+    .boot-track { overflow: hidden; width: 100%; height: 4px; border-radius: 4px;
+      background: rgba(255, 229, 188, .2); }
+    .boot-track::after { content: ''; display: block; width: 35%; height: 100%;
+      border-radius: inherit; background: #f7a24b; animation: boot-loading 1.5s ease-in-out infinite alternate; }
+    .boot-bun { flex: none; width: 67px; height: 72px;
+      background: url('./boot-art/bun.webp') center / contain no-repeat; }
+    @keyframes boot-loading { from { transform: translateX(0); } to { transform: translateX(186%); } }
+    @media (max-height: 420px) {
+      #web-boot-status { height: min(76px, 21vh); gap: 8px; padding: 6px 10px; border-radius: 15px; }
+      .boot-courier { width: 58px; }
+      .boot-bun { width: 51px; height: 55px; }
+      .boot-message { margin: 0 0 4px; }
+    }
+    @media (max-width: 380px) {
+      .boot-courier { width: 54px; }
+      .boot-bun { width: 49px; height: 53px; }
+      .boot-brand { font-size: 14px; }
+    }
+    @media (max-height: 300px) {
+      #web-boot-status { padding: 4px 8px; }
+      .boot-courier { width: 40px; }
+      .boot-bun { width: 37px; height: 40px; }
+      .boot-brand { font-size: 12px; line-height: 18px; }
+      .boot-brand img { width: 18px; height: 18px; }
+      .boot-message { margin: 0; overflow: hidden; text-overflow: ellipsis;
+        white-space: nowrap; font-size: 11px; line-height: 16px; }
+      .boot-track { display: none; }
+    }
+    @media (prefers-reduced-motion: reduce) { .boot-track::after { animation: none; width: 100%; } }
   </style>
 
 </head>
 <body>
   <div id="web-boot-status" role="status" aria-live="polite">
-    <img src="./icons/favicon.svg?v=2" alt="">
-    <span>夜市急送正在启动，网络较慢请稍候…</span>
+    <img class="boot-courier" src="./boot-art/courier.webp" alt="">
+    <div class="boot-copy">
+      <div class="boot-brand"><img src="./icons/favicon.svg?v=2" alt="">夜市急送</div>
+      <div class="boot-message">夜市正在开张，配送员马上出发…</div>
+      <div class="boot-track" aria-hidden="true"></div>
+    </div>
+    <div class="boot-bun" aria-hidden="true"></div>
   </div>
   <div id="GameDiv" cc_exact_fit_screen="true">
       <div id="Cocos3dGameContainer">

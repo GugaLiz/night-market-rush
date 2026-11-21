@@ -370,22 +370,30 @@ export class GameUi {
     label.overflow=Label.Overflow.SHRINK;label.enableWrapText=true;return label;
   }
   private async loadArtwork():Promise<void> {
-    const load=(path:string)=>new Promise<Texture2D|null>(resolve=>resources.load(path,Texture2D,(error,texture)=>resolve(error?null:texture)));
-    const [courier,mascots,rig,brand,weapons,supplies,elementals,bosses,elites,champions,streetSnacks,ultimates,health]=await Promise.all([
-      load('art/clay-chibi-home/texture'),load('art/clay-market-mascots/texture'),load('art/clay-bun-courier-rig/texture'),load('ui/delivery-box/texture'),
-      load('art/clay-weapons/texture'),load('art/clay-supplies/texture'),load('art/clay-elemental-tools/texture'),load('art/clay-market-bosses/texture'),
-      load('art/clay-market-elites/texture'),load('art/clay-market-champions/texture'),load('art/clay-street-snacks/texture'),load('art/clay-actors/texture'),load('art/clay-soup-dumpling/texture'),
-    ]);
-    if(this.disposed)return;
-    const add=(name:string,texture:Texture2D|null,source?:readonly [number,number,number,number])=>{
-      if(!texture)return;const [x,y,w,h]=source??[0,0,texture.width,texture.height];
+    const add=(name:string,texture:Texture2D,source?:readonly [number,number,number,number])=>{
+      const [x,y,w,h]=source??[0,0,texture.width,texture.height];
       const frame=new SpriteFrame();frame.texture=texture;frame.rect=new Rect(x,y,w,h);frame.originalSize=new Size(w,h);frame.packable=false;this.artwork.set(name,frame);
     };
-    const group=(texture:Texture2D|null,frames:Record<string,readonly [number,number,number,number]>)=>{for(const [name,rect] of Object.entries(frames))add(name,texture,rect);};
-    add('courierHome',courier);add('brand',brand);add('health',health);
-    group(mascots,clayFrames.mascots);group(rig,clayFrames.rig);group(weapons,clayFrames.weapons);
-    group(supplies,clayFrames.supplies);group(elementals,clayFrames.elementals);group(bosses,clayFrames.bosses);
-    group(elites,clayFrames.elites);group(champions,clayFrames.champions);group(streetSnacks,clayFrames.streetSnacks);group(ultimates,clayFrames.ultimates);
+    const load=(path:string,frames:Record<string,readonly [number,number,number,number]>|string,showWhileLoading=false)=>new Promise<void>(resolve=>{
+      resources.load(path,Texture2D,(error,texture)=>{
+        if(!error&&texture&&!this.disposed){
+          if(typeof frames==='string')add(frames,texture);
+          else for(const [name,rect] of Object.entries(frames))add(name,texture,rect);
+          // Keep the failure button stable and never replace portrait guidance.
+          if(showWhileLoading&&this.current==='loading'&&!this.data.message)this.render();
+        }
+        resolve();
+      });
+    });
+    await Promise.all([
+      load('art/clay-chibi-home/texture','courierHome',true),load('art/clay-market-mascots/texture',clayFrames.mascots,true),
+      load('art/clay-bun-courier-rig/texture',clayFrames.rig),load('ui/delivery-box/texture','brand',true),
+      load('art/clay-weapons/texture',clayFrames.weapons),load('art/clay-supplies/texture',clayFrames.supplies),
+      load('art/clay-elemental-tools/texture',clayFrames.elementals),load('art/clay-market-bosses/texture',clayFrames.bosses),
+      load('art/clay-market-elites/texture',clayFrames.elites),load('art/clay-market-champions/texture',clayFrames.champions),
+      load('art/clay-street-snacks/texture',clayFrames.streetSnacks),load('art/clay-actors/texture',clayFrames.ultimates),
+      load('art/clay-soup-dumpling/texture','health'),
+    ]);
   }
   private sprite(parent:Node,name:string,key:string,x:number,y:number,height:number,flip=false):Node|null {
     const frame=this.artwork.get(key);if(!frame)return null;
@@ -585,13 +593,33 @@ export class GameUi {
     this.link(card,'Fullscreen','▣ 全屏','fullscreen',170,-171,85);
   }
   private loading():void {
-    const c=this.card(560,340);this.text(c,'Title','夜市正在开张',0,102,500,52,30,INK,true);
-    this.text(c,'Text','人物、道具和好心情，准备就绪就出发。',0,46,490,48,19);
-    const percent=Math.round(clamp(this.data.progress??0,0,1)*100);
-    this.shape(c,'Track',0,-12,400,16,new Color(221,205,176,255),8);
-    if(percent>0)this.shape(c,'Progress',-200+2*percent,-12,4*percent,16,ORANGE,8);
-    this.text(c,'Progress text',`${percent}%`,0,-48,160,30,20,INK,true);
-    if(this.data.message){this.text(c,'Error',this.data.message,0,-84,460,40,16,RED);this.button(c,'Retry','重试','retry',0,-130,160,40,true);}
+    const c=this.card(900,460),percent=Math.round(clamp(this.data.progress??0,0,1)*100);
+    this.shape(c,'Art panel',235,0,360,398,new Color(236,225,197,255),20);
+    this.ellipse(c,'Night market glow',235,20,145,145,new Color(255,204,140,170));
+    this.ellipse(c,'Ground shadow',240,-155,145,17,new Color(100,69,52,55));
+    // Keep a visible scene even before the artwork has downloaded.
+    if(!this.artwork.has('courierHome')){
+      this.ellipse(c,'Courier placeholder',197,-18,65,84,new Color(76,142,126,255));
+      this.text(c,'Courier placeholder mark','送',197,-18,90,70,42,CREAM,true);
+    }
+    if(!this.artwork.has('bun')){
+      this.ellipse(c,'Bun placeholder',328,-94,48,44,new Color(255,243,221,255));
+      this.text(c,'Bun placeholder face','•ᴗ•',328,-94,75,40,24,INK,true);
+    }
+    this.sprite(c,'Loading courier','courierHome',175,2,280);
+    this.sprite(c,'Loading bun','bun',331,-91,110,true);
+    this.sprite(c,'Loading brand','brand',-384,165,56);
+    this.text(c,'Kicker','夜市急送',-190,165,300,34,19,new Color(119,78,53,255),true,true);
+    this.text(c,'Title','夜市正在开张',-190,95,420,60,34,INK,true,true);
+    this.text(c,'Text','配送员已就位，包子怪也赶来了！',-190,43,420,42,18,INK,false,true);
+    this.text(c,'Progress label','正在准备夜市',-285,-28,225,30,16,new Color(119,78,53,255),true,true);
+    this.text(c,'Progress text',String(percent)+'%',-25,-28,100,30,18,INK,true);
+    this.shape(c,'Track',-190,-62,420,14,new Color(221,205,176,255),7);
+    if(percent>0)this.shape(c,'Progress',-400+2.1*percent,-62,4.2*percent,14,ORANGE,Math.min(7,2.1*percent));
+    if(this.data.message){
+      this.text(c,'Error',this.data.message,-190,-105,420,40,16,RED);
+      this.button(c,'Retry','重试','retry',-190,-161,160,44,true);
+    }else this.text(c,'Hint','马上出发，记得躲开追来的小吃。',-190,-118,420,38,15,new Color(139,102,75,255),false,true);
   }
   private tutorial():void {
     const c=this.card(1000,570);this.text(c,'Title','走位取道具，清出路线收金币',0,238,920,50,30,INK,true);

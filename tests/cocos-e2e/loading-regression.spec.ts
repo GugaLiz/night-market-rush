@@ -1,9 +1,9 @@
 import {expect,test,type Page} from '@playwright/test';
 
-// The two original background textures are independent resources; holding one
-// lets the remaining artwork finish so progress can be observed in a real build.
-const night=/\/assets\/resources\/native\/67\/6718ff84-3f8e-47fa-a72e-95114eafa74d\.png(?:\?.*)?$/;
-const river=/\/assets\/resources\/native\/e1\/e1838951-7675-417b-bbe8-42621ec0b3e7\.png(?:\?.*)?$/;
+// The two background textures are independent resources; holding one lets the
+// remaining artwork finish. Release candidates may request WebP instead of PNG.
+const night=/\/assets\/resources\/native\/67\/6718ff84-3f8e-47fa-a72e-95114eafa74d\.(?:png|webp)(?:\?.*)?$/;
+const river=/\/assets\/resources\/native\/e1\/e1838951-7675-417b-bbe8-42621ec0b3e7\.(?:png|webp)(?:\?.*)?$/;
 async function initialize(page:Page){
   const loading=page.waitForEvent('console',{predicate:m=>m.text().includes('[AtlasSmoke] view=loading'),timeout:45000});
   await page.goto('/',{waitUntil:'domcontentloaded'});await loading;
