@@ -3794,3 +3794,21 @@
 - **实现/结果**：仅在 Web 优化候选校验资源后注入匹配跨域模式的首页图片预加载，并让启动图片使用与引擎相同的地址；未检测到 WebP 时回退 PNG。
 - **验证**：13 项打包与图片脚本测试通过；Chrome 子路径实测 WebP 和模拟 PNG 回退均正常且关键图片各请求一次；受控延迟实验首页约 7.3 秒降至 4.8 秒。
 - **风险/后续**：最终发布包加载回归和线上部署待确认；真实旧版浏览器和 Safari 未测试。
+
+## 2026-11-22 00:57:48 +08:00 — fix
+
+- **摘要**：缩短 Cocos Web 启动链并让首页在图片下载期间可交互。
+- **涉及文件**：
+  - `cocos/assets/scripts/ui/game-ui.ts`
+  - `scripts/optimize-cocos-web-images.py`
+  - `tests/cocos-e2e/loading-regression.spec.ts`
+  - `tests/cocos-e2e/home-art-progressive.spec.ts`
+  - `tests/test_cocos_web_images.py`
+  - `pages-release/cocos-web.zip`
+  - `pages-release/manifest.json`
+  - `agentchanges/CHANGELOG.md`
+  - 本地忽略的 `.runtime/` 实验、候选源码快照、截图、证据和测试结果及 `cocos/build/` 中隔离的 Web 构建。
+- **原因/目标**：同机同网络冷启动对照中，Cocos 引导脚本和场景资源的串行等待会放大单次响应抖动，首页图片又阻塞了交互。
+- **实现/结果**：经固定哈希及结构验证的 Creator 3.8.8 优化候选内联引导脚本和 import map，并对匹配布局的 main 脚本预加载；不匹配时保留原引导方式。首页先显示可交互菜单和占位，图片到达后就地替换，进入战斗仍等待所需资源并支持失败重试。保留自定义插屏和存档策略。
+- **验证**：类型检查、475 项 Vitest、15 项 Python 测试、63 项 debug Cocos E2E、优化非 debug 包的 22 项加载回归和 5 项存档回归通过；实验中模拟高延迟的首页约由 5.6 秒降至 3.1 秒。503 和连接中断的 main 请求重试成功；中断恢复预加载可能更慢。验证了包与源码证据以及本地表单标识未进入发布包。
+- **风险/后续**：公网延迟波动很大，受控实验不能保证真实用户耗时；真实设备及 Safari 未测。线上部署及实际访问仍需确认。保留用户本机插屏设置和备份，隔离快照不提交。

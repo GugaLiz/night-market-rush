@@ -5,7 +5,7 @@
   "debug": false,
   "prototype": true,
   "existingSaveEnabled": true,
-  "archiveSha256": "e7c9ed01e6fc96b8daf6292a457d11144e950644a82fce7dfaffb8dbc8b3fd51",
+  "archiveSha256": "9fccc7b984a9c9683f540367489d86387fe3e53c9d139a5b37dfa2af3b90a7cb",
   "sourceSha256": {
     "assets/resources.meta": "a3f8948f6de1c7064feaaaaf984fe4cac4d6edf5f378e23dde4994a78540f80d",
     "assets/resources/art.meta": "bf84d45f80061da8f2d34470f679d9f35e2dd955ae085447d0c9ac59ce0a9373",
@@ -463,7 +463,7 @@
     "assets/scripts/ui.meta": "0ffd1e802f351614a98c25eba7914d84cce5812afce819d268106f8b005efd8f",
     "assets/scripts/ui/catalog.ts": "10a3ed3aaa6550c820523201bb5cc3d6d5e08d00c9240a2bdb67557d45850896",
     "assets/scripts/ui/catalog.ts.meta": "9d4c48f9ca19378dd34d4f55de75b81583114fe37f5a0d487c0c9405cd74a3ba",
-    "assets/scripts/ui/game-ui.ts": "570ae0a293b8856b2a5d4875b504e6ff0f0c2ba2f9f9bf7ee7d914f32608309d",
+    "assets/scripts/ui/game-ui.ts": "0aa3f52b508f45c7fefb5e50663d5b64e44cc53273904e9b9ee25b600aa25b59",
     "assets/scripts/ui/game-ui.ts.meta": "c23c9fa66e29f725fef0bfd30f626fde4752ec4402851fd925f3a32bb609fd8e",
     "assets/scripts/ui/hud-combat-feedback.ts": "c913174149b1a6adf90fa1281caa548034010708393bf26c7efd1631d18fd557",
     "assets/scripts/ui/hud-combat-feedback.ts.meta": "8283450e4ae3d119fbf19af699a46b479b7f38250ded9bffe4769c574fee36fb",

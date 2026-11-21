@@ -34,6 +34,7 @@ export interface UiData {
 export type ActionPayload=Settings|WeaponKind|SkillKind|{kind:EnemyKind;group:boolean}|string|number;
 type ActionHandler = (action:GameAction,payload?:ActionPayload)=>void;
 interface StatusCard {node:Node;icon:Sprite;label:Label;time:Label;opacity:UIOpacity;iconSize:number}
+interface HomeArtSlot {key:string;node:Node;sprite:Sprite;placeholder:Node;height:number}
 const INK=new Color(74,43,29,255), CREAM=new Color(255,240,214,255);
 const PAPER=new Color(255,243,221,255), PAPER_BORDER=new Color(154,104,73,255);
 const ORANGE=new Color(255,151,66,255), TEAL=new Color(194,230,215,255);
@@ -51,7 +52,7 @@ export class GameUi {
   /** Await before showing the catalog or battle; home uses homeReady instead.
    * Failed artwork loads degrade to text UI without replacing active controls. */
   readonly ready:Promise<void>;
-  /** The home screen can be shown safely once its own artwork is settled. */
+  /** The home screen can display placeholders while its artwork is loading. */
   readonly homeReady:Promise<void>;
   private hudRoot:Node|null=null;
   private modalRoot:Node|null=null;
@@ -91,6 +92,7 @@ export class GameUi {
   private tiltPending=false;
   private tiltRequest=0;
   private readonly artwork=new Map<string,SpriteFrame>();
+  private homeArtSlots:HomeArtSlot[]=[];
   private disposed=false;
   private homeScene=true;
   private accessibility:WebAccessibilityBridge|null=null;
@@ -318,12 +320,13 @@ export class GameUi {
   }
 
   destroy():void {
-    this.disposed=true;this.accessibility?.destroy();this.accessibility=null;this.node.destroy();this.hudRoot=null;this.modalRoot=null;this.labels={};
+    this.disposed=true;this.homeArtSlots=[];this.accessibility?.destroy();this.accessibility=null;this.node.destroy();this.hudRoot=null;this.modalRoot=null;this.labels={};
     for(const frame of new Set(this.artwork.values()))frame.destroy();this.artwork.clear();
   }
 
   private render():void {
     this.rendering=true;
+    this.homeArtSlots=[];
     this.saveCatalogOffset();
     this.semanticControls=[];this.semanticTargets.clear();this.semanticRing=null;
     // removeAllChildren only detaches; destroy old nodes so listeners and renderers
@@ -377,6 +380,7 @@ export class GameUi {
     const add=(name:string,texture:Texture2D,source?:readonly [number,number,number,number])=>{
       const [x,y,w,h]=source??[0,0,texture.width,texture.height];
       const frame=new SpriteFrame();frame.texture=texture;frame.rect=new Rect(x,y,w,h);frame.originalSize=new Size(w,h);frame.packable=false;this.artwork.set(name,frame);
+      this.completeHomeArt(name,frame);
     };
     const load=(path:string,frames:Record<string,readonly [number,number,number,number]>|string,showWhileLoading=false)=>new Promise<void>(resolve=>{
       resources.load(path,Texture2D,(error,texture)=>{
@@ -389,13 +393,11 @@ export class GameUi {
         resolve();
       });
     });
-    await Promise.all([
-      load('art/clay-chibi-home/texture','courierHome',true),load('art/clay-market-mascots/texture',clayFrames.mascots,true),
-      load('ui/delivery-box/texture','brand',true),
-    ]);
     homeReady();
     if(this.disposed)return;
     await Promise.all([
+      load('art/clay-chibi-home/texture','courierHome',true),load('art/clay-market-mascots/texture',clayFrames.mascots,true),
+      load('ui/delivery-box/texture','brand',true),
       load('art/clay-bun-courier-rig/texture',clayFrames.rig),
       load('art/clay-weapons/texture',clayFrames.weapons),load('art/clay-supplies/texture',clayFrames.supplies),
       load('art/clay-elemental-tools/texture',clayFrames.elementals),load('art/clay-market-bosses/texture',clayFrames.bosses),
@@ -410,6 +412,45 @@ export class GameUi {
     const node=this.container(parent,name,width,height,x,y),sprite=node.addComponent(Sprite);
     sprite.sizeMode=Sprite.SizeMode.CUSTOM;sprite.spriteFrame=frame;node.getComponent(UITransform)!.setContentSize(width,height);
     if(flip)node.setScale(-1,1,1);return node;
+  }
+  /** Keep the interactive tree stable while the first home images download. */
+  private homeSprite(parent:Node,name:string,key:'courierHome'|'bun'|'brand',x:number,y:number,height:number,flip=false):Node {
+    const existing=this.sprite(parent,name,key,x,y,height,flip);if(existing)return existing;
+    const node=this.container(parent,name,height,height,x,y),sprite=node.addComponent(Sprite);
+    sprite.sizeMode=Sprite.SizeMode.CUSTOM;sprite.enabled=false;
+    if(flip)node.setScale(-1,1,1);
+    const placeholder=this.container(node,`${name} placeholder`,height,height,0,0);
+    if(key==='courierHome'){
+      this.ellipse(placeholder,'Courier legs',0,-height*.31,height*.16,height*.12,new Color(73,73,76,255));
+      this.ellipse(placeholder,'Courier coat',0,-height*.13,height*.19,height*.22,new Color(216,111,48,255));
+      this.ellipse(placeholder,'Courier hair',0,height*.10,height*.17,height*.18,new Color(96,57,43,255));
+      this.ellipse(placeholder,'Courier face',0,height*.10,height*.15,height*.16,new Color(242,190,145,255));
+      this.ellipse(placeholder,'Courier left eye',-height*.055,height*.10,height*.012,height*.019,INK);
+      this.ellipse(placeholder,'Courier right eye',height*.055,height*.10,height*.012,height*.019,INK);
+      this.shape(placeholder,'Courier smile',0,height*.045,height*.055,height*.012,new Color(159,78,63,255),3);
+      this.ellipse(placeholder,'Courier helmet',0,height*.22,height*.18,height*.09,ORANGE);
+      this.shape(placeholder,'Helmet band',0,height*.19,height*.27,height*.018,new Color(255,218,168,255),3);
+      this.shape(placeholder,'Courier bag',-height*.13,-height*.20,height*.17,height*.16,new Color(67,130,111,255),8);
+      this.text(placeholder,'Courier bag mark','送',-height*.13,-height*.20,height*.12,height*.10,height*.06,CREAM,true);
+    }else if(key==='bun'){
+      this.ellipse(placeholder,'Bun body',0,0,height*.40,height*.35,CREAM);
+      this.ellipse(placeholder,'Bun left eye',-height*.11,height*.02,height*.025,height*.04,INK);
+      this.ellipse(placeholder,'Bun right eye',height*.11,height*.02,height*.025,height*.04,INK);
+      this.shape(placeholder,'Bun smile',0,-height*.10,height*.09,height*.018,new Color(175,100,72,255),2);
+    }else{
+      this.shape(placeholder,'Delivery box',0,0,height*.72,height*.62,new Color(67,130,111,255),8);
+      this.text(placeholder,'Delivery mark','送',0,0,height*.6,height*.5,height*.32,CREAM,true);
+    }
+    this.homeArtSlots.push({key,node,sprite,placeholder,height});
+    return node;
+  }
+  private completeHomeArt(key:string,frame:SpriteFrame):void {
+    for(const slot of this.homeArtSlots){
+      if(slot.key!==key||!slot.node.isValid)continue;
+      slot.node.getComponent(UITransform)?.setContentSize(slot.height*frame.originalSize.width/frame.originalSize.height,slot.height);
+      slot.sprite.spriteFrame=frame;slot.sprite.enabled=true;slot.placeholder.active=false;
+    }
+    this.homeArtSlots=this.homeArtSlots.filter(slot=>slot.key!==key&&slot.node.isValid);
   }
   private minimumTarget():number {
     // Device-independent pixels, accounting for Creator's pixel-ratio cap.
@@ -433,9 +474,9 @@ export class GameUi {
   }
   private homeArtwork():void {
     this.ellipse(this.node,'Courier shadow',221,-225,92,17,new Color(23,17,23,64));
-    this.sprite(this.node,'Home courier','courierHome',221,-36.5,373);
+    this.homeSprite(this.node,'Home courier','courierHome',221,-36.5,373);
     this.ellipse(this.node,'Bun shadow',450,-228,47,10,new Color(23,17,23,56));
-    this.sprite(this.node,'Home bun','bun',450,-165.5,123,true);
+    this.homeSprite(this.node,'Home bun','bun',450,-165.5,123,true);
   }
   private button(parent:Node,name:string,title:string,action:GameAction,x:number,y:number,w:number,h:number,primary=false):Button {
     const homeTool=parent.name==='Home card'&&(name==='Practice'||name==='Catalog');
@@ -584,7 +625,7 @@ export class GameUi {
     this.shape(root,'Home shadow',x,-8,492,438,new Color(100,71,51,215),30);
     const card=this.shape(root,'Home card',x,0,492,438,new Color(255,243,218,255),30,PAPER_BORDER);
     this.shape(card,'Home highlight',0,1,484,430,new Color(255,255,255,12),26,new Color(255,251,235,160));
-    this.sprite(card,'Brand icon','brand',-177,137,64);
+    this.homeSprite(card,'Brand icon','brand',-177,137,64);
     this.text(card,'Brand night','夜市',-52,135,160,94,76,INK,true);
     this.text(card,'Brand rush','急送',102,135,160,94,76,new Color(189,78,32,255),true);
     this.text(card,'Description','穿过食物小妖，抢到外卖道具，给自己清出一条路。',0,69,420,30,16,INK,false,true);

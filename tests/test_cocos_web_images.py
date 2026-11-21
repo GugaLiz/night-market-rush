@@ -117,6 +117,64 @@ class WebImageOptimizationTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'logo differs'):
             images.home_preloads(self.candidate, planned)
 
+    def test_startup_inline_validates_exact_scripts_and_relocates_map(self):
+        originals = images.STARTUP_SCRIPTS
+        self.addCleanup(setattr, images, 'STARTUP_SCRIPTS', originals)
+        sources = [b'/* polyfill */', b'/* system */']
+        images.STARTUP_SCRIPTS = tuple((path, hashlib.sha256(data).hexdigest())
+                                       for (path, _), data in zip(originals, sources))
+        for (path, _), data in zip(images.STARTUP_SCRIPTS, sources):
+            (self.candidate / path).write_bytes(data)
+        map_path = self.candidate / 'src/import-map.json'
+        map_path.write_text(json.dumps({'imports': {'cc': './../cocos-js/cc.js'}}))
+        engine = self.candidate / 'cocos-js/cc.js'
+        engine.parent.mkdir()
+        engine.write_text('fixture')
+        html = ('<head></head><body>' + ''.join(images.STARTUP_TAGS) + '</body>').encode()
+        result = images.optimize_startup(self.candidate, html)
+        self.assertIn(b'<script>/* polyfill */</script>', result)
+        self.assertIn(b'<script>/* system */</script>', result)
+        self.assertIn(b'"cc":"./cocos-js/cc.js"', result)
+        self.assertNotIn(b'src="src/system.bundle.js"', result)
+        self.assertEqual(images.optimize_startup(self.candidate, result), result)
+        map_path.write_text(json.dumps({'imports': {'cc': '../other.js'}}))
+        self.assertEqual(images.optimize_startup(self.candidate, html), html)
+        map_path.write_text(json.dumps({'imports': {'cc': './../cocos-js/cc.js'}}))
+        unsafe = b'bad </ScRiPt> injection'
+        (self.candidate / images.STARTUP_SCRIPTS[0][0]).write_bytes(unsafe)
+        images.STARTUP_SCRIPTS = ((images.STARTUP_SCRIPTS[0][0], hashlib.sha256(unsafe).hexdigest()),
+                                  images.STARTUP_SCRIPTS[1])
+        self.assertEqual(images.optimize_startup(self.candidate, html), html)
+        self.assertEqual(images.optimize_startup(self.candidate, html.replace(b'system.bundle.js', b'system.hash.js')), html.replace(b'system.bundle.js', b'system.hash.js'))
+
+    def test_main_preload_skips_versioned_remote_or_missing_bundle(self):
+        html = b'<head></head><body></body>'
+        settings = {'assets': {'server': '', 'bundleVers': {}, 'remoteBundles': [],
+                               'preloadBundles': [{'bundle': 'main'}]}}
+        settings_path = self.candidate / 'src/settings.json'
+        settings_path.write_text(json.dumps(settings))
+        main = self.candidate / 'assets/main/index.js'
+        main.parent.mkdir(parents=True)
+        main.write_text('fixture')
+        result = images.preload_main_bundle(self.candidate, html)
+        self.assertIn(b'as="script" crossorigin="anonymous" href="./assets/main/index.js"', result)
+        self.assertEqual(images.preload_main_bundle(self.candidate, result), result)
+        for change in ('versioned', 'remote', 'subpackage', 'preload_version', 'missing'):
+            with self.subTest(change=change):
+                other = json.loads(json.dumps(settings))
+                if change == 'versioned':
+                    other['assets']['bundleVers']['main'] = '1234'
+                elif change == 'remote':
+                    other['assets']['server'] = 'https://cdn.example/'
+                elif change == 'subpackage':
+                    other['assets']['subpackages'] = ['main']
+                elif change == 'preload_version':
+                    other['assets']['preloadBundles'][0]['version'] = '1234'
+                else:
+                    main.unlink()
+                settings_path.write_text(json.dumps(other))
+                self.assertEqual(images.preload_main_bundle(self.candidate, html), html)
+
 
 if __name__ == '__main__':
     unittest.main()

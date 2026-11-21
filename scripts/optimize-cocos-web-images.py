@@ -20,6 +20,16 @@ ORIGINALS = ROOT / 'public' / 'assets'
 UI = ROOT / 'cocos' / 'assets' / 'resources' / 'ui'
 BOOT_IMAGE = '<img class="boot-courier" src="./boot-art/courier.webp" alt="">'
 PRELOAD_MARKER = '<!-- optimized home image preloads -->'
+STARTUP_MARKER = '<!-- optimized Creator startup -->'
+STARTUP_SCRIPTS = (
+    ('src/polyfills.bundle.js', 'f1e4ced3322168d6b9915e782e4c1cf1055d75f66f2b38e7fcd60f48cf89082b'),
+    ('src/system.bundle.js', '90f192f3b04f7fcb5bba9c15745cdd1a798d9b855f752c5ee7e48bb526dd543d'),
+)
+STARTUP_TAGS = (
+    '<script src="src/polyfills.bundle.js" charset="utf-8"> </script>',
+    '<script src="src/system.bundle.js" charset="utf-8"> </script>',
+    '<script src="src/import-map.json" type="systemjs-importmap" charset="utf-8"> </script>',
+)
 
 
 def sha(data):
@@ -88,6 +98,58 @@ def home_preloads(candidate, planned):
     return html.replace('</head>', script + '\n</head>').replace(BOOT_IMAGE, boot).encode('utf-8')
 
 
+def optimize_startup(candidate, html):
+    """Inline only the exact Creator startup scripts and import map we verified."""
+    if html is None:
+        return None
+    text = html.decode('utf-8')
+    if (STARTUP_MARKER in text or any(text.count(tag) != 1 for tag in STARTUP_TAGS)
+            or [text.index(tag) for tag in STARTUP_TAGS] != sorted(text.index(tag) for tag in STARTUP_TAGS)):
+        return html
+    sources = []
+    for path, expected_hash in STARTUP_SCRIPTS:
+        file = candidate / path
+        if not file.is_file() or file.is_symlink():
+            return html
+        data = regular(file)
+        if sha(data) != expected_hash or b'</script' in data.lower():
+            return html
+        sources.append(data.decode('utf-8'))
+    map_path = candidate / 'src/import-map.json'
+    if not map_path.is_file() or map_path.is_symlink():
+        return html
+    import_map = json.loads(regular(map_path))
+    engine = candidate / 'cocos-js/cc.js'
+    if import_map != {'imports': {'cc': './../cocos-js/cc.js'}} or not engine.is_file() or engine.is_symlink():
+        return html
+    # The external map was relative to src/; the inline map is relative to the page.
+    inline_map = json.dumps({'imports': {'cc': './cocos-js/cc.js'}}, separators=(',', ':'))
+    replacements = (STARTUP_MARKER + '\n<script>' + sources[0] + '</script>',
+                    '<script>' + sources[1] + '</script>',
+                    '<script type="systemjs-importmap">' + inline_map + '</script>')
+    for old, new in zip(STARTUP_TAGS, replacements):
+        text = text.replace(old, new, 1)
+    return text.encode('utf-8')
+
+
+def preload_main_bundle(candidate, html):
+    """Preload the main bundle only for the local, unversioned build layout."""
+    if html is None:
+        return None
+    text = html.decode('utf-8')
+    marker = '<!-- optimized main bundle preload -->'
+    assets = json.loads(regular(candidate / 'src/settings.json')).get('assets', {})
+    main = candidate / 'assets/main/index.js'
+    if (text.count('</head>') != 1 or marker in text or not main.is_file() or main.is_symlink()
+            or assets.get('server') != '' or assets.get('bundleVers', {}).get('main')
+            or 'main' in assets.get('remoteBundles', []) or 'main' in assets.get('subpackages', [])
+            or not any(isinstance(item, dict) and item.get('bundle') == 'main'
+                       and not item.get('version') for item in assets.get('preloadBundles', []))):
+        return html
+    tag = marker + '\n  <link rel="preload" as="script" crossorigin="anonymous" href="./assets/main/index.js">\n'
+    return text.replace('</head>', tag + '</head>', 1).encode('utf-8')
+
+
 def plan(candidate):
     """Validate every pair and serialized asset before creating an output."""
     settings = json.loads(regular(candidate / 'src' / 'settings.json'))
@@ -134,6 +196,9 @@ def optimize(candidate, output):
         raise ValueError('Output must be a new independent directory')
     planned = plan(candidate)
     home_html = home_preloads(candidate, planned)
+    index = candidate / 'index.html'
+    startup_html = home_html if home_html is not None else regular(index) if index.exists() else None
+    startup_html = preload_main_bundle(candidate, optimize_startup(candidate, startup_html))
     # Do not follow source symlinks, including links hidden in subdirectories.
     if any(p.is_symlink() for p in candidate.rglob('*')):
         raise ValueError('Candidate contains symlinks')
@@ -141,8 +206,8 @@ def optimize(candidate, output):
     for webp_path, webp, import_path, encoded in planned:
         (output / webp_path).write_bytes(webp)
         (output / import_path).write_bytes(encoded)
-    if home_html is not None:
-        (output / 'index.html').write_bytes(home_html)
+    if startup_html is not None:
+        (output / 'index.html').write_bytes(startup_html)
     print(f'Created independent Web candidate with {len(planned)} WebP/PNG fallback pairs: {output}')
 
 

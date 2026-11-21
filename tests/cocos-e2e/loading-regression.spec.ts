@@ -104,14 +104,15 @@ test('background failure keeps the placeholder and retries without starting a ga
   }finally{release();}
 });
 
-test('early background failure appears even while a home image is stalled',async({page})=>{
+test('background failure remains retryable while a home image is stalled',async({page})=>{
   let release!:()=>void;const held=new Promise<void>(resolve=>{release=resolve;});
   await page.route(courier,async route=>{await held;await route.continue();});
   await page.route(night,route=>route.abort('failed'));
   try{
     await initialize(page);
+    await expect.poll(async()=>(await state(page)).view,{timeout:45000}).toBe('home');
     await expect.poll(async()=>(await state(page)).message,{timeout:30000}).toContain('资源加载失败');
-    expect((await state(page)).view).toBe('loading');
+    await activate(page,'开始挑战');expect((await state(page)).view).toBe('loading');
     await expect(page.getByRole('button',{name:'重试',exact:true})).toBeAttached();
   }finally{release();}
 });
