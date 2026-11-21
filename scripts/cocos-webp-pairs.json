@@ -1,0 +1,96 @@
+{
+  "schema": 1,
+  "verification": "Decoded RGBA bytes and dimensions are identical",
+  "pairs": [
+    {
+      "name": "clay-actors.png",
+      "pngSha256": "48f4f9e536379b8282b43b6b487d85f514cb2e78590c4cd082d7c88c28829649",
+      "webpSha256": "8ddf21792149049b9d25b11820c0ca594270a3788adc454bf7b78ec81fecc679"
+    },
+    {
+      "name": "clay-bun-courier-rig.png",
+      "pngSha256": "5339044ec76c7afc6e45544d6a5109f5ab8dd0ce697a5c256fa494707d3174b3",
+      "webpSha256": "5d11098c99d702343910a6ff591bbc2d4ac29126fed029154080111ee201cde4"
+    },
+    {
+      "name": "clay-chibi-home.png",
+      "pngSha256": "cc4d9190c8b4126edc97dd214111deaf0426a92fd4787590df90a792817e983a",
+      "webpSha256": "1b9bf638faf79272f6af9fe539b2a984c8bbea4e0bf56ea098b5c260003d69fb"
+    },
+    {
+      "name": "clay-courier-workwear.png",
+      "pngSha256": "af0566e1659c045f049e4169802f3ad487d92a13ad968897d360bfd5c6835d27",
+      "webpSha256": "9b897abb558d17df8b3d8fd4e91f69985545d47894df62cfe7093841f9879203"
+    },
+    {
+      "name": "clay-elemental-tools.png",
+      "pngSha256": "2ff91b9efae6ec2543c792a2a2d93c6c88107a9ce1308bd38cc3061cf322a292",
+      "webpSha256": "cf4b4fc5f20bfa9ed022227d0c3820b8f3e17ec0f03f5b92a32397a47d599f56"
+    },
+    {
+      "name": "clay-market-bosses.png",
+      "pngSha256": "d652897a1c79d2af16efd8a0507fee265653720a09de2184d01c50e144dd60ff",
+      "webpSha256": "956143bacf18e12e0773a0cf190647f6988a9016d1b614cc4b3f859f42269df2"
+    },
+    {
+      "name": "clay-market-champions.png",
+      "pngSha256": "9019e59f7a4531017edecebef0d0dd35b480d9a90fb6158df67d0a096fc113dd",
+      "webpSha256": "977bb8cb3335084e41ae8912f337f1e0c51d504b1941fb6d2e4c9a4b32608eaa"
+    },
+    {
+      "name": "clay-market-elites.png",
+      "pngSha256": "80682e02850958161119f7522230b9c04b8aa51dd1ae2c3e97f9a606f6478cc0",
+      "webpSha256": "3988083747e0ea8f2972b3b3678c7b16f089f7dd25b30898794faa6338109a8e"
+    },
+    {
+      "name": "clay-market-mascots.png",
+      "pngSha256": "17ae8d57a8859aaccec2bd185e7c476ad1f094e26d57777b614b3b2c42810470",
+      "webpSha256": "014a894ab24cb0092ecb836b9904a2d565873882a698fa8f216e99167f8a915d"
+    },
+    {
+      "name": "clay-night-market.png",
+      "pngSha256": "a2e352dc10ec9ccc2533cdb302978bd247e6721f7155421acd17be3783fb1cc3",
+      "webpSha256": "57a7e018877147b272dabdfefe023107533441c6b1aba237252ccebcd4bc8d4c"
+    },
+    {
+      "name": "clay-order-stall.png",
+      "pngSha256": "824b4435e687f0d8ba6bbb10d64690e1daa1b58071ab7e6c038cbb21a70a7e4a",
+      "webpSha256": "321360ce6bec9af8d243efd861835a63fc6be1974dcaa45df909bbfbded4a220"
+    },
+    {
+      "name": "clay-riverside-market.png",
+      "pngSha256": "b35bee4f041619f7e2d5376cb345912c6c714f8bd1ef80d3e23a194fd26fb2bf",
+      "webpSha256": "5dbc842142f18d84d71cbfb133f429754487f3973ebb7571775c3a9f7f63589a"
+    },
+    {
+      "name": "clay-soup-dumpling.png",
+      "pngSha256": "6c3b133a608a9962f356db0716a2f7223d343b6a02a5f5695b35f9d6d7d4a71f",
+      "webpSha256": "39dc43634ec6c15717608bc9e4e6b4c47d7ffc927b96ebc711fc9e16183b171d"
+    },
+    {
+      "name": "clay-street-snacks.png",
+      "pngSha256": "11a3a431334287042e3ca5cd355d0946d035daca7403187cd195fa20ce3d9c65",
+      "webpSha256": "da0d85fb9583d21fce46834340dc7abdafa880f9bfdfad2930f1409719ccd19a"
+    },
+    {
+      "name": "clay-supplies.png",
+      "pngSha256": "3218cf4fcbb4f742fa2dbf79d767e332fcdb7173ee16297a299775aa910c1bf0",
+      "webpSha256": "f81bd47082058716244891dc8800625d3052fe3dc1c4b3b5eb83a81e802f5b1f"
+    },
+    {
+      "name": "clay-ultimate-fx.png",
+      "pngSha256": "46953828ebbfb5fabd3ca18a67b2ba09cb2dda0db6843177760d1814b5826644",
+      "webpSha256": "1f818e55889f004a43c5a1249d5e818a7ce6db38bc7853ba745dbb6d754e362d"
+    },
+    {
+      "name": "clay-weapons.png",
+      "pngSha256": "31875544296ab1efabb56255bdf247f05fc721de07b1bfdb77a1245ec8e98673",
+      "webpSha256": "b5993f4a91cf9a5e6603abd1cee9fc63bf8bff49a6897ea66bd1b3970621871a"
+    },
+    {
+      "name": "delivery-skills.png",
+      "pngSha256": "43b8de08e45998057944d689f9ee4402050b6458485be59105aad1c176339e62",
+      "webpSha256": "6880d7eec71e3bae872f6e333d7bc980a75fbd749499472b1eb4589f2400e435"
+    }
+  ]
+}

@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
 
-  <title>Cocos Creator | <%= projectName %></title>
+  <title>夜市急送 · Night Market Rush</title>
 
   <!--http://www.html5rocks.com/en/mobile/mobifying/-->
   <meta name="viewport"
@@ -17,8 +17,9 @@
   <meta name="apple-mobile-web-app-title" content="夜市急送开发原型">
   <meta name="description" content="夜市急送 Cocos 开发原型">
   <link rel="manifest" href="./manifest.webmanifest">
-  <link rel="icon" type="image/svg+xml" href="./icons/favicon.svg">
-  <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
+  <link rel="icon" type="image/x-icon" sizes="16x16 32x32 48x48" href="./favicon.ico?v=2">
+  <link rel="icon" type="image/svg+xml" sizes="any" href="./icons/favicon.svg?v=2">
+  <link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png">
   <meta name="format-detection" content="telephone=no">
 
   <!-- force webkit on 360 -->
@@ -41,9 +42,23 @@
   <!--<link rel="apple-touch-icon-precomposed" href=".png" />-->
 
   <link rel="stylesheet" type="text/css" href="<%= cssUrl %>"/>
+  <style>
+    #web-boot-status {
+      position: fixed; z-index: 1000; top: max(12px, env(safe-area-inset-top)); left: 50%;
+      transform: translateX(-50%); display: flex; align-items: center; gap: 10px;
+      padding: 8px 14px; border-radius: 999px; background: rgba(36, 29, 39, .9);
+      color: #fff2d7; font: 14px/1.4 system-ui, sans-serif; white-space: nowrap;
+      pointer-events: none;
+    }
+    #web-boot-status img { width: 32px; height: 32px; }
+  </style>
 
 </head>
 <body>
+  <div id="web-boot-status" role="status" aria-live="polite">
+    <img src="./icons/favicon.svg?v=2" alt="">
+    <span>夜市急送正在启动，网络较慢请稍候…</span>
+  </div>
   <div id="GameDiv" cc_exact_fit_screen="true">
       <div id="Cocos3dGameContainer">
         <canvas id="GameCanvas" oncontextmenu="event.preventDefault()" tabindex="99"></canvas>

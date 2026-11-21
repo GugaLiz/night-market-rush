@@ -6,3 +6,5 @@ playwright-report/
 .night-market-server.json
 .runtime/
 .idea/
+__pycache__/
+*.pyc

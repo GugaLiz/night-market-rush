@@ -33,7 +33,9 @@ class PagesPackageTest(unittest.TestCase):
         (pages.COCOS / 'package.json').write_bytes(b'{}\n')
         (pages.COCOS / 'tsconfig.json').write_bytes(b'{}\n')
         with zipfile.ZipFile(pages.ARCHIVE, 'w') as archive:
-            archive.writestr('index.html', 'COCOS')
+            archive.writestr('index.html', '<head><link rel="manifest" href="./manifest.webmanifest"></head>COCOS')
+            archive.writestr('manifest.webmanifest', json.dumps({'start_url':'./','scope':'./','icons':[{'src':'./icons/app.png'}]}))
+            archive.writestr('icons/app.png', b'icon')
             archive.writestr('assets/game.png', b'asset')
         self.write_manifest()
 
@@ -86,11 +88,50 @@ class PagesPackageTest(unittest.TestCase):
         (legacy / 'index.html').write_text('OLD', encoding='utf8')
         out = self.root / 'site'
         pages.assemble(out, legacy)
-        self.assertEqual((out / 'index.html').read_text(), 'COCOS')
+        version = hashlib.sha256(pages.ARCHIVE.read_bytes()).hexdigest()
+        entry = (out / 'index.html').read_text()
+        self.assertIn(f'<base href="./_builds/{version}/">', entry)
+        self.assertIn('href="../../manifest.webmanifest"', entry)
+        manifest = json.loads((out / 'manifest.webmanifest').read_text(encoding='utf-8'))
+        self.assertEqual((manifest['start_url'], manifest['scope']), ('./', './'))
+        self.assertEqual(manifest['icons'][0]['src'], f'./_builds/{version}/icons/app.png')
+        self.assertEqual((out / '_builds' / version / 'assets/game.png').read_bytes(), b'asset')
         self.assertEqual((out / 'legacy/index.html').read_text(), 'OLD')
         self.assertFalse((out / 'candidate-build.json').exists())
         with self.assertRaisesRegex(ValueError, 'refusing to overwrite'):
             pages.assemble(out, legacy)
+
+    def test_previous_archive_keeps_root_and_old_version_for_cached_pages(self):
+        previous = self.root / 'previous.zip'
+        with zipfile.ZipFile(previous, 'w') as archive:
+            archive.writestr('index.html', 'OLD COCOS')
+            archive.writestr('src/index.js', 'OLD JS')
+            archive.writestr('assets/old.png', b'old texture')
+        legacy = self.root / 'legacy-input'
+        legacy.mkdir()
+        (legacy / 'index.html').write_text('OLD VITE', encoding='utf8')
+        out = self.root / 'site'
+        pages.assemble(out, legacy, previous)
+        old = hashlib.sha256(previous.read_bytes()).hexdigest()
+        new = hashlib.sha256(pages.ARCHIVE.read_bytes()).hexdigest()
+        self.assertEqual((out / 'src/index.js').read_text(), 'OLD JS')
+        self.assertEqual((out / '_builds' / old / 'src/index.js').read_text(), 'OLD JS')
+        self.assertEqual((out / '_builds' / old / 'assets/old.png').read_bytes(), b'old texture')
+        self.assertTrue((out / '_builds' / new / 'assets/game.png').exists())
+        self.assertIn('COCOS', (out / 'index.html').read_text())
+        self.assertEqual((out / 'legacy/index.html').read_text(), 'OLD VITE')
+
+    def test_previous_archive_refuses_path_escape(self):
+        previous = self.root / 'previous.zip'
+        with zipfile.ZipFile(previous, 'w') as archive:
+            archive.writestr('index.html', 'OLD')
+            archive.writestr('../outside', 'BAD')
+        legacy = self.root / 'legacy-input'
+        legacy.mkdir()
+        (legacy / 'index.html').write_text('OLD', encoding='utf8')
+        with self.assertRaisesRegex(ValueError, 'Unsafe previous'):
+            pages.assemble(self.root / 'site', legacy, previous)
+        self.assertFalse((self.root / 'outside').exists())
 
     def test_evidence_requires_exact_source_snapshot(self):
         runtime = self.root / '.runtime'

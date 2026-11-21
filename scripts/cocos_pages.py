@@ -162,7 +162,7 @@ def verify():
         raise ValueError('Cocos archive hash does not match its manifest')
     with zipfile.ZipFile(ARCHIVE) as archive:
         names = archive.namelist()
-        if len(names) != len(set(names)) or 'index.html' not in names or 'candidate-build.json' in names or any(n.startswith('legacy/') for n in names):
+        if len(names) != len(set(names)) or 'index.html' not in names or 'candidate-build.json' in names or any(n.startswith(('legacy/', '_builds/')) for n in names):
             raise ValueError('Invalid Cocos archive contents')
         for info in archive.infolist():
             name = PurePosixPath(info.filename)
@@ -171,18 +171,60 @@ def verify():
     print(f'Verified {len(actual)} Creator source files and archive SHA-256')
 
 
-def assemble(out, legacy):
+def validate_previous(archive):
+    """Validate old deployment assets before extracting them under the site root."""
+    names = archive.namelist()
+    if len(names) != len(set(names)) or 'index.html' not in names or any(n.startswith(('legacy/', '_builds/')) for n in names):
+        raise ValueError('Invalid previous Cocos archive')
+    for info in archive.infolist():
+        name = PurePosixPath(info.filename)
+        if name.is_absolute() or '..' in name.parts or ':' in info.filename or '\\' in info.filename or info.is_dir() or (info.external_attr >> 16) & 0o170000 == 0o120000:
+            raise ValueError(f'Unsafe previous archive entry: {info.filename}')
+
+
+def assemble(out, legacy, previous=None):
     verify()
     if out.exists():
         raise ValueError('Output already exists; refusing to overwrite it')
     if not (legacy / 'index.html').is_file():
         raise ValueError('Legacy Vite build must contain index.html')
     files_in(legacy)  # reject symlinks before copying
-    out.mkdir(parents=True)
+    if previous is not None:
+        with zipfile.ZipFile(previous) as archive:
+            validate_previous(archive)
+    version = digest(ARCHIVE.read_bytes())
     with zipfile.ZipFile(ARCHIVE) as archive:
-        archive.extractall(out)
+        html = archive.read('index.html').decode('utf-8')
+        manifest = json.loads(archive.read('manifest.webmanifest'))
+        if html.count('<head>') != 1 or '<base ' in html.lower() or html.count('href="./manifest.webmanifest"') != 1:
+            raise ValueError('Unexpected Web entry template; cannot safely version asset paths')
+        if manifest.get('start_url') != './' or manifest.get('scope') != './':
+            raise ValueError('Manifest must use the site root for start_url and scope')
+        for icon in manifest.get('icons', []):
+            src = icon.get('src', '')
+            name = PurePosixPath(src)
+            if not src.startswith('./') or name.is_absolute() or '..' in name.parts or ':' in src or '\\' in src or '?' in src or '#' in src:
+                raise ValueError(f'Unexpected manifest icon path: {src}')
+            icon['src'] = f'./_builds/{version}/{src[2:]}'
+        html = html.replace('<head>', f'<head>\n  <base href="./_builds/{version}/">', 1)
+        html = html.replace('href="./manifest.webmanifest"', 'href="../../manifest.webmanifest"', 1)
+    out.mkdir(parents=True)
+    # During the first transition, cached pre-versioned HTML still needs its
+    # original root resources. During later transitions, cached HTML needs the
+    # preceding immutable directory. Keep the immediately previous build in
+    # both places; a tab surviving more than one later deployment is not covered.
+    if previous is not None:
+        old_version = digest(previous.read_bytes())
+        with zipfile.ZipFile(previous) as archive:
+            archive.extractall(out)
+            archive.extractall(out / '_builds' / old_version)
+    with zipfile.ZipFile(ARCHIVE) as archive:
+        if previous is None or old_version != version:
+            archive.extractall(out / '_builds' / version)
+    (out / 'index.html').write_text(html, encoding='utf-8', newline='\n')
+    (out / 'manifest.webmanifest').write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + '\n', encoding='utf-8', newline='\n')
     shutil.copytree(legacy, out / 'legacy')
-    print(f'Pages site assembled: Cocos at / and previous Vite build at /legacy/')
+    print(f'Pages site assembled: Cocos at /, versioned assets {version}, previous Vite build at /legacy/')
 
 
 def main():
@@ -199,11 +241,12 @@ def main():
     p = sub.add_parser('assemble')
     p.add_argument('--out', type=Path, required=True)
     p.add_argument('--legacy', type=Path, default=ROOT / 'dist')
+    p.add_argument('--previous', type=Path, help='previous Cocos archive to preserve cached assets for one transition')
     args = parser.parse_args()
     if args.command == 'pack': pack(args.candidate.resolve(), args.source_evidence.resolve(), args.build_evidence.resolve())
     elif args.command == 'evidence': record_evidence(args.candidate.resolve(), args.prefix)
     elif args.command == 'verify': verify()
-    else: assemble(args.out.resolve(), args.legacy.resolve())
+    else: assemble(args.out.resolve(), args.legacy.resolve(), args.previous.resolve() if args.previous else None)
 
 
 if __name__ == '__main__':

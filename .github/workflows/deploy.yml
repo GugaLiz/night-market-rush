@@ -19,6 +19,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Preserve the prior release assets for browsers with cached HTML.
+          fetch-depth: 2
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -26,13 +29,22 @@ jobs:
       - run: npm ci
       - run: npm test
       - name: Test Pages package safeguards
-        run: python3 -m unittest discover -s tests -p test_cocos_pages.py
+        run: |
+          python3 -m unittest discover -s tests -p test_cocos_pages.py
+          python3 -m unittest discover -s tests -p test_cocos_web_images.py
       - name: Check Cocos package matches source
         run: python3 scripts/cocos_pages.py verify
       - name: Build previous Web version
         run: npm run build
       - name: Assemble Cocos and legacy Pages site
-        run: python3 scripts/cocos_pages.py assemble --out .runtime/pages-site --legacy dist
+        run: |
+          mkdir -p .runtime
+          if git cat-file -e HEAD^:pages-release/cocos-web.zip 2>/dev/null; then
+            git show HEAD^:pages-release/cocos-web.zip > .runtime/pages-previous.zip
+            python3 scripts/cocos_pages.py assemble --out .runtime/pages-site --legacy dist --previous .runtime/pages-previous.zip
+          else
+            python3 scripts/cocos_pages.py assemble --out .runtime/pages-site --legacy dist
+          fi
       - uses: actions/upload-pages-artifact@v3
         with:
           path: .runtime/pages-site

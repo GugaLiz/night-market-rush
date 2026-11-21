@@ -189,6 +189,9 @@ export class AtlasSmoke extends Component {
     const atlasEntries=Object.entries(ATLAS_IMAGES);
     const attempt=this.loadProgress.begin(atlasEntries.length+4);
     this.show('loading');ui.updateLoadingProgress(0);this.onResize();
+    // The Web template gives immediate feedback while the engine initializes.
+    // Once the game can display its own loading state, hand over to that UI.
+    if(sys.isBrowser&&typeof document!=='undefined')document.getElementById('web-boot-status')?.remove();
     try {
       const track=<T>(promise:Promise<T>):Promise<T>=>promise.then(value=>{
         const progress=this.loadProgress.advance(attempt);

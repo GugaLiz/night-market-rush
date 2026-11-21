@@ -6,12 +6,18 @@
 
 在仓库 Settings → Pages 中将构建来源设为 **GitHub Actions**。推送到 `main` 后，工作流先运行测试并核对 `pages-release/` 中 Cocos 包与当前 Creator 项目的文件集合及 SHA-256；一致后将 Cocos 原型放在站点根路径，并用 `npm run build` 构建旧版，放在 `/legacy/`。部署状态和链接以 Actions 及 Pages 设置的实际结果为准。Cocos 包是 Creator 3.8.8 Web Mobile 非调试候选，仍保留“未完成的开发原型”标识；它启用同源网页存档，旧版路径 `/legacy/` 与站点根路径共享同一域名和存储。同一存档跨标签同时写入仍有竞争风险，不同协议、域名或端口的存档不会自动同步。
 
-`pages-release/cocos-web.zip` 是有来源哈希校验的已构建产物，供 GitHub 的 Linux runner 发布，不包含本地候选构建的绝对路径元数据。Creator 工程的 `assets`、`settings`、`build-templates`、`package.json` 或 `tsconfig.json` 中任一文件增删或内容变化时，工作流会失败，必须先用 Creator 3.8.8 重建并验证候选，再更新发布包与清单。不要修改清单以绕过检查，也不要将隔离候选目录的 `candidate-build.json` 发布。准备当前候选使用的命令为：
+Pages 组装时把 Cocos 静态资源放在以发布包 SHA-256 为名的 `_builds/` 目录，根页面以 `<base>` 指向该目录；浏览器地址、查询参数、存档 origin、PWA 安装入口和作用范围仍在站点根路径。每次工作流从父提交提取上一发布包，同时保留上一版的根资源与版本目录，供仍缓存旧 HTML 的浏览器短期完成加载；这只覆盖最近一次切换，不保证在多个连续部署后长时间未刷新的标签页仍能加载旧资源。现有 `/legacy/` 的旧网页入口独立保留。页面和根 manifest 受 GitHub Pages 缓存控制，更新后可能短暂继续显示旧版；旧页面会引用与它匹配的资源，而不是混用新旧引擎文件。
+
+`pages-release/cocos-web.zip` 是有来源哈希校验的已构建产物，供 GitHub 的 Linux runner 发布，不包含本地候选构建的绝对路径元数据。Creator 工程的 `assets`、`settings`、`build-templates`、`package.json` 或 `tsconfig.json` 中任一文件增删或内容变化时，工作流会失败，必须先用 Creator 3.8.8 重建并验证候选，再更新发布包与清单。不要修改清单以绕过检查，也不要将隔离候选目录的 `candidate-build.json` 发布。Web 候选可通过图片优化脚本优先使用已校验像素一致的原始 WebP，并保留 PNG 回退；其他平台的 Creator 资源不受影响。例如：
 
 ```powershell
-python scripts/cocos_pages.py pack --candidate cocos/build/web-storage-candidate1121s --source-evidence .runtime/candidate1121s-source-before.json --build-evidence .runtime/candidate1121s-build.json
+./scripts/build-cocos-web-candidate.ps1 -OutputName web-candidate-new
+python scripts/optimize-cocos-web-images.py --candidate cocos/build/web-candidate-new --output cocos/build/web-candidate-new-webp
+python scripts/cocos_pages.py evidence --candidate cocos/build/web-candidate-new-webp --prefix pages-new
+# 安全备份当前 pages-release 两个文件后，再移出原文件以便 pack 创建新包
+python scripts/cocos_pages.py pack --candidate cocos/build/web-candidate-new-webp --source-evidence .runtime/pages-new-source.json --build-evidence .runtime/pages-new-build.json
 python scripts/cocos_pages.py verify
-python scripts/cocos_pages.py assemble --out .runtime/pages-site --legacy dist
+python scripts/cocos_pages.py assemble --out .runtime/pages-site --legacy dist --previous .runtime/pages-previous.zip
 ```
 
 `pack` 不覆盖现有发布包；后续更新应先安全保留旧包与验证记录。用 Creator 脚本构建新的隔离候选并完成验收后，可执行 `python scripts/cocos_pages.py evidence --candidate cocos/build/<新候选目录> --prefix <新证据名>`，该命令会核对当前工程和构建快照只有候选存档开关的预期差异，再在 `.runtime/` 中生成 `<新证据名>-source.json` 和 `<新证据名>-build.json`，供 `pack` 使用。请先自行核对构建和验收记录；本地生成的证据不是独立的数字签名。验收包括子路径、同源存档、旧版 `/legacy/` 和回滚。`/legacy/` 是用当前仓库源码生成的旧网页版本，是否与之前线上发布版本完全相同须按提交和构建记录判断；回退原线上版本可重新运行原提交对应的 Pages 工作流。
