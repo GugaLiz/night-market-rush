@@ -29,8 +29,9 @@ function isInside(root, candidate) {
 }
 
 /** Exported for HTTP/security tests; CLI always serves this project's dist. */
-export async function createStaticServer({root, projectRoot=PROJECT_ROOT, instance=randomUUID()}={}) {
+export async function createStaticServer({root, projectRoot=PROJECT_ROOT, instance=randomUUID(), serviceId=SERVICE_ID, urlBase='/'}={}) {
   if(!root)throw new Error('A static root is required');
+  if(!/^\/(?:[a-zA-Z0-9_-]+\/)*$/.test(urlBase))throw new Error('Invalid URL base');
   const realRoot=await fsp.realpath(root);
   const indexPath=path.join(realRoot,'index.html');
   if(!(await fsp.stat(indexPath)).isFile())throw new Error('dist/index.html is required');
@@ -49,7 +50,12 @@ export async function createStaticServer({root, projectRoot=PROJECT_ROOT, instan
     if(pathname.includes('\0')||pathname.includes('\\')||pathname.split('/').some(part=>part==='..')){finish(403,'Forbidden path');return;}
     if(pathname==='/__night_market_health'){
       res.setHeader('Content-Type','application/json; charset=utf-8');res.setHeader('Cache-Control','no-store');
-      res.end(req.method==='HEAD'?undefined:JSON.stringify({status:'ok',service:SERVICE_ID,projectId,pid:process.pid,instance}));return;
+      res.end(req.method==='HEAD'?undefined:JSON.stringify({status:'ok',service:serviceId,projectId,pid:process.pid,instance}));return;
+    }
+    if(urlBase!=='/'){
+      if(pathname===urlBase.slice(0,-1)){res.statusCode=308;res.setHeader('Location',urlBase);res.end();return;}
+      if(!pathname.startsWith(urlBase)){finish(404,'Not found');return;}
+      pathname='/'+pathname.slice(urlBase.length);
     }
     if(pathname.split('/').some(part=>part.startsWith('.'))){finish(403,'Hidden files are not served');return;}
     let requested=path.resolve(realRoot,pathname.replace(/^\/+/,''));

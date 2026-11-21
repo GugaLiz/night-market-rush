@@ -1,0 +1,42 @@
+import {expect,test} from '@playwright/test';
+
+test('sesame guard shows its flying syrup and keeps the landing warning above it',async({page})=>{
+  const errors:string[]=[];
+  page.on('pageerror',error=>errors.push(error.message));
+  page.on('console',message=>{if(message.type()==='error')errors.push(message.text());});
+  page.on('response',response=>{if(response.status()>=400)errors.push(`${response.status()} ${response.url()}`);});
+  const ready=page.waitForEvent('console',{predicate:message=>message.text().includes('GameUi and real simulation ready'),timeout:45000});
+  await page.goto('/');await ready;
+  const result=await page.evaluate(async()=>{
+    const w=window as any,cc=await w.System.import('cc');
+    const g=cc.director.getScene()?.getChildByName('Canvas')?.getComponent('AtlasSmoke');
+    if(!g)throw new Error('Cocos prototype component unavailable');
+    g.action('practice');g.action('spawn',{kind:'eliteSesame',group:false});
+    const enemy=g.session.state.enemies.find((e:any)=>e.kind==='eliteSesame');
+    if(!enemy)throw new Error('Sesame guard was not created');
+    for(let i=0;i<200&&!(enemy.syrupTarget&&(enemy.shotWarnUntil??0)>g.session.state.time);i++)g.session.update(.05,{x:0,y:0});
+    if(!enemy.syrupTarget||(enemy.shotWarnUntil??0)<=g.session.state.time)throw new Error('Guard did not enter syrup warning');
+    g.session.pause();const layer=g.enemies,drop=layer.syrup,warning=layer.foreground;
+    const oldCurve=drop.bezierCurveTo.bind(drop),oldStroke=warning.stroke.bind(warning),oldSplash=layer.drawSyrupImpact.bind(layer);
+    let curves=0,outlines=0,splashes=0;drop.bezierCurveTo=(...args:any[])=>{curves++;return oldCurve(...args);};
+    warning.stroke=(...args:any[])=>{outlines++;return oldStroke(...args);};
+    layer.drawSyrupImpact=(...args:any[])=>{splashes++;return oldSplash(...args);};
+    g.settings.quality='standard';g.settings.reduceMotion=false;g.render(0);
+    const normal={curves,outlines};curves=0;outlines=0;
+    g.settings.quality='simple';g.settings.reduceMotion=true;g.render(0);
+    const reduced={curves,outlines};curves=0;outlines=0;
+    const order={drop:drop.node.getSiblingIndex(),warning:warning.node.getSiblingIndex()};
+    g.session.resume();for(let i=0;i<50&&(enemy.shotWarnUntil??0)>g.session.state.time;i++)g.session.update(.05,{x:0,y:0});
+    g.session.pause();g.render(0);const afterImpact={curves,impactAt:enemy.syrupImpactAt??null,splashes};
+    splashes=0;g.session.resume();for(let i=0;i<12;i++)g.session.update(.05,{x:0,y:0});
+    g.session.pause();g.render(0);const afterFade=splashes;
+    drop.bezierCurveTo=oldCurve;warning.stroke=oldStroke;layer.drawSyrupImpact=oldSplash;
+    return {normal,reduced,order,afterImpact,afterFade};
+  });
+  expect(result.normal.curves).toBeGreaterThan(0);expect(result.normal.outlines).toBeGreaterThan(0);
+  expect(result.reduced.curves).toBeGreaterThan(0);expect(result.reduced.outlines).toBeGreaterThan(0);
+  expect(result.order.drop).toBeLessThan(result.order.warning);
+  expect(result.afterImpact.impactAt).not.toBeNull();expect(result.afterImpact.curves).toBe(0);
+  expect(result.afterImpact.splashes).toBeGreaterThan(0);expect(result.afterFade).toBe(0);
+  expect(errors).toEqual([]);
+});

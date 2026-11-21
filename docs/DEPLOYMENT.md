@@ -1,10 +1,20 @@
 # 网页构建与本机部署
 
-本项目支持 GitHub Pages 和本机 / 同一局域网静态网页服务。Node/npm 用于构建，浏览器只下载 `dist` 中的资源。
+本项目支持 GitHub Pages 和本机 / 同一局域网静态网页服务。按用户要求，本次准备将经隔离验证的 Cocos 开发原型部署到 GitHub Pages；本机 `dist` 仍为旧版网页。部署是否成功以实际工作流结果为准。
 
 ## GitHub Pages
 
-在仓库 Settings → Pages 中将构建来源设为 **GitHub Actions**。推送到 `main` 后，`.github/workflows/deploy.yml` 会安装依赖、运行测试，用 `npm run build` 生成公开版并发布 `dist`。公开版提供正式挑战和夜市图鉴。部署状态和实际链接可在仓库 Actions 和 Pages 设置中查看。项目使用相对资源路径，支持部署在仓库子路径下。
+在仓库 Settings → Pages 中将构建来源设为 **GitHub Actions**。推送到 `main` 后，工作流先运行测试并核对 `pages-release/` 中 Cocos 包与当前 Creator 项目的文件集合及 SHA-256；一致后将 Cocos 原型放在站点根路径，并用 `npm run build` 构建旧版，放在 `/legacy/`。部署状态和链接以 Actions 及 Pages 设置的实际结果为准。Cocos 包是 Creator 3.8.8 Web Mobile 非调试候选，仍保留“未完成的开发原型”标识；它启用同源网页存档，旧版路径 `/legacy/` 与站点根路径共享同一域名和存储。同一存档跨标签同时写入仍有竞争风险，不同协议、域名或端口的存档不会自动同步。
+
+`pages-release/cocos-web.zip` 是有来源哈希校验的已构建产物，供 GitHub 的 Linux runner 发布，不包含本地候选构建的绝对路径元数据。Creator 工程的 `assets`、`settings`、`build-templates`、`package.json` 或 `tsconfig.json` 中任一文件增删或内容变化时，工作流会失败，必须先用 Creator 3.8.8 重建并验证候选，再更新发布包与清单。不要修改清单以绕过检查，也不要将隔离候选目录的 `candidate-build.json` 发布。准备当前候选使用的命令为：
+
+```powershell
+python scripts/cocos_pages.py pack --candidate cocos/build/web-storage-candidate1121s --source-evidence .runtime/candidate1121s-source-before.json --build-evidence .runtime/candidate1121s-build.json
+python scripts/cocos_pages.py verify
+python scripts/cocos_pages.py assemble --out .runtime/pages-site --legacy dist
+```
+
+`pack` 不覆盖现有发布包；后续更新应先安全保留旧包与验证记录。用 Creator 脚本构建新的隔离候选并完成验收后，可执行 `python scripts/cocos_pages.py evidence --candidate cocos/build/<新候选目录> --prefix <新证据名>`，该命令会核对当前工程和构建快照只有候选存档开关的预期差异，再在 `.runtime/` 中生成 `<新证据名>-source.json` 和 `<新证据名>-build.json`，供 `pack` 使用。请先自行核对构建和验收记录；本地生成的证据不是独立的数字签名。验收包括子路径、同源存档、旧版 `/legacy/` 和回滚。`/legacy/` 是用当前仓库源码生成的旧网页版本，是否与之前线上发布版本完全相同须按提交和构建记录判断；回退原线上版本可重新运行原提交对应的 Pages 工作流。
 
 ## 安装、检查与构建
 

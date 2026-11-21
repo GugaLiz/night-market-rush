@@ -161,6 +161,15 @@ describe('browser storage boundary',()=>{
     expect(s.load().settings).toEqual(DEFAULT_SETTINGS);expect([...store.values.keys()].some(k=>k.includes('.recovery.'))).toBe(true);
     expect(s.saveBest(record(100))).toBe(true);expect(JSON.parse(store.getItem(SAVE_KEY)!).best.score).toBe(100);
   });
+  it('does not overwrite an existing backup made by another tab in the same millisecond',()=>{
+    const clock=vi.spyOn(Date,'now').mockReturnValue(12345);
+    try{
+      const store=new MemoryStore();store.setItem(SAVE_KEY,'first broken value');new WebStorage(store).load();
+      store.setItem(SAVE_KEY,'second broken value');new WebStorage(store).load();
+      const backups=[...store.values.entries()].filter(([key])=>key.includes('.recovery.')).map(([,value])=>value);
+      expect(backups).toContain('first broken value');expect(backups).toContain('second broken value');
+    }finally{clock.mockRestore();}
+  });
   it('repairs individual invalid fields and keeps valid preferences and best',()=>{
     const store=new MemoryStore();store.setItem(SAVE_KEY,JSON.stringify({version:1,settings:{...DEFAULT_SETTINGS,music:9,sfx:'bad',hand:'right'},best:record(200),tutorialSeen:true}));
     const data=new WebStorage(store).load();expect(data.settings.music).toBe(1);expect(data.settings.sfx).toBe(DEFAULT_SETTINGS.sfx);expect(data.settings.hand).toBe('right');expect(data.best?.score).toBe(200);expect(data.tutorialSeen).toBe(true);
@@ -182,12 +191,40 @@ describe('browser storage boundary',()=>{
     const store=new MemoryStore(),a=new WebStorage(store),b=new WebStorage(store);a.load();b.load();a.saveBest(record(500));b.saveBest(record(100));
     expect(b.data.best?.score).toBe(500);expect(new WebStorage(store).load().best?.score).toBe(500);
   });
+  it('does not overwrite newer settings or completed tutorial when a stale tab saves a score',()=>{
+    const store=new MemoryStore(),a=new WebStorage(store),b=new WebStorage(store);a.load();b.load();
+    expect(a.saveSettings({...DEFAULT_SETTINGS,muted:true,hand:'right'})).toBe(true);
+    expect(a.setTutorialSeen()).toBe(true);expect(a.saveBest(record(500))).toBe(true);
+    expect(b.saveBest(record(100))).toBe(true);
+    expect(new WebStorage(store).load()).toMatchObject({settings:{muted:true,hand:'right'},tutorialSeen:true,best:{score:500}});
+  });
+  it('keeps newer settings and best when a stale tab marks the tutorial complete',()=>{
+    const store=new MemoryStore(),a=new WebStorage(store),b=new WebStorage(store);a.load();b.load();
+    expect(a.saveSettings({...DEFAULT_SETTINGS,music:.2})).toBe(true);expect(a.saveBest(record(250))).toBe(true);
+    expect(b.setTutorialSeen()).toBe(true);
+    expect(new WebStorage(store).load()).toMatchObject({settings:{music:.2},tutorialSeen:true,best:{score:250}});
+  });
+  it('retains unsaved settings intent through a failed write and later score retry',()=>{
+    const store=new MemoryStore(),a=new WebStorage(store),b=new WebStorage(store);a.load();b.load();store.denied=true;
+    expect(a.saveSettings({...DEFAULT_SETTINGS,muted:true})).toBe(false);
+    store.denied=false;expect(b.saveSettings({...DEFAULT_SETTINGS,hand:'right'})).toBe(true);
+    expect(a.saveBest(record(80))).toBe(true);
+    expect(new WebStorage(store).load()).toMatchObject({settings:{muted:true,hand:'left'},best:{score:80}});
+  });
+  it('keeps tutorial completion while saving explicitly updated settings',()=>{
+    const store=new MemoryStore(),a=new WebStorage(store),b=new WebStorage(store);a.load();b.load();
+    expect(a.setTutorialSeen()).toBe(true);
+    expect(b.saveSettings({...DEFAULT_SETTINGS,muted:true})).toBe(true);
+    expect(new WebStorage(store).load()).toMatchObject({settings:{muted:true},tutorialSeen:true});
+  });
   it('memory fallback works on blocked browser storage without claiming persistence',()=>{
     const store=new MemoryStore();store.denied=true;const s=new WebStorage(store);expect(s.load().best).toBeNull();expect(s.saveBest(record(123))).toBe(false);expect(s.data.best?.score).toBe(123);expect(s.setTutorialSeen()).toBe(false);expect(s.data.tutorialSeen).toBe(true);
   });
   it('failed persistence keeps in-memory best and later retries cannot regress it',()=>{
     const store=new MemoryStore(),s=new WebStorage(store);s.load();store.denied=true;expect(s.saveBest(record(800))).toBe(false);store.denied=false;
-    expect(s.saveBest(record(400))).toBe(true);expect(JSON.parse(store.getItem(SAVE_KEY)!).best.score).toBe(800);
+    expect(s.persistenceAvailable).toBe(false);
+    expect(s.saveBest(record(400))).toBe(true);expect(s.persistenceAvailable).toBe(true);
+    expect(JSON.parse(store.getItem(SAVE_KEY)!).best.score).toBe(800);
   });
   it('protects raw data when recovery backup cannot be written',()=>{
     const original='broken';let raw=original;const storage:StorageLike={getItem:()=>raw,setItem:(key,value)=>{if(key!==SAVE_KEY)throw new Error('quota');raw=value;}};
@@ -204,5 +241,10 @@ describe('browser storage boundary',()=>{
   it('backs up an externally replaced malformed primitive before saving',()=>{
     const store=new MemoryStore(),s=new WebStorage(store);s.load();store.setItem(SAVE_KEY,'123');expect(s.saveBest(record(42))).toBe(true);
     expect([...store.values.entries()].some(([key,value])=>key.includes('.recovery.')&&value==='123')).toBe(true);
+  });
+  it('backs up an externally emptied save before replacing it',()=>{
+    const store=new MemoryStore(),s=new WebStorage(store);s.load();store.setItem(SAVE_KEY,'');
+    expect(s.saveBest(record(42))).toBe(true);
+    expect([...store.values.entries()].some(([key,value])=>key.includes('.recovery.')&&value==='')).toBe(true);
   });
 });

@@ -20,9 +20,9 @@ await fs.writeFile(path.join(fixture,'outside','secret.txt'),'do not leak');
 const {server,projectId}=await createStaticServer({root,projectRoot:fixture});
 await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
 const port=server.address().port;
-function request(url='/',method='GET',headers={}){
+function request(url='/',method='GET',headers={},targetPort=port){
   return new Promise((resolve,reject)=>{
-    const req=http.request({hostname:'127.0.0.1',port,path:url,method,headers},res=>{
+    const req=http.request({hostname:'127.0.0.1',port:targetPort,path:url,method,headers},res=>{
       const chunks=[];res.on('data',chunk=>chunks.push(chunk));res.on('end',()=>resolve({status:res.statusCode,headers:res.headers,body:Buffer.concat(chunks).toString()}));
     });req.on('error',reject);req.end();
   });
@@ -61,4 +61,19 @@ test('unsupported methods are rejected without mutation',async()=>{
 test('ETag validation produces 304 and health identifies this service',async()=>{
   const first=await request('/assets/app.js');const cached=await request('/assets/app.js','GET',{'If-None-Match':first.headers.etag});assert.equal(cached.status,304);assert.equal(cached.body,'');
   const response=await request('/__night_market_health');const body=JSON.parse(response.body);assert.equal(body.service,SERVICE_ID);assert.equal(body.projectId,projectId);assert.equal(body.pid,process.pid);assert.equal(body.status,'ok');assert.equal(response.headers['cache-control'],'no-store');
+});
+test('an isolated preview mount keeps assets under its prefix and identifies itself',async()=>{
+  const preview=await createStaticServer({root,projectRoot:fixture,urlBase:'/cocos-preview/',serviceId:'preview-test'});
+  await new Promise(resolve=>preview.server.listen(0,'127.0.0.1',resolve));
+  const previewPort=preview.server.address().port;
+  try{
+    const get=(url)=>request(url,'GET',{},previewPort);
+    const redirect=await get('/cocos-preview');assert.equal(redirect.status,308);assert.equal(redirect.headers.location,'/cocos-preview/');
+    const home=await get('/cocos-preview/');assert.equal(home.status,200);assert.match(home.body,/<title>fixture/);
+    const js=await get('/cocos-preview/assets/app.js');assert.equal(js.status,200);assert.match(js.headers['content-type'],/^text\/javascript/);
+    assert.equal((await get('/assets/app.js')).status,404);
+    assert.equal((await get('/cocos-preview/assets/missing.png')).status,404);
+    assert.equal((await get('/cocos-preview/%2e%2e/outside/secret.txt')).status,403);
+    assert.equal(JSON.parse((await get('/__night_market_health')).body).service,'preview-test');
+  }finally{await new Promise(resolve=>preview.server.close(resolve));}
 });
