@@ -60,6 +60,8 @@ export class AtlasSmoke extends Component {
   private elemental:ElementalLayer|null=null;
   private stalls:MarketStallsView|null=null;
   private ultimate:UltimateView|null=null;
+  private ultimateFxOwner:UltimateView|null=null;
+  private ultimateFxRetryAt=0;
   private damage:DamageLabelsView|null=null;
   private statusZones:StatusZonesLayer|null=null;
   private giantPulse:GiantPulseView|null=null;
@@ -116,6 +118,7 @@ export class AtlasSmoke extends Component {
     for(const event of events){
       if(event.type==='market')continue;
       this.audio?.play(event);
+      if(event.type==='ultimateBeat'&&sys.isBrowser)this.requestUltimateEffects();
       if(event.type==='ultimateBeat'&&event.kind==='berry'&&!this.effectiveSettings().reduceMotion)this.session.hold(.03);
       if(event.type==='notice')this.notice(event.message);
       else if(event.type==='weapon')this.notice(`已换装 · ${WEAPON_NAMES[event.kind]}`);
@@ -227,7 +230,10 @@ export class AtlasSmoke extends Component {
       }
     }
     const atlasEntries=Object.entries(ATLAS_IMAGES);
-    const attempt=this.loadProgress.begin(atlasEntries.length+4);
+    // The large ultimate effects atlas is presentation-only on Web and can be
+    // fetched after the battle is usable. Native platforms keep their old gate.
+    const deferUltimate=sys.isBrowser;
+    const attempt=this.loadProgress.begin(atlasEntries.length+(deferUltimate?3:4));
     let homeShown=false;
     this.show('loading');ui.updateLoadingProgress(0);this.onResize();
     // The Web template gives immediate feedback while the engine initializes.
@@ -277,7 +283,7 @@ export class AtlasSmoke extends Component {
       });
       const [entries,ultimateTexture]=await Promise.all([
         Promise.all(atlasEntries.map(async ([key,file])=>[key,await loadTexture(file)] as [AtlasImage,Texture2D])),
-        loadTexture('clay-ultimate-fx'),artworkReady,backgroundReady,
+        deferUltimate?Promise.resolve(null):loadTexture('clay-ultimate-fx'),artworkReady,backgroundReady,
       ]);
       if(this.cancelled||!this.loadProgress.isCurrent(attempt))return;
       this.atlas=new SpriteAtlas(Object.fromEntries(entries) as AtlasTextures);
@@ -320,6 +326,7 @@ export class AtlasSmoke extends Component {
       this.worldReady=true;this.applyViewVisibility(this.view);this.render(0);
       this.loadProgress.invalidate(attempt);
       this.completeWaitingAction();
+      if(deferUltimate)this.requestUltimateEffects();
       console.info('[AtlasSmoke] DEVELOPMENT PROTOTYPE: GameUi and real simulation ready; gameplay presentation incomplete.');
     }catch(error){
       if(this.cancelled||!this.loadProgress.invalidate(attempt))return;
@@ -331,6 +338,24 @@ export class AtlasSmoke extends Component {
       else if(this.view==='rotate'&&this.rotateOrigin==='loading')this.rotateOrigin='loading';
       else this.notice('部分资源加载失败，开始挑战时可重试。',5);
     }finally{this.initializing=false;}
+  }
+
+  private requestUltimateEffects():void {
+    const ultimate=this.ultimate,world=this.world;
+    if(!this.worldReady||!ultimate||!world||ultimate.hasEffectsTexture||this.ultimateFxOwner||Date.now()<this.ultimateFxRetryAt)return;
+    this.ultimateFxOwner=ultimate;
+    resources.load('art/clay-ultimate-fx/texture',Texture2D,(error,texture)=>{
+      if(this.ultimateFxOwner!==ultimate)return;
+      this.ultimateFxOwner=null;
+      if(this.cancelled||this.world!==world||this.ultimate!==ultimate||!world.isValid)return;
+      try {
+        if(error||!texture)throw error??new Error('Missing ultimate texture');
+        ultimate.setEffectsTexture(texture);
+      } catch(failure){
+        this.ultimateFxRetryAt=Date.now()+5000;
+        console.warn('[AtlasSmoke] Ultimate artwork unavailable; using the simple effect.',failure);
+      }
+    });
   }
 
   update(dt:number):void {
@@ -434,7 +459,7 @@ export class AtlasSmoke extends Component {
   }
 
   private action(action:GameAction,payload?:ActionPayload):void {
-    this.audio?.unlock();this.audio?.play('ui');
+    this.audio?.unlock(!sys.isBrowser||this.worldReady);this.audio?.play('ui');
     switch(action){
       case 'retry':
         if(this.view==='loading'){this.waitingAction=null;this.worldReady=false;this.destroyWorld();this.ui?.destroy();this.ui=null;void this.start();break;}
@@ -643,7 +668,7 @@ export class AtlasSmoke extends Component {
   }
   private onKeyDown(event:EventKeyboard):void {
     if(!this.ui||this.held.has(event.keyCode))return;
-    this.audio?.unlock();
+    this.audio?.unlock(!sys.isBrowser||this.worldReady);
     this.held.set(event.keyCode,++this.keyOrder);
     if(event.keyCode===KeyCode.SPACE||event.keyCode===KeyCode.SHIFT_LEFT||event.keyCode===KeyCode.SHIFT_RIGHT)this.action('dash');
     else if(event.keyCode===KeyCode.KEY_P){
@@ -727,6 +752,7 @@ export class AtlasSmoke extends Component {
   }
   private destroyWorld():void {
     this.worldReady=false;
+    this.ultimateFxOwner=null;this.ultimateFxRetryAt=0;
     this.haptics?.dispose();this.haptics=null;
     this.motion?.dispose();this.motion=null;
     this.audio?.dispose();this.audio=null;this.joystick?.destroy();this.joystick=null;

@@ -4,7 +4,8 @@ import {expect,test,type Page} from '@playwright/test';
 // not block the home screen. Release candidates may request WebP instead of PNG.
 const night=/\/assets\/resources\/native\/67\/6718ff84-3f8e-47fa-a72e-95114eafa74d\.(?:png|webp)(?:\?.*)?$/;
 const river=/\/assets\/resources\/native\/e1\/e1838951-7675-417b-bbe8-42621ec0b3e7\.(?:png|webp)(?:\?.*)?$/;
-const battle=/\/assets\/resources\/native\/69\/694d6f53-2f68-4a66-84ba-990eb6de4731\.(?:png|webp)(?:\?.*)?$/;
+const battle=/\/assets\/resources\/native\/b1\/b1d34bad-60a9-43e3-a464-811e767ac73e\.(?:png|webp)(?:\?.*)?$/;
+const ultimate=/\/assets\/resources\/native\/69\/694d6f53-2f68-4a66-84ba-990eb6de4731\.(?:png|webp)(?:\?.*)?$/;
 const courier=/\/assets\/resources\/native\/91\/910566c9-132d-4683-8c8a-e147903ee7a1\.(?:png|webp)(?:\?.*)?$/;
 async function initialize(page:Page){
   const loading=page.waitForEvent('console',{predicate:m=>m.text().includes('[AtlasSmoke] view=loading'),timeout:45000});
@@ -23,6 +24,59 @@ async function state(page:Page){return page.evaluate(()=>{
 async function activate(page:Page,name:string){
   const button=page.getByRole('button',{name,exact:true});await expect(button).toBeAttached();await button.focus();await page.keyboard.press('Enter');
 }
+
+test('ultimate artwork is optional for starting battle and attaches after download',async({page})=>{
+  let release!:()=>void;const held=new Promise<void>(resolve=>{release=resolve;});
+  await page.route(ultimate,async route=>{await held;await route.continue();});
+  try{
+    await initialize(page);await expect.poll(async()=>(await state(page)).view,{timeout:45000}).toBe('home');
+    await activate(page,'开始挑战');await expect.poll(async()=>(await state(page)).view,{timeout:45000}).toBe('play');
+    expect((await state(page)).worldReady).toBe(true);
+    expect(await page.evaluate(()=>{
+      const game=(window as any).__loadingGame,effect=game.ultimate;
+      game.session.game.triggerSkill('icebox');
+      effect.fx(true,0,400,300,80,80,0,1);
+      return {frames:effect.frames.length,casts:game.session.state.ultimates.length};
+    })).toEqual({frames:0,casts:1});
+    release();await expect.poll(()=>page.evaluate(()=>(window as any).__loadingGame.ultimate.frames.length),{timeout:45000}).toBe(8);
+    expect((await state(page)).view).toBe('play');
+  }finally{release();}
+});
+
+test('failed ultimate artwork keeps battle playable and retries on a later skill',async({page})=>{
+  let fail=true;
+  await page.route(ultimate,route=>fail?route.abort('failed'):route.continue());
+  await initialize(page);await expect.poll(async()=>(await state(page)).view,{timeout:45000}).toBe('home');
+  await activate(page,'开始挑战');await expect.poll(async()=>(await state(page)).view,{timeout:45000}).toBe('play');
+  expect(await page.evaluate(()=>{
+    const game=(window as any).__loadingGame;
+    game.ultimate.fx(true,0,400,300,80,80,0,1);
+    return {running:game.session.isRunning,frames:game.ultimate.frames.length,error:game.loadError};
+  })).toEqual({running:true,frames:0,error:''});
+  await expect.poll(()=>page.evaluate(()=>(window as any).__loadingGame.ultimateFxRetryAt),{timeout:45000}).toBeGreaterThan(0);
+  fail=false;
+  await page.evaluate(()=>{
+    const game=(window as any).__loadingGame;game.ultimateFxRetryAt=0;
+    game.onGameEvents([{type:'ultimateBeat',kind:'icebox',beat:1,x:400,y:300}],game.session.state);
+  });
+  await expect.poll(()=>page.evaluate(()=>(window as any).__loadingGame.ultimate.frames.length),{timeout:45000}).toBe(8);
+});
+
+test('late ultimate artwork cannot attach to a destroyed world',async({page})=>{
+  let release!:()=>void;const held=new Promise<void>(resolve=>{release=resolve;});const errors:string[]=[];
+  page.on('pageerror',error=>errors.push(error.message));
+  await page.route(ultimate,async route=>{await held;await route.continue();});
+  try{
+    await initialize(page);await expect.poll(async()=>(await state(page)).worldReady,{timeout:45000}).toBe(true);
+    await page.evaluate(()=>{
+      const w=window as any;w.__oldUltimate=w.__loadingGame.ultimate;w.__loadingGame.destroyWorld();
+    });
+    const response=page.waitForResponse(result=>ultimate.test(result.url()));
+    release();await response;
+    await expect.poll(()=>page.evaluate(()=>(window as any).__oldUltimate.frames.length)).toBe(0);
+    expect(errors).toEqual([]);
+  }finally{release();}
+});
 
 test('slow assets advance loading and preserve progress behind portrait guidance',async({page})=>{
   let release!:()=>void;const held=new Promise<void>(resolve=>{release=resolve;});

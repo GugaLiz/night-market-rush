@@ -33,17 +33,29 @@ export class UltimateView {
   private readonly frames:SpriteFrame[]=[];
   private groundUsed=0;
   private airUsed=0;
+  get hasEffectsTexture():boolean {return this.frames.length===8;}
 
-  constructor(groundParent:Node,airParent:Node,private readonly atlas:SpriteAtlas,effectsTexture:Texture2D){
-    const cell=effectsTexture.width/2;
-    if(!Number.isInteger(cell)||cell<=0||effectsTexture.height!==cell*4)throw new Error('Ultimate effects texture must be a 2x4 square-cell atlas');
-    for(let i=0;i<8;i++){
-      const frame=new SpriteFrame();frame.texture=effectsTexture;
-      frame.rect=new Rect((i%2)*cell,Math.floor(i/2)*cell,cell,cell);
-      frame.originalSize=new Size(cell,cell);frame.packable=false;this.frames.push(frame);
-    }
+  constructor(groundParent:Node,airParent:Node,private readonly atlas:SpriteAtlas,effectsTexture:Texture2D|null){
     this.groundNode=this.node('UltimateGround',groundParent);this.ground=this.node('UltimateGroundGraphics',this.groundNode).addComponent(Graphics);
     this.airNode=this.node('UltimateAir',airParent);this.air=this.node('UltimateAirGraphics',this.airNode).addComponent(Graphics);
+    try {if(effectsTexture)this.setEffectsTexture(effectsTexture);}
+    catch(error){this.groundNode.destroy();this.airNode.destroy();throw error;}
+  }
+
+  /** Attach optional artwork after battle is ready; the simulation never depends on it. */
+  setEffectsTexture(effectsTexture:Texture2D):void {
+    if(this.frames.length)return;
+    const cell=effectsTexture.width/2;
+    if(!Number.isInteger(cell)||cell<=0||effectsTexture.height!==cell*4)throw new Error('Ultimate effects texture must be a 2x4 square-cell atlas');
+    try {
+      for(let i=0;i<8;i++){
+        const frame=new SpriteFrame();this.frames.push(frame);frame.texture=effectsTexture;
+        frame.rect=new Rect((i%2)*cell,Math.floor(i/2)*cell,cell,cell);
+        frame.originalSize=new Size(cell,cell);frame.packable=false;
+      }
+    } catch(error) {
+      for(const frame of this.frames)frame.destroy();this.frames.length=0;throw error;
+    }
   }
 
   update(state:GameState,settings:Pick<Settings,'reduceMotion'|'quality'>,visibleWidth:number=WORLD.width,visibleHeight:number=WORLD.height):void {
@@ -80,7 +92,13 @@ export class UltimateView {
     item.node.setPosition(X(x),Y(y));item.node.setScale(flip,1,1);item.node.angle=-angle*180/Math.PI;item.opacity.opacity=Math.round(255*unit(alpha));
   }
   private fx(ground:boolean,index:number,x:number,y:number,w:number,h:number,angle=0,alpha=1):void {
-    this.stamp(ground,this.frames[index],x,y,w,h,angle,alpha);
+    const frame=this.frames[index];
+    if(frame){this.stamp(ground,frame,x,y,w,h,angle,alpha);return;}
+    // The rings, bands and cast tools still show the hit area while artwork downloads.
+    const g=ground?this.ground:this.air;
+    const fallback=['#9aeaff','#ffcf98','#a6f3d0','#fa84af','#a6f2ff','#ffd197','#f97eab','#ffbed1'];
+    g.fillColor=color(fallback[index]??'#fff4d3',Math.round(100*unit(alpha)));
+    g.ellipse(X(x),Y(y),Math.max(1,w*.30),Math.max(1,h*.30));g.fill();
   }
   private sprite(name:string,x:number,y:number,height:number,angle=0,alpha=1,flip=1):void {
     const frame=this.atlas.require(name);this.stamp(false,frame,x,y,height*frame.rect.width/frame.rect.height,height,angle,alpha,flip);

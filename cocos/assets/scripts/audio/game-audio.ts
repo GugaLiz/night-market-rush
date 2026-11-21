@@ -48,8 +48,9 @@ export class GameAudio {
     });
     return this.loading;
   }
-  /** Invoke directly from a TOUCH_END/MOUSE_UP user gesture on Web. */
-  unlock():void {if(this.disposed)return;this.unlocked=true;if(!this.ready)void this.preload();else this.syncMusic();}
+  /** Invoke directly from a user gesture. Defer loading while gameplay assets
+   * are still on the critical path; the caller will preload once they are ready. */
+  unlock(loadIfNeeded=true):void {if(this.disposed)return;this.unlocked=true;if(!this.ready){if(loadIfNeeded)void this.preload();}else this.syncMusic();}
   setSettings(settings:Settings):void {
     this.settings={...settings};
     if(settings.muted||settings.sfx<=0){this.cancelPending();this.stopVoices();}
