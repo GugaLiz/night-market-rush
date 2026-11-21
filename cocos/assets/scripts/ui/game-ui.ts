@@ -48,9 +48,11 @@ const timeText=(seconds:number)=>`${Math.floor(Math.max(0,seconds)/60).toString(
  * destroy(); rebuild only on view changes, not every game frame. */
 export class GameUi {
   readonly node:Node;
-  /** Await before showing the first interactive view so artwork cannot replace
-   * nodes between pointer down/up. Failed artwork loads degrade to text UI. */
+  /** Await before showing the catalog or battle; home uses homeReady instead.
+   * Failed artwork loads degrade to text UI without replacing active controls. */
   readonly ready:Promise<void>;
+  /** The home screen can be shown safely once its own artwork is settled. */
+  readonly homeReady:Promise<void>;
   private hudRoot:Node|null=null;
   private modalRoot:Node|null=null;
   private current:GameView='loading';
@@ -103,7 +105,9 @@ export class GameUi {
 
   constructor(parent:Node,private readonly onAction:ActionHandler) {
     this.node=this.container(parent,'Game UI',1280,720,0,0);
-    this.ready=this.loadArtwork();
+    let homeReady!:()=>void;
+    this.homeReady=new Promise<void>(resolve=>{homeReady=resolve;});
+    this.ready=this.loadArtwork(homeReady);
   }
 
   /** Enable only on Web. The host supplies the same Escape policy as game input. */
@@ -369,7 +373,7 @@ export class GameUi {
     label.isBold=bold;label.horizontalAlign=left?Label.HorizontalAlign.LEFT:Label.HorizontalAlign.CENTER;label.verticalAlign=Label.VerticalAlign.CENTER;
     label.overflow=Label.Overflow.SHRINK;label.enableWrapText=true;return label;
   }
-  private async loadArtwork():Promise<void> {
+  private async loadArtwork(homeReady:()=>void):Promise<void> {
     const add=(name:string,texture:Texture2D,source?:readonly [number,number,number,number])=>{
       const [x,y,w,h]=source??[0,0,texture.width,texture.height];
       const frame=new SpriteFrame();frame.texture=texture;frame.rect=new Rect(x,y,w,h);frame.originalSize=new Size(w,h);frame.packable=false;this.artwork.set(name,frame);
@@ -387,7 +391,12 @@ export class GameUi {
     });
     await Promise.all([
       load('art/clay-chibi-home/texture','courierHome',true),load('art/clay-market-mascots/texture',clayFrames.mascots,true),
-      load('art/clay-bun-courier-rig/texture',clayFrames.rig),load('ui/delivery-box/texture','brand',true),
+      load('ui/delivery-box/texture','brand',true),
+    ]);
+    homeReady();
+    if(this.disposed)return;
+    await Promise.all([
+      load('art/clay-bun-courier-rig/texture',clayFrames.rig),
       load('art/clay-weapons/texture',clayFrames.weapons),load('art/clay-supplies/texture',clayFrames.supplies),
       load('art/clay-elemental-tools/texture',clayFrames.elementals),load('art/clay-market-bosses/texture',clayFrames.bosses),
       load('art/clay-market-elites/texture',clayFrames.elites),load('art/clay-market-champions/texture',clayFrames.champions),

@@ -41,6 +41,8 @@
   <!--<link rel="apple-touch-icon" href=".png" />-->
   <!--<link rel="apple-touch-icon-precomposed" href=".png" />-->
 
+  <!-- Creator loads this SystemJS script later; begin its same-origin download early. -->
+  <link rel="preload" as="script" href="./cocos-js/cc.js">
   <link rel="stylesheet" type="text/css" href="<%= cssUrl %>"/>
   <style>
     #web-boot-status {

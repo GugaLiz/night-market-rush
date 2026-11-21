@@ -74,6 +74,8 @@ export class AtlasSmoke extends Component {
   private cancelled=false;
   private hidden=false;
   private initializing=false;
+  private worldReady=false;
+  private waitingAction:'start'|'practice'|'catalog'|null=null;
   private readonly loadProgress=new LoadProgress();
   private loadError='';
   private inputRequest=0;
@@ -158,7 +160,7 @@ export class AtlasSmoke extends Component {
       else this.motionPreference.removeListener(this.onMotionPreference);
       this.motionPreference=null;
     }
-    this.cancelPendingInput();this.recordCueAt=0;this.held.clear();this.joystick?.setEnabled(false);this.motion?.setEnabled(false);
+    this.waitingAction=null;this.cancelPendingInput();this.recordCueAt=0;this.held.clear();this.joystick?.setEnabled(false);this.motion?.setEnabled(false);
     this.session.pause();this.audio?.setScene('paused');this.haptics?.stop();
   }
 
@@ -186,6 +188,19 @@ export class AtlasSmoke extends Component {
       this.feedback.color=Color.WHITE;this.feedback.enableOutline=true;this.feedback.outlineColor=new Color(50,35,28,255);this.feedback.outlineWidth=3;message.active=false;
     }
     const ui=this.ui;
+    if(!this.audio){
+      this.audio=new GameAudio(this.node,message=>console.warn(`[AtlasSmoke] ${message}`));
+      this.audio.setSettings(this.settings);
+      if(sys.isBrowser)this.haptics=new HapticsSession(createBrowserHapticsHost());
+      if(sys.isBrowser&&typeof window!=='undefined'){
+        this.motion=new BrowserMotionInput(()=>{
+          if(this.view==='play'&&this.settings.mode==='tilt'){
+            this.session.pause();this.show('pause');this.notice('重力感应中断，已暂停。请重新校准或改用摇杆。');
+          }
+        });
+        this.motion.setSettings(this.settings);
+      }
+    }
     const atlasEntries=Object.entries(ATLAS_IMAGES);
     const attempt=this.loadProgress.begin(atlasEntries.length+4);
     this.show('loading');ui.updateLoadingProgress(0);this.onResize();
@@ -204,16 +219,28 @@ export class AtlasSmoke extends Component {
           resources.load(path,Texture2D,(error,asset)=>error?reject(error):resolve(asset));
         }));
       };
-      const [entries,backgrounds,ultimateTexture]=await Promise.all([
-        Promise.all(atlasEntries.map(async ([key,file])=>[key,await loadTexture(file)] as [AtlasImage,Texture2D])),
+      const artworkReady=track(ui.ready);
+      // Let the home screen become usable as soon as its own art and backdrop
+      // are ready. Battle and catalog artwork continues loading in the background.
+      const [backgrounds]=await Promise.all([
         Promise.all([loadTexture('clay-night-market'),loadTexture('clay-riverside-market')]),
-        loadTexture('clay-ultimate-fx'),
-        track(ui.ready),
+        ui.homeReady,
+      ]);
+      if(this.cancelled||!this.loadProgress.isCurrent(attempt))return;
+      const world=this.world=new Node('Battle world');world.layer=this.node.layer;world.addComponent(UITransform);this.node.addChild(world);
+      this.background=new MarketBackground(world,[backgrounds[0],backgrounds[1]]);
+      ui.node.setSiblingIndex(this.node.children.length-1);
+      this.banner?.node.setSiblingIndex(this.node.children.length-1);
+      this.openingHint?.node.setSiblingIndex(this.node.children.length-1);
+      this.feedback?.node.setSiblingIndex(this.node.children.length-1);
+      if(this.view==='rotate')this.rotateOrigin='home';else this.show('home');
+      this.onResize();this.render(0);
+      const [entries,ultimateTexture]=await Promise.all([
+        Promise.all(atlasEntries.map(async ([key,file])=>[key,await loadTexture(file)] as [AtlasImage,Texture2D])),
+        loadTexture('clay-ultimate-fx'),artworkReady,
       ]);
       if(this.cancelled||!this.loadProgress.isCurrent(attempt))return;
       this.atlas=new SpriteAtlas(Object.fromEntries(entries) as AtlasTextures);
-      const world=this.world=new Node('Battle world');world.layer=this.node.layer;world.addComponent(UITransform);this.node.addChild(world);
-      this.background=new MarketBackground(world,[backgrounds[0],backgrounds[1]]);
       this.skillFields=new SkillFieldView(world,this.atlas);
       this.statusZones=new StatusZonesLayer(world,this.atlas);
       this.elemental=new ElementalLayer(world,this.atlas);
@@ -242,38 +269,32 @@ export class AtlasSmoke extends Component {
       this.skillFields.outlineNode.setSiblingIndex(world.children.length-1);
       this.enemies.warningNode.setSiblingIndex(world.children.length-1);
       this.projectiles.enemyShotNode.setSiblingIndex(world.children.length-1);
-      this.audio=new GameAudio(this.node,message=>console.warn(`[AtlasSmoke] ${message}`));
-      if(sys.isBrowser)this.haptics=new HapticsSession(createBrowserHapticsHost());
-      this.audio.setSettings(this.settings);
-      void this.audio.preload().then(ok=>console.info(`[AtlasSmoke] audio preload=${ok}`));
+      void this.audio?.preload().then(ok=>console.info(`[AtlasSmoke] audio preload=${ok}`));
       this.joystick=new TouchJoystick(this.node,value=>{
         console.info(`[AtlasSmoke] joystick x=${value.x.toFixed(2)} y=${value.y.toFixed(2)} playerX=${this.session.state.player.x.toFixed(2)}`);
       });this.joystick.setSettings(this.settings);this.joystick.setEnabled(false);
-      if(sys.isBrowser&&typeof window!=='undefined'){
-        this.motion=new BrowserMotionInput(()=>{
-          if(this.view==='play'&&this.settings.mode==='tilt'){
-            this.session.pause();this.show('pause');this.notice('重力感应中断，已暂停。请重新校准或改用摇杆。');
-          }
-        });
-        this.motion.setSettings(this.settings);
-      }
       ui.node.setSiblingIndex(this.node.children.length-1);
       this.banner?.node.setSiblingIndex(this.node.children.length-1);
       this.openingHint?.node.setSiblingIndex(this.node.children.length-1);
       this.feedback?.node.setSiblingIndex(this.node.children.length-1);
-      this.show('home');this.onResize();this.render(0);
+      this.worldReady=true;this.applyViewVisibility(this.view);this.render(0);
       this.loadProgress.invalidate(attempt);
+      this.completeWaitingAction();
       console.info('[AtlasSmoke] DEVELOPMENT PROTOTYPE: GameUi and real simulation ready; gameplay presentation incomplete.');
     }catch(error){
       if(this.cancelled||!this.loadProgress.invalidate(attempt))return;
       console.error('[AtlasSmoke] Failed to load or render atlas:',error);
-      this.destroyWorld();
       this.loadError='资源加载失败，请检查网络后重试。';
-      if(this.view!=='rotate')this.show('loading');else this.rotateOrigin='loading';
+      this.waitingAction=null;
+      if(!this.background){this.destroyWorld();if(this.view!=='rotate')this.show('loading');else this.rotateOrigin='loading';}
+      else if(this.view==='loading')this.show('loading');
+      else if(this.view==='rotate'&&this.rotateOrigin==='loading')this.rotateOrigin='loading';
+      else this.notice('部分资源加载失败，开始挑战时可重试。',5);
     }finally{this.initializing=false;}
   }
 
   update(dt:number):void {
+    if(this.feedback&&this.feedbackTime>0){this.feedbackTime-=Math.min(.1,Math.max(0,dt));if(this.feedbackTime<=0)this.feedback.node.active=false;}
     if(!this.courier||!this.ui)return;
     this.frameQuality.sample(dt,this.view==='play'&&this.settings.quality==='standard');
     const running=this.session.isRunning;
@@ -299,7 +320,6 @@ export class AtlasSmoke extends Component {
         if(this.lastOpeningHintText!==text){this.lastOpeningHintText=text;this.ui.announce(text);}
       }else this.lastOpeningHintText='';
     }
-    if(this.feedback&&this.feedbackTime>0){this.feedbackTime-=Math.min(.1,Math.max(0,dt));if(this.feedbackTime<=0)this.feedback.node.active=false;}
     if(this.recordCueAt>0&&Date.now()>=this.recordCueAt){
       this.recordCueAt=0;if(this.view==='result'&&!this.hidden)this.audio?.play('record');
     }
@@ -322,6 +342,19 @@ export class AtlasSmoke extends Component {
     this.cancelPendingInput();
     this.view=view;this.held.clear();
     if(view!=='play'||!this.settings.haptics||this.effectiveSettings().reduceMotion)this.haptics?.stop();
+    this.applyViewVisibility(view);
+    this.joystick?.setEnabled(view==='play'&&!this.hidden&&this.settings.mode==='joystick');
+    this.motion?.setEnabled(view==='play'&&!this.hidden&&this.settings.mode==='tilt');
+    this.audio?.setScene(this.hidden?'paused':audioSceneForView(view,this.settingsOrigin,this.catalogOrigin));
+    this.ui?.show(view,{hud:this.hud(),settings:this.settings,systemReduceMotion:this.systemReduceMotion,best:this.storage.data.best,practiceAvailable:DEBUG,message:view==='loading'?this.loadError:'',
+      labSpeed:this.practiceSpeed,isRecord:this.resultRecord,saved:this.resultSaved,hapticsAvailable:this.haptics?.available??false});
+    if(view==='settings'&&previous==='rotate'){
+      const preview=this.ui?.getSettingsPreview();if(preview)this.audio?.setSettings(preview);
+    }
+    console.info(`[AtlasSmoke] view=${view}`);
+  }
+
+  private applyViewVisibility(view:GameView):void {
     if(this.courier)this.courier.node.active=!['home','tutorial','catalog','settings','result','loading'].includes(view);
     if(this.courierGround)this.courierGround.node.active=!['home','tutorial','catalog','settings','result','loading'].includes(view);
     if(this.enemies)this.enemies.node.active=this.enemies.warningNode.active=!['home','tutorial','catalog','settings','result','loading'].includes(view);
@@ -337,33 +370,42 @@ export class AtlasSmoke extends Component {
     if(this.elemental)this.elemental.groundNode.active=this.elemental.foregroundNode.active=!['home','tutorial','catalog','settings','result','loading'].includes(view);
     if(this.stalls)this.stalls.node.active=!['home','tutorial','catalog','settings','result','loading'].includes(view);
     if(this.ultimate)this.ultimate.groundNode.active=this.ultimate.airNode.active=!['home','tutorial','catalog','settings','result','loading'].includes(view);
-    this.joystick?.setEnabled(view==='play'&&!this.hidden&&this.settings.mode==='joystick');
-    this.motion?.setEnabled(view==='play'&&!this.hidden&&this.settings.mode==='tilt');
-    this.audio?.setScene(audioSceneForView(view,this.settingsOrigin,this.catalogOrigin));
-    this.ui?.show(view,{hud:this.hud(),settings:this.settings,systemReduceMotion:this.systemReduceMotion,best:this.storage.data.best,practiceAvailable:DEBUG,message:view==='loading'?this.loadError:'',
-      labSpeed:this.practiceSpeed,isRecord:this.resultRecord,saved:this.resultSaved,hapticsAvailable:this.haptics?.available??false});
-    if(view==='settings'&&previous==='rotate'){
-      const preview=this.ui?.getSettingsPreview();if(preview)this.audio?.setSettings(preview);
-    }
-    console.info(`[AtlasSmoke] view=${view}`);
+  }
+
+  /** Wait without starting the simulation or opening a partially loaded catalog. */
+  private waitForWorld(action:'start'|'practice'|'catalog'):void {
+    if(this.hidden)return;
+    if(this.worldReady){this.runPreparedAction(action);return;}
+    this.waitingAction=this.loadError?null:action;
+    this.show('loading');
+  }
+
+  private completeWaitingAction():void {
+    if(!this.worldReady||this.hidden||this.view!=='loading')return;
+    const action=this.waitingAction;this.waitingAction=null;
+    if(action)this.runPreparedAction(action);else this.show('home');
+  }
+
+  private runPreparedAction(action:'start'|'practice'|'catalog'):void {
+    if(action==='catalog'){this.session.pause();this.show('catalog');return;}
+    if(action==='practice'){this.startPractice();return;}
+    this.practiceSpeed=1;this.session.start(undefined,false);this.resetVisuals();this.show('play');this.audio?.play('start');
+    if(!this.tutorialSeen){this.tutorialSeen=true;this.storage.setTutorialSeen();this.showOpeningHint=true;}
   }
 
   private action(action:GameAction,payload?:ActionPayload):void {
     this.audio?.unlock();this.audio?.play('ui');
     switch(action){
       case 'retry':
-        if(this.view==='loading'){this.ui?.destroy();this.ui=null;void this.start();break;}
+        if(this.view==='loading'){this.waitingAction=null;this.worldReady=false;this.destroyWorld();this.ui?.destroy();this.ui=null;void this.start();break;}
         if(DEBUG&&this.session.state.practice){const weapon=this.session.state.weapon.kind;this.prepareInput(()=>this.startPractice(weapon));break;}
         // A normal retry starts a fresh randomly seeded run.
       case 'start':
         if(this.hidden)return;
-        this.prepareInput(()=>{
-          this.practiceSpeed=1;this.session.start(undefined,false);this.resetVisuals();this.show('play');this.audio?.play('start');
-          if(!this.tutorialSeen){this.tutorialSeen=true;this.storage.setTutorialSeen();this.showOpeningHint=true;}
-        });break;
+        this.prepareInput(()=>this.waitForWorld('start'));break;
       case 'practice':
         if(!DEBUG||this.hidden)return;
-        this.prepareInput(()=>this.startPractice());break;
+        this.prepareInput(()=>this.waitForWorld('practice'));break;
       case 'lab':
         if(DEBUG&&this.session.state.practice&&this.view==='play'){this.session.pause();this.show('lab');}break;
       case 'close-lab':if(DEBUG&&this.session.state.practice)this.closeLab();break;
@@ -397,7 +439,7 @@ export class AtlasSmoke extends Component {
         else this.show('home');break;
       case 'abandon':this.session.pause();this.show('home');break;
       case 'tutorial':this.show('tutorial');break;
-      case 'catalog':this.catalogOrigin=this.view;this.session.pause();this.show('catalog');break;
+      case 'catalog':this.catalogOrigin=this.view;this.waitForWorld('catalog');break;
       case 'close-catalog':this.show(this.catalogOrigin==='play'?'pause':this.catalogOrigin);break;
       case 'settings':this.settingsOrigin=this.view;this.session.pause();this.show('settings');break;
       case 'apply-settings':
@@ -560,7 +602,7 @@ export class AtlasSmoke extends Component {
     return this.joystick?.getVector()??{x:0,y:0};
   }
   private onKeyDown(event:EventKeyboard):void {
-    if(!this.courier||this.held.has(event.keyCode))return;
+    if(!this.ui||this.held.has(event.keyCode))return;
     this.audio?.unlock();
     this.held.set(event.keyCode,++this.keyOrder);
     if(event.keyCode===KeyCode.SPACE||event.keyCode===KeyCode.SHIFT_LEFT||event.keyCode===KeyCode.SHIFT_RIGHT)this.action('dash');
@@ -579,7 +621,7 @@ export class AtlasSmoke extends Component {
   }
   private onKeyUp(event:EventKeyboard):void {this.held.delete(event.keyCode);}
   private onHide():void {
-    this.hidden=true;this.cancelPendingInput();this.held.clear();this.joystick?.setEnabled(false);this.motion?.setEnabled(false);this.session.pause();this.audio?.setScene('paused');
+    this.hidden=true;this.waitingAction=null;this.cancelPendingInput();this.held.clear();this.joystick?.setEnabled(false);this.motion?.setEnabled(false);this.session.pause();this.audio?.setScene('paused');
     if(this.view==='play'||this.view==='countdown'){this.countdownLeft=0;this.show('pause');}
     console.info(`[AtlasSmoke] hidden; paused at ${this.session.state.time.toFixed(3)}`);
   }
@@ -588,10 +630,11 @@ export class AtlasSmoke extends Component {
     // Backgrounding pauses every scene; restore only the scene appropriate to
     // the current overlay's origin. Interrupted gameplay stays paused.
     this.audio?.setScene(audioSceneForView(this.view,this.settingsOrigin,this.catalogOrigin));
+    this.completeWaitingAction();
     console.info('[AtlasSmoke] shown; interrupted play remains paused');
   }
   private onBlur=():void=>{
-    this.cancelPendingInput();this.held.clear();this.joystick?.setEnabled(false);this.motion?.setEnabled(false);
+    this.waitingAction=null;this.cancelPendingInput();this.held.clear();this.joystick?.setEnabled(false);this.motion?.setEnabled(false);
     if(this.view==='play'||this.view==='countdown'){this.session.pause();this.countdownLeft=0;this.audio?.setScene('paused');this.show('pause');}
   };
   private onResize():void {
@@ -608,10 +651,13 @@ export class AtlasSmoke extends Component {
     this.ui.setSafeInsets({left:Math.max(0,safe.x-left),right:Math.max(0,left+1280-safe.x-safe.width),
       bottom:Math.max(0,safe.y-bottom),top:Math.max(0,bottom+720-safe.y-safe.height)});
     if(portrait&&this.view!=='rotate'){
+      // Rotation invalidates a pending gesture and any tilt calibration. The
+      // user can start again after returning to landscape.
+      this.waitingAction=null;
       this.rotateOrigin=this.view==='play'||this.view==='countdown'?'pause':this.view;
       if(this.view==='settings')this.audio?.setSettings(this.settings);
       this.countdownLeft=0;this.session.pause();this.show('rotate');
-    }else if(!portrait&&this.view==='rotate')this.show(this.rotateOrigin);
+    }else if(!portrait&&this.view==='rotate'){this.show(this.rotateOrigin);this.completeWaitingAction();}
   }
   private render(dt:number):void {
     const state=this.session.state,alpha=this.session.interpolation;
@@ -640,6 +686,7 @@ export class AtlasSmoke extends Component {
     this.giantPulse?.update(s);
   }
   private destroyWorld():void {
+    this.worldReady=false;
     this.haptics?.dispose();this.haptics=null;
     this.motion?.dispose();this.motion=null;
     this.audio?.dispose();this.audio=null;this.joystick?.destroy();this.joystick=null;
