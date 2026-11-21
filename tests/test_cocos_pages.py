@@ -154,6 +154,58 @@ class PagesPackageTest(unittest.TestCase):
             pages.record_evidence(candidate, 'bad')
         self.assertFalse((runtime / 'bad-source.json').exists())
 
+    def test_public_information_hash_omits_only_form_session_ids(self):
+        path = pages.COCOS / pages.INFORMATION
+        path.parent.mkdir(parents=True)
+        data = {'information': {
+            'customSplash': {'enable': True, 'customSplash': {
+                'complete': True, 'form': 'https://example.test/form?keep=one&sid=private-value&other=two'}},
+            'removeSplash': {'enable': False, 'removeSplash': {
+                'complete': False, 'form': 'https://example.test/form?sid=another-secret'}},
+            'other': {'form': 'https://example.test/?sid=not-a-splash-session'},
+        }}
+        path.write_text(json.dumps(data), encoding='utf8')
+        backup = pages.COCOS / pages.LOCAL_BACKUP
+        backup.write_text('private local backup', encoding='utf8')
+        hashes = pages.source_files()
+        self.assertNotIn(pages.LOCAL_BACKUP, hashes)
+        public = json.loads(pages.public_information_bytes(path.read_bytes()))
+        self.assertEqual(public['information']['customSplash']['customSplash']['form'],
+                         'https://example.test/form?keep=one&other=two')
+        self.assertEqual(public['information']['other'], data['information']['other'])
+        data['information']['customSplash']['customSplash']['form'] = 'https://example.test/form?keep=one&sid=changed&other=two'
+        path.write_text(json.dumps(data), encoding='utf8')
+        self.assertEqual(pages.source_files(), hashes)
+        data['information']['customSplash']['enable'] = False
+        path.write_text(json.dumps(data), encoding='utf8')
+        self.assertNotEqual(pages.source_files()[pages.INFORMATION], hashes[pages.INFORMATION])
+        other = path.parent / 'another-backup.json'
+        other.write_text('{}', encoding='utf8')
+        self.assertIn(other.relative_to(pages.COCOS).as_posix(), pages.source_files())
+
+    def test_evidence_compares_raw_information_even_when_public_hash_matches(self):
+        path = pages.COCOS / pages.INFORMATION
+        path.parent.mkdir(parents=True)
+        path.write_text(json.dumps({'information': {'customSplash': {
+            'enable': True, 'customSplash': {'complete': True, 'form': 'https://example.test/?sid=original'}}}}), encoding='utf8')
+        runtime = self.root / '.runtime'
+        runtime.mkdir()
+        snapshot = runtime / 'cocos-web-candidate-test'
+        shutil.copytree(pages.COCOS, snapshot)
+        policy = snapshot / 'assets/scripts/runtime/web-build-policy.ts'
+        policy.write_bytes(policy.read_bytes().replace(b'boolean = false;', b'boolean = true;'))
+        candidate = self.root / 'candidate'
+        candidate.mkdir()
+        (candidate / 'index.html').write_text('CANDIDATE', encoding='utf8')
+        (candidate / 'candidate-build.json').write_text(json.dumps({
+            'purpose': 'isolated-web-release-candidate', 'existingSaveEnabled': True, 'snapshot': str(snapshot),
+        }), encoding='utf8')
+        copied = snapshot / pages.INFORMATION
+        copied.write_bytes(copied.read_bytes().replace(b'sid=original', b'sid=different'))
+        with self.assertRaisesRegex(ValueError, 'snapshot differs'):
+            pages.record_evidence(candidate, 'sid-diff')
+        self.assertFalse((runtime / 'sid-diff-source.json').exists())
+
 
 if __name__ == '__main__':
     unittest.main()

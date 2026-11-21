@@ -3714,3 +3714,31 @@
 - **实现/结果**：重新打包 Creator 3.8.8 非调试网页候选，保留 WebP 和 PNG 回退；加载回归支持两种资源格式。旧发布包备份在本机运行目录。
 - **验证**：475 项 Vitest、10 项打包测试、TypeScript 检查、5 项存档回归、优化及原始候选各 2 项加载回归通过；发布包来源校验与隔离子路径新旧站检查通过。
 - **风险/后续**：推送和 GitHub Pages 工作流结果待验证；项目仍标记为开发原型，实体设备验收未执行。
+## 2026-11-21 18:12:47 +08:00 — config
+
+- **摘要**：配置项目插屏 Logo 并防止发布默认插屏。
+- **涉及文件**：
+  - `cocos/settings/v2/packages/builder.json`
+  - `cocos/settings/delivery-box.png`
+  - `cocos/settings/v2/packages/cocos-service.json`
+  - `scripts/build-cocos-web-candidate.ps1`
+  - `agentchanges/CHANGELOG.md`
+- **原因/目标**：将 Cocos 启动插屏替换为游戏配送箱标识。
+- **实现/结果**：通过 Creator 插屏界面选择项目 Logo；网页候选构建显式请求替换，并在构建结果仍使用默认 Logo 时停止。打开编辑器时自动生成默认服务配置。
+- **验证**：Creator 3.8.8 编辑器预览显示项目 Logo；隔离非调试构建报告自定义插屏启用失败且产物为默认 Logo，脚本按预期阻止复制；未部署。
+- **风险/后续**：需在 Creator 完成插屏相关信息启用后重建，确认真实产物再部署。
+
+## 2026-11-21 18:38:58 +08:00 — maintenance
+
+- **摘要**：验证自定义启动 Logo 并准备隐私安全的网页发布包。
+- **涉及文件**：
+  - `pages-release/cocos-web.zip`
+  - `pages-release/manifest.json`
+  - `scripts/cocos_pages.py`
+  - `tests/test_cocos_pages.py`
+  - `docs/DEPLOYMENT.md`
+  - `agentchanges/CHANGELOG.md`
+- **原因/目标**：官方插屏启用后发布游戏标识，避免公开本机问卷标识及备份。
+- **实现/结果**：Creator 3.8.8 实际构建使用项目 Logo；发布清单规范化表单标识并排除指定本地备份，源码快照仍校验原始配置，保留旧发布包供回退。
+- **验证**：475 项 Vitest、12 项打包与图片工具测试、原版及 WebP 候选加载回归通过；隔离 Chrome 看到新 Logo 并进入首页，发布包未发现表单标识，来源哈希校验通过。
+- **风险/后续**：线上部署与存档回归结果待确认；跨机器配置插屏可能需要重新完成官方启用。

@@ -5,7 +5,7 @@
   "debug": false,
   "prototype": true,
   "existingSaveEnabled": true,
-  "archiveSha256": "c6a93b55e1a52b83114f3b379c43fe07a26e898c117b3fb35535cd9de78c78f0",
+  "archiveSha256": "c7db4bbfba505bc914b109d7e1296347493ea2dde450f8cfaf16338e3c849a5e",
   "sourceSha256": {
     "assets/resources.meta": "a3f8948f6de1c7064feaaaaf984fe4cac4d6edf5f378e23dde4994a78540f80d",
     "assets/resources/art.meta": "bf84d45f80061da8f2d34470f679d9f35e2dd955ae085447d0c9ac59ce0a9373",
@@ -486,10 +486,12 @@
     "build-templates/web-mobile/index.ejs": "a29c6001483fc4c1bc39b65b96aa4be5d36a240ea28ea842f483359772d36520",
     "build-templates/web-mobile/manifest.webmanifest": "1a18e3e10acd1f6ba4d5881654bdf3f5cea03a4c6c6f8b9d2d1a5c79cd5c5859",
     "package.json": "62dc3bf7e5d0c68a430c631cf25d083cbc510384f7d278687e06f3f1060c61eb",
-    "settings/v2/packages/builder.json": "a3e1a8df580b6ebec15ad16c9bbef785806567bfbc093821852bb3606028e702",
+    "settings/delivery-box.png": "8d4afc185554fa8bec72812ca2978473a2d3db97241a0c77f32739b2997815d8",
+    "settings/v2/packages/builder.json": "e9c5fde9ecfbd4e0d9e6dd7f7ac08bee481965bd02ef07bd13bb5b4ed9e46612",
+    "settings/v2/packages/cocos-service.json": "0fb55c67de44f3e0206e2e38e9c8b96f64247578d7e1fa564d77909950ae3d48",
     "settings/v2/packages/device.json": "93af91e0b90038cedc84d08651f845e1c2e2ae460321c19f083c27a178e451f8",
     "settings/v2/packages/engine.json": "7e416e38cd0895268645b22809e7053340f076d5e67dd54dc18a82fbeb049d2b",
-    "settings/v2/packages/information.json": "cbb733c8bf691ac9d561469cf945b21a23328e68fa694d75ab9f844f1866d754",
+    "settings/v2/packages/information.json": "db9ea4801cdb022ea95537a9c32b6d8961dd3e6446cecde3adc105abb8bef016",
     "settings/v2/packages/program.json": "d914f9f19ffe02724337936d8c7907798c8666566902b78243eb1aa8da0baedd",
     "settings/v2/packages/project.json": "86e60258fc615fe023aef88ff8d66f6e8cf0c784fcef5c02d75b08a42b204241",
     "tsconfig.json": "caa021674321479fc5fd86feafe2dc34fc52c8815444a5c04b159479212c7def"

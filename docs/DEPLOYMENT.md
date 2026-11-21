@@ -10,6 +10,8 @@ Pages 组装时把 Cocos 静态资源放在以发布包 SHA-256 为名的 `_buil
 
 `pages-release/cocos-web.zip` 是有来源哈希校验的已构建产物，供 GitHub 的 Linux runner 发布，不包含本地候选构建的绝对路径元数据。Creator 工程的 `assets`、`settings`、`build-templates`、`package.json` 或 `tsconfig.json` 中任一文件增删或内容变化时，工作流会失败，必须先用 Creator 3.8.8 重建并验证候选，再更新发布包与清单。不要修改清单以绕过检查，也不要将隔离候选目录的 `candidate-build.json` 发布。Web 候选可通过图片优化脚本优先使用已校验像素一致的原始 WebP，并保留 PNG 回退；其他平台的 Creator 资源不受影响。例如：
 
+插屏表单的 `sid` 是本机信息，不提交到公开仓库。发布清单会对 `information.json` 中两个插屏表单 URL 的 `sid` 做规范化，其他字段仍参与校验；用户本机的 `information - 副本.json` 备份不进入发布清单。生成构建证据时，实际工程和构建快照中的原始插屏配置仍需逐字节一致。在另一台机器重新配置或构建插屏时，可能需要通过 Creator 再次完成官方启用流程。
+
 ```powershell
 ./scripts/build-cocos-web-candidate.ps1 -OutputName web-candidate-new
 python scripts/optimize-cocos-web-images.py --candidate cocos/build/web-candidate-new --output cocos/build/web-candidate-new-webp

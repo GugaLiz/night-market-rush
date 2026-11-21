@@ -12,6 +12,7 @@ import shutil
 import sys
 import zipfile
 from pathlib import Path, PurePosixPath
+from urllib.parse import urlsplit, urlunsplit
 
 ROOT = Path(__file__).resolve().parent.parent
 COCOS = ROOT / 'cocos'
@@ -20,6 +21,9 @@ ARCHIVE = RELEASE / 'cocos-web.zip'
 MANIFEST = RELEASE / 'manifest.json'
 SOURCE_ITEMS = ('assets', 'settings', 'build-templates', 'package.json', 'tsconfig.json')
 TEXT_EXTENSIONS = {'.meta', '.ts', '.json', '.ejs', '.scene', '.svg', '.webmanifest'}
+INFORMATION = 'settings/v2/packages/information.json'
+# This is the user's local backup, not an input to the project configuration.
+LOCAL_BACKUP = 'settings/v2/packages/information - 副本.json'
 
 
 def digest(data):
@@ -45,13 +49,35 @@ def source_files():
     for name in SOURCE_ITEMS:
         for path in files_in(COCOS / name):
             relative = path.relative_to(COCOS).as_posix()
+            if relative == LOCAL_BACKUP:
+                continue
             data = path.read_bytes()
             # Git's checkout normalizes line endings on some platforms. Hash
             # text in its repository form while leaving binary assets exact.
             if path.suffix.lower() in TEXT_EXTENSIONS:
                 data = data.replace(b'\r\n', b'\n')
+            if relative == INFORMATION:
+                data = public_information_bytes(data)
             result[relative] = digest(data)
     return dict(sorted(result.items()))
+
+
+def public_information_bytes(data):
+    """Canonicalize only the local form session identifier for public hashes.
+
+    All other fields, including actual enablement and completion status, remain
+    part of the manifest. Snapshot evidence uses the original file bytes.
+    """
+    settings = json.loads(data.decode('utf-8-sig'))
+    for key in ('customSplash', 'removeSplash'):
+        group = settings.get('information', {}).get(key, {})
+        details = group.get(key, {})
+        if 'form' not in details:
+            continue
+        url = urlsplit(details['form'])
+        query = '&'.join(part for part in url.query.split('&') if part.split('=', 1)[0] != 'sid')
+        details['form'] = urlunsplit((url.scheme, url.netloc, url.path, query, url.fragment))
+    return json.dumps(settings, ensure_ascii=False, sort_keys=True, separators=(',', ':')).encode('utf-8')
 
 
 def raw_hashes(base, paths):
@@ -83,8 +109,10 @@ def record_evidence(candidate, prefix):
     current = {}
     copied = {}
     for name in SOURCE_ITEMS:
-        current.update({p.relative_to(COCOS).as_posix(): p.read_bytes() for p in files_in(COCOS / name)})
-        copied.update({p.relative_to(snapshot).as_posix(): p.read_bytes() for p in files_in(snapshot / name)})
+        current.update({p.relative_to(COCOS).as_posix(): p.read_bytes() for p in files_in(COCOS / name)
+                        if p.relative_to(COCOS).as_posix() != LOCAL_BACKUP})
+        copied.update({p.relative_to(snapshot).as_posix(): p.read_bytes() for p in files_in(snapshot / name)
+                       if p.relative_to(snapshot).as_posix() != LOCAL_BACKUP})
     policy = 'assets/scripts/runtime/web-build-policy.ts'
     disabled = b'export const WEB_PERSISTENCE_CANDIDATE: boolean = false;'
     enabled = b'export const WEB_PERSISTENCE_CANDIDATE: boolean = true;'
@@ -119,6 +147,7 @@ def pack(candidate, source_evidence, build_evidence):
     actual = {}
     for name in SOURCE_ITEMS:
         actual.update(raw_hashes(COCOS, files_in(COCOS / name)))
+    actual.pop(LOCAL_BACKUP, None)
     if actual != expected:
         raise ValueError('Current Creator source differs from the verified candidate evidence')
     verify_evidence(candidate, build_evidence)
