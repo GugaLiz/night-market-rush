@@ -5,7 +5,7 @@
   "debug": false,
   "prototype": true,
   "existingSaveEnabled": true,
-  "archiveSha256": "d9fa222a197f3a92e456173387b79723b298f19ca16520160d7776b86c0f7078",
+  "archiveSha256": "feccdc8067764bb3105611c806e9d032b987a53e6d6d497011fb26bdbdbaf17e",
   "sourceSha256": {
     "assets/resources.meta": "a3f8948f6de1c7064feaaaaf984fe4cac4d6edf5f378e23dde4994a78540f80d",
     "assets/resources/art.meta": "bf84d45f80061da8f2d34470f679d9f35e2dd955ae085447d0c9ac59ce0a9373",
@@ -458,7 +458,7 @@
     "assets/scripts/runtime/web-build-policy.ts": "074f825de4415bb0aa22a0d1d7a928fea03c377988c42b6ab5e1652715c5c4a5",
     "assets/scripts/runtime/web-build-policy.ts.meta": "01945eadfff580033f3f106091c879a7661a974b8545a7f915fbc9cd7a92cb75",
     "assets/scripts/smoke.meta": "3e4ee57838fa7c3c12b92363816a27e3b7fcc1cb152bd85cfa6fabb84d104d88",
-    "assets/scripts/smoke/AtlasSmoke.ts": "1d92f9ed4080d75dfcd3aef3c9990b647e5791485b4cd2f57bf0dfef78f1585e",
+    "assets/scripts/smoke/AtlasSmoke.ts": "127d16e2c9db52811c6b9f7a3a8120fa0c6907b682fc38ce2df63d4514f702f6",
     "assets/scripts/smoke/AtlasSmoke.ts.meta": "3267341ec724a2ac6c26119673f48c4b2baecc271e8ac7f1a047b356d81fa84b",
     "assets/scripts/ui.meta": "0ffd1e802f351614a98c25eba7914d84cce5812afce819d268106f8b005efd8f",
     "assets/scripts/ui/catalog.ts": "10a3ed3aaa6550c820523201bb5cc3d6d5e08d00c9240a2bdb67557d45850896",

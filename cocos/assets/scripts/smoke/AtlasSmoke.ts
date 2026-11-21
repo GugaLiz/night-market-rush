@@ -1,4 +1,4 @@
-import {_decorator, Color, Component, EventKeyboard, Game, game, input, Input, KeyCode, Label, Node, ResolutionPolicy, resources, screen, sys, Texture2D, UITransform, view} from 'cc';
+import {_decorator, Color, Component, EventKeyboard, Game, game, Graphics, input, Input, KeyCode, Label, Node, ResolutionPolicy, resources, screen, sys, Texture2D, UITransform, view} from 'cc';
 import {DEBUG} from 'cc/env';
 import {ATLAS_IMAGES, type AtlasImage, type AtlasTextures, SpriteAtlas} from '../presentation/sprite-atlas';
 import {CourierView} from '../presentation/courier-view';
@@ -132,6 +132,31 @@ export class AtlasSmoke extends Component {
   private rotateOrigin:GameView='home';
   private viewportPolicy='';
 
+  /** A quiet night-market scene while the painted street textures download. */
+  private createHomeBackdrop(parent:Node):Node {
+    const node=new Node('Home backdrop placeholder');node.layer=parent.layer;
+    node.addComponent(UITransform).setContentSize(1280,720);parent.addChild(node);
+    const g=node.addComponent(Graphics);
+    g.fillColor=new Color(35,33,49,255);g.rect(-4096,-4096,8192,8192);g.fill();
+    g.fillColor=new Color(57,49,61,255);g.rect(-4096,-110,8192,330);g.fill();
+    g.fillColor=new Color(72,58,68,255);
+    for(const x of [-520,-190,150,490]){g.rect(x-135,-82,270,250);}
+    g.fill();
+    g.fillColor=new Color(128,87,75,255);
+    for(const x of [-520,-190,150,490]){g.rect(x-145,130,290,18);g.rect(x-110,-65,220,15);}
+    g.fill();
+    g.fillColor=new Color(91,81,84,255);g.rect(-4096,-4096,8192,3981);g.fill();
+    g.fillColor=new Color(144,113,91,110);g.rect(-4096,-122,8192,7);g.fill();
+    g.strokeColor=new Color(174,135,106,255);g.lineWidth=3;
+    g.moveTo(-4096,255);g.lineTo(4096,255);g.stroke();
+    for(const x of [-515,-285,-55,175,405,635]){
+      g.strokeColor=new Color(174,135,106,255);g.lineWidth=2;g.moveTo(x,255);g.lineTo(x,230);g.stroke();
+      g.fillColor=new Color(210,91,62,255);g.ellipse(x,209,18,23);g.fill();
+      g.fillColor=new Color(244,185,107,190);g.rect(x-10,206,20,6);g.fill();
+    }
+    return node;
+  }
+
   onLoad():void {view.setDesignResolutionSize(1280,720,ResolutionPolicy.SHOW_ALL);view.resizeWithBrowserSize(true);}
 
   onEnable():void {
@@ -203,6 +228,7 @@ export class AtlasSmoke extends Component {
     }
     const atlasEntries=Object.entries(ATLAS_IMAGES);
     const attempt=this.loadProgress.begin(atlasEntries.length+4);
+    let homeShown=false;
     this.show('loading');ui.updateLoadingProgress(0);this.onResize();
     // The Web template gives immediate feedback while the engine initializes.
     // Once the game can display its own loading state, hand over to that UI.
@@ -220,24 +246,38 @@ export class AtlasSmoke extends Component {
         }));
       };
       const artworkReady=track(ui.ready);
-      // Let the home screen become usable as soon as its own art and backdrop
-      // are ready. Battle and catalog artwork continues loading in the background.
-      const [backgrounds]=await Promise.all([
-        Promise.all([loadTexture('clay-night-market'),loadTexture('clay-riverside-market')]),
-        ui.homeReady,
-      ]);
+      // Attach a rejection handler immediately: backgrounds can fail while the
+      // initial home artwork is still loading.
+      const backgroundResult=Promise.all([loadTexture('clay-night-market'),loadTexture('clay-riverside-market')]).then(
+        backgrounds=>({ok:true as const,backgrounds}),error=>({ok:false as const,error}));
+      // Surface a known background failure even if a home image is still hung.
+      // On success the gate stays pending and does not delay homeReady.
+      const backgroundFailure=backgroundResult.then(result=>{
+        if(result.ok===false)throw result.error;
+        return new Promise<void>(()=>{});
+      });
+      await Promise.race([ui.homeReady,backgroundFailure]);
       if(this.cancelled||!this.loadProgress.isCurrent(attempt))return;
       const world=this.world=new Node('Battle world');world.layer=this.node.layer;world.addComponent(UITransform);this.node.addChild(world);
-      this.background=new MarketBackground(world,[backgrounds[0],backgrounds[1]]);
+      const placeholder=this.createHomeBackdrop(world);homeShown=true;
       ui.node.setSiblingIndex(this.node.children.length-1);
       this.banner?.node.setSiblingIndex(this.node.children.length-1);
       this.openingHint?.node.setSiblingIndex(this.node.children.length-1);
       this.feedback?.node.setSiblingIndex(this.node.children.length-1);
       if(this.view==='rotate')this.rotateOrigin='home';else this.show('home');
       this.onResize();this.render(0);
+      const backgroundReady=backgroundResult.then(result=>{
+        if(result.ok===false)throw result.error;
+        if(this.cancelled||!this.loadProgress.isCurrent(attempt)||this.world!==world||!world.isValid)return;
+        this.background=new MarketBackground(world,[result.backgrounds[0],result.backgrounds[1]]);
+        this.background.node.setSiblingIndex(0);
+        const visible=view.getVisibleSize();
+        this.background.update(this.session.state,visible.width,visible.height,this.effectiveSettings().reduceMotion);
+        placeholder.destroy();
+      });
       const [entries,ultimateTexture]=await Promise.all([
         Promise.all(atlasEntries.map(async ([key,file])=>[key,await loadTexture(file)] as [AtlasImage,Texture2D])),
-        loadTexture('clay-ultimate-fx'),artworkReady,
+        loadTexture('clay-ultimate-fx'),artworkReady,backgroundReady,
       ]);
       if(this.cancelled||!this.loadProgress.isCurrent(attempt))return;
       this.atlas=new SpriteAtlas(Object.fromEntries(entries) as AtlasTextures);
@@ -286,7 +326,7 @@ export class AtlasSmoke extends Component {
       console.error('[AtlasSmoke] Failed to load or render atlas:',error);
       this.loadError='资源加载失败，请检查网络后重试。';
       this.waitingAction=null;
-      if(!this.background){this.destroyWorld();if(this.view!=='rotate')this.show('loading');else this.rotateOrigin='loading';}
+      if(!homeShown){this.destroyWorld();if(this.view!=='rotate')this.show('loading');else this.rotateOrigin='loading';}
       else if(this.view==='loading')this.show('loading');
       else if(this.view==='rotate'&&this.rotateOrigin==='loading')this.rotateOrigin='loading';
       else this.notice('部分资源加载失败，开始挑战时可重试。',5);

@@ -1,10 +1,11 @@
 import {expect,test,type Page} from '@playwright/test';
 
-// The two background textures are independent resources; holding one lets the
-// remaining artwork finish. Release candidates may request WebP instead of PNG.
+// The two background textures are independent resources; a held background must
+// not block the home screen. Release candidates may request WebP instead of PNG.
 const night=/\/assets\/resources\/native\/67\/6718ff84-3f8e-47fa-a72e-95114eafa74d\.(?:png|webp)(?:\?.*)?$/;
 const river=/\/assets\/resources\/native\/e1\/e1838951-7675-417b-bbe8-42621ec0b3e7\.(?:png|webp)(?:\?.*)?$/;
 const battle=/\/assets\/resources\/native\/69\/694d6f53-2f68-4a66-84ba-990eb6de4731\.(?:png|webp)(?:\?.*)?$/;
+const courier=/\/assets\/resources\/native\/91\/910566c9-132d-4683-8c8a-e147903ee7a1\.(?:png|webp)(?:\?.*)?$/;
 async function initialize(page:Page){
   const loading=page.waitForEvent('console',{predicate:m=>m.text().includes('[AtlasSmoke] view=loading'),timeout:45000});
   await page.goto('/',{waitUntil:'domcontentloaded'});await loading;
@@ -16,7 +17,8 @@ async function initialize(page:Page){
 }
 async function state(page:Page){return page.evaluate(()=>{
   const game=(window as any).__loadingGame;
-  return {view:game.view,progress:game.ui.data.progress??0,message:game.loadError,worldReady:game.worldReady,running:game.session.isRunning};
+  return {view:game.view,progress:game.ui.data.progress??0,message:game.loadError,worldReady:game.worldReady,running:game.session.isRunning,
+    backgroundReady:!!game.background,placeholder:!!game.world?.getChildByName('Home backdrop placeholder')};
 });}
 async function activate(page:Page,name:string){
   const button=page.getByRole('button',{name,exact:true});await expect(button).toBeAttached();await button.focus();await page.keyboard.press('Enter');
@@ -27,6 +29,8 @@ test('slow assets advance loading and preserve progress behind portrait guidance
   await page.route(night,async route=>{await held;await route.continue();});
   try{
     await initialize(page);
+    await expect.poll(async()=>(await state(page)).view,{timeout:45000}).toBe('home');
+    expect((await state(page)).placeholder).toBe(true);await activate(page,'开始挑战');
     await expect.poll(async()=>(await state(page)).progress,{timeout:30000}).toBeGreaterThan(0);
     const before=await state(page);expect(before.view).toBe('loading');expect(before.progress).toBeLessThan(1);
     await page.setViewportSize({width:430,height:932});
@@ -56,6 +60,76 @@ test('home is usable before battle assets, and starting waits through rotation',
     expect((await state(page)).running).toBe(false);
     await activate(page,'开始挑战');await expect.poll(async()=>(await state(page)).view).toBe('play');
   }finally{release();}
+});
+
+for(const inSettings of [false,true])test(`late background preserves ${inSettings?'settings draft':'focused home controls'}`,async({page})=>{
+  let releaseNight!:()=>void;const heldNight=new Promise<void>(resolve=>{releaseNight=resolve;});
+  let releaseBattle!:()=>void;const heldBattle=new Promise<void>(resolve=>{releaseBattle=resolve;});
+  await page.route(night,async route=>{await heldNight;await route.continue();});
+  await page.route(battle,async route=>{await heldBattle;await route.continue();});
+  try{
+    await initialize(page);await expect.poll(async()=>(await state(page)).view,{timeout:45000}).toBe('home');
+    expect((await state(page)).placeholder).toBe(true);expect((await state(page)).backgroundReady).toBe(false);
+    let control;
+    if(inSettings){
+      await activate(page,'操作设置');await activate(page,'右手');
+      await expect.poll(()=>page.evaluate(()=>(window as any).__loadingGame.ui.draft.hand)).toBe('right');
+      const cancel=page.getByRole('button',{name:'取消',exact:true});await cancel.focus();control=await cancel.elementHandle();
+    }else{
+      const start=page.getByRole('button',{name:'开始挑战',exact:true});await start.focus();control=await start.elementHandle();
+    }
+    releaseNight();await expect.poll(async()=>(await state(page)).backgroundReady,{timeout:45000}).toBe(true);
+    await expect.poll(async()=>(await state(page)).placeholder).toBe(false);
+    expect((await state(page)).worldReady).toBe(false);
+    expect((await state(page)).view).toBe(inSettings?'settings':'home');
+    expect(await control?.evaluate(el=>el.isConnected&&el===document.activeElement)).toBe(true);
+    if(inSettings)expect(await page.evaluate(()=>(window as any).__loadingGame.ui.draft.hand)).toBe('right');
+    releaseBattle();await expect.poll(async()=>(await state(page)).worldReady,{timeout:45000}).toBe(true);
+  }finally{releaseNight();releaseBattle();}
+});
+
+test('background failure keeps the placeholder and retries without starting a game',async({page})=>{
+  let release!:()=>void;const held=new Promise<void>(resolve=>{release=resolve;});let fail=true;
+  await page.route(night,async route=>{await held;if(fail)await route.abort('failed');else await route.continue();});
+  try{
+    await initialize(page);await expect.poll(async()=>(await state(page)).view,{timeout:45000}).toBe('home');
+    expect((await state(page)).placeholder).toBe(true);release();
+    await expect.poll(async()=>(await state(page)).message,{timeout:45000}).toContain('资源加载失败');
+    expect((await state(page)).view).toBe('home');expect((await state(page)).placeholder).toBe(true);
+    await activate(page,'开始挑战');await expect.poll(async()=>(await state(page)).view).toBe('loading');
+    expect((await state(page)).running).toBe(false);fail=false;await activate(page,'重试');
+    await expect.poll(async()=>(await state(page)).backgroundReady,{timeout:45000}).toBe(true);
+    await expect.poll(async()=>(await state(page)).worldReady,{timeout:45000}).toBe(true);
+    expect((await state(page)).view).toBe('home');
+  }finally{release();}
+});
+
+test('early background failure appears even while a home image is stalled',async({page})=>{
+  let release!:()=>void;const held=new Promise<void>(resolve=>{release=resolve;});
+  await page.route(courier,async route=>{await held;await route.continue();});
+  await page.route(night,route=>route.abort('failed'));
+  try{
+    await initialize(page);
+    await expect.poll(async()=>(await state(page)).message,{timeout:30000}).toContain('资源加载失败');
+    expect((await state(page)).view).toBe('loading');
+    await expect(page.getByRole('button',{name:'重试',exact:true})).toBeAttached();
+  }finally{release();}
+});
+
+test('a stale background completion cannot replace the retry interface',async({page})=>{
+  let releaseRiver!:()=>void;const heldRiver=new Promise<void>(resolve=>{releaseRiver=resolve;});let failBattle=true;
+  await page.route(river,async route=>{await heldRiver;await route.continue();});
+  await page.route(battle,route=>failBattle?route.abort('failed'):route.continue());
+  try{
+    await initialize(page);await expect.poll(async()=>(await state(page)).view,{timeout:45000}).toBe('home');
+    await expect.poll(async()=>(await state(page)).message,{timeout:45000}).toContain('资源加载失败');
+    await activate(page,'开始挑战');await expect.poll(async()=>(await state(page)).view).toBe('loading');
+    failBattle=false;await activate(page,'重试');await expect.poll(async()=>(await state(page)).view,{timeout:45000}).toBe('home');
+    const start=page.getByRole('button',{name:'开始挑战',exact:true});await start.focus();const control=await start.elementHandle();
+    releaseRiver();await expect.poll(async()=>(await state(page)).worldReady,{timeout:45000}).toBe(true);
+    expect((await state(page)).message).toBe('');expect((await state(page)).backgroundReady).toBe(true);
+    expect(await control?.evaluate(el=>el.isConnected&&el===document.activeElement)).toBe(true);
+  }finally{releaseRiver();}
 });
 
 test('catalog waits for its artwork and does not open a partial view',async({page})=>{
@@ -194,9 +268,9 @@ test('failed load keeps its progress stable when stale assets finish and retry r
     expect((await state(page)).progress).toBe(failed.progress);
     fail=false;
     await page.setViewportSize({width:1280,height:720});
-    await expect.poll(async()=>(await state(page)).view).toBe('loading');
-    await page.getByRole('button',{name:'重试',exact:true}).focus();
-    await page.keyboard.press('Enter');
+    await expect.poll(async()=>(await state(page)).view).toBe('home');
+    await activate(page,'开始挑战');await expect.poll(async()=>(await state(page)).view).toBe('loading');
+    await activate(page,'重试');
     await expect.poll(async()=>(await state(page)).view,{timeout:45000}).toBe('home');
     expect((await state(page)).message).toBe('');
   }finally{release();}
